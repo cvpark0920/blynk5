@@ -1,0 +1,33 @@
+/* Unified App Styles */
+/* Import fonts from each app */
+@import '../../blynkV5QR_Administrator/src/styles/fonts.css';
+@import '../../blynkV5QR_ShopOperator/src/styles/fonts.css';
+@import '../../blynkV5QR_Customer/src/styles/fonts.css';
+
+/* Import themes from each app */
+/* Note: Each theme.css already has border-border removed from @layer base */
+@import '../../blynkV5QR_Administrator/src/styles/theme.css';
+@import '../../blynkV5QR_ShopOperator/src/styles/theme.css';
+@import '../../blynkV5QR_Customer/src/styles/theme.css';
+
+/* Final override to ensure no border-border is applied globally */
+/* This comes after all theme imports to ensure it takes precedence */
+@layer base {
+  * {
+    @apply outline-ring/50;
+    /* Ensure border-border is not applied - each theme.css already removed it */
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Unified Tailwind CSS - scans all apps */
+@import 'tailwindcss' source(none);
+@source '../../blynkV5QR_Administrator/src/**/*.{js,ts,jsx,tsx}';
+@source '../../blynkV5QR_ShopOperator/src/**/*.{js,ts,jsx,tsx}';
+@source '../../blynkV5QR_Customer/src/**/*.{js,ts,jsx,tsx}';
+@source '../**/*.{js,ts,jsx,tsx}';
+
+@import 'tw-animate-css';

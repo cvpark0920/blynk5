@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: blynk_postgres_dev
+    environment:
+      POSTGRES_USER: blynk
+      POSTGRES_PASSWORD: blynk
+      POSTGRES_DB: blynk_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blynk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blynk_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: blynk_redis_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blynk_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  blynk_network:
+    driver: bridge
