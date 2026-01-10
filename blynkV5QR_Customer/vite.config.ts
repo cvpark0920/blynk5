@@ -17,6 +17,12 @@ export default defineConfig({
       // Include root src directory for UnifiedAuthContext
       'src': path.resolve(__dirname, '../src'),
     },
+    // Preserve symlinks to ensure proper resolution of dependencies
+    preserveSymlinks: false,
+  },
+  // Optimize dependencies to include root src directory
+  optimizeDeps: {
+    include: ['react-router-dom', 'sonner'],
   },
   base: '/customer/',
   build: {
