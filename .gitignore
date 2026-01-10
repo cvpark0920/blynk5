@@ -13,6 +13,11 @@ out
 .next
 .nuxt
 
+# Copied UnifiedAuthContext files (generated during build)
+blynkV5QR_ShopOperator/src/context/UnifiedAuthContext.tsx
+blynkV5QR_Customer/src/context/UnifiedAuthContext.tsx
+blynkV5QR_Administrator/src/context/UnifiedAuthContext.tsx
+
 # # Environment variables
 # .env
 # .env.local
