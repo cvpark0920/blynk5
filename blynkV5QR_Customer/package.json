@@ -4,8 +4,8 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "prebuild": "mkdir -p src/context && cp ../../src/context/UnifiedAuthContext.tsx src/context/ 2>/dev/null || true",
-    "predev": "mkdir -p src/context && cp ../../src/context/UnifiedAuthContext.tsx src/context/ 2>/dev/null || true",
+    "prebuild": "mkdir -p src/context && cp ../src/context/UnifiedAuthContext.tsx src/context/ 2>/dev/null || true",
+    "predev": "mkdir -p src/context && cp ../src/context/UnifiedAuthContext.tsx src/context/ 2>/dev/null || true",
     "build": "vite build",
     "dev": "vite"
   },
