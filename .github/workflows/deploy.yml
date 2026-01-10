@@ -67,6 +67,11 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://your-domain.com/api' }}
         run: npm run build
 
+      - name: Copy root src to Customer for build
+        run: |
+          mkdir -p blynkV5QR_Customer/src/context
+          cp src/context/UnifiedAuthContext.tsx blynkV5QR_Customer/src/context/ || true
+
       - name: Install dependencies - Customer
         working-directory: ./blynkV5QR_Customer
         run: npm ci
