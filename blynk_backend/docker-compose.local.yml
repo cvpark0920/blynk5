@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blynk_backend_local
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://blynk:blynk@postgres:5432/blynk_db
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-key-change-in-production}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:8080/api/auth/google/callback}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - blynk_network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  shop-frontend:
+    build:
+      context: ..
+      dockerfile: blynkV5QR_ShopOperator/Dockerfile
+    container_name: blynk_shop_local
+    restart: unless-stopped
+    networks:
+      - blynk_network
+
+  customer-frontend:
+    build:
+      context: ..
+      dockerfile: blynkV5QR_Customer/Dockerfile
+    container_name: blynk_customer_local
+    restart: unless-stopped
+    networks:
+      - blynk_network
+
+  admin-frontend:
+    build:
+      context: ..
+      dockerfile: blynkV5QR_Administrator/Dockerfile
+    container_name: blynk_admin_local
+    restart: unless-stopped
+    networks:
+      - blynk_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: blynk_nginx_local
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.local.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - shop-frontend
+      - customer-frontend
+      - admin-frontend
+    networks:
+      - blynk_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: blynk_postgres_local
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: blynk
+      POSTGRES_PASSWORD: blynk
+      POSTGRES_DB: blynk_db
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+    networks:
+      - blynk_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blynk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: blynk_redis_local
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_local:/data
+    networks:
+      - blynk_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data_local:
+  redis_data_local:
+
+networks:
+  blynk_network:
+    driver: bridge

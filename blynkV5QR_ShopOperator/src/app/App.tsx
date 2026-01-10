@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import { LanguageProvider } from './context/LanguageContext';
-import { useUnifiedAuth } from '../context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../../../src/context/UnifiedAuthContext';
 import { MainApp } from './MainApp';
 import { LoginScreen } from './components/auth/LoginScreen';
 
@@ -30,7 +30,7 @@ function RestaurantRoutes() {
   );
 }
 
-export default function ShopApp() {
+export function ShopApp() {
   return (
     <LanguageProvider>
       <Routes>
