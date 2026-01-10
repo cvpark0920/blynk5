@@ -6,10 +6,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test:build": "./scripts/test-local-build.sh",
-    "test:build:shop": "cd blynkV5QR_ShopOperator && npm run prebuild && npm run build",
-    "test:build:customer": "cd blynkV5QR_Customer && npm run prebuild && npm run build",
-    "test:build:admin": "cd blynkV5QR_Administrator && npm run prebuild && npm run build"
+    "test:build": "./scripts/test-local-docker-build.sh",
+    "test:compose": "./scripts/test-local-docker-compose.sh",
+    "pre-deploy": "./scripts/pre-deploy-check.sh"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
