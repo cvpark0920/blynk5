@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { TrendingUp, Users, ShoppingBag, DollarSign, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from "../context/UnifiedAuthContext"';
+import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';

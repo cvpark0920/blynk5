@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Clock, BellRing, UtensilsCrossed, MessageSquare, ArrowRight, ChefHat, CircleCheck, Check, List, X, Edit2, StickyNote, ShoppingCart } from 'lucide-react';
 import { Table, Order, WaitingEntry } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from "../context/UnifiedAuthContext"';
+import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
 import { WaitingListPanel } from './WaitingListPanel';

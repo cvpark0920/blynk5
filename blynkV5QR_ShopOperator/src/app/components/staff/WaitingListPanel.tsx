@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Users, Phone, Clock, Plus, Bell, Ban, Check, Edit2, Trash2 } from 'lucide-react';
 import { WaitingEntry, WaitingStatus } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from "../context/UnifiedAuthContext"';
+import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from '../ui/drawer';
