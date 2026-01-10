@@ -16,9 +16,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       // Include root src directory for UnifiedAuthContext
       'src': path.resolve(__dirname, '../src'),
+      // Explicit alias for UnifiedAuthContext to ensure it's found
+      '../../context/UnifiedAuthContext': path.resolve(__dirname, './src/context/UnifiedAuthContext.tsx'),
+      '../context/UnifiedAuthContext': path.resolve(__dirname, './src/context/UnifiedAuthContext.tsx'),
     },
     // Preserve symlinks to ensure proper resolution of dependencies
     preserveSymlinks: false,
+    // Ensure proper file extension resolution
+    extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
   },
   // Optimize dependencies to include root src directory
   optimizeDeps: {
