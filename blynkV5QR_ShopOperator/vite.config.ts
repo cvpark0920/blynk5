@@ -14,6 +14,8 @@ export default defineConfig({
     alias: {
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
+      // Include root src directory for UnifiedAuthContext
+      'src': path.resolve(__dirname, '../src'),
     },
   },
   base: '/shop/',
