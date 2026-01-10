@@ -30,7 +30,7 @@ function RestaurantRoutes() {
   );
 }
 
-export function ShopApp() {
+export default function ShopApp() {
   return (
     <LanguageProvider>
       <Routes>
