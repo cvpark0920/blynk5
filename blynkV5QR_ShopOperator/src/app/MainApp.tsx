@@ -8,7 +8,7 @@ import { BottomNav } from './components/staff/BottomNav';
 import { Sidebar } from './components/staff/Sidebar';
 import { StoreHeader } from './components/staff/StoreHeader';
 import { LoginScreen } from './components/auth/LoginScreen';
-import { useUnifiedAuth } from '../../../src/context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../context/UnifiedAuthContext';
 import { useLanguage } from './context/LanguageContext';
 import { apiClient, getSSEUrl } from '../lib/api';
 import { SSEClient, SSEEvent } from '../lib/sseClient';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Loader2, ChefHat, Lock, ArrowLeft, Delete, DeleteIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';

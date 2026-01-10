@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Globe, LogOut, ShoppingBag, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useLanguage, Language } from '../../context/LanguageContext';
-import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
+import { useUnifiedAuth } from "../context/UnifiedAuthContext"';
 import { useIsMobile } from "../ui/use-mobile";
 import { apiClient } from '../../../lib/api';
 import { BackendNotification } from '../../types/api';

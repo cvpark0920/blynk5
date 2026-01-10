@@ -52,6 +52,11 @@ jobs:
           node-version: '20'
           # Cache disabled - each app has its own package-lock.json in subdirectory
 
+      - name: Copy root src to ShopOperator for build
+        run: |
+          mkdir -p blynkV5QR_ShopOperator/src/context
+          cp -r src/context/* blynkV5QR_ShopOperator/src/context/ || true
+
       - name: Install dependencies - ShopOperator
         working-directory: ./blynkV5QR_ShopOperator
         run: npm ci
@@ -71,6 +76,11 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://your-domain.com/api' }}
         run: npm run build
+
+      - name: Copy root src to Administrator for build
+        run: |
+          mkdir -p blynkV5QR_Administrator/src/context
+          cp -r src/context/* blynkV5QR_Administrator/src/context/ || true
 
       - name: Install dependencies - Administrator
         working-directory: ./blynkV5QR_Administrator

@@ -33,6 +33,12 @@ export default defineConfig({
       output: {
         manualChunks: undefined,
       },
+      // Ensure external dependencies are resolved correctly
+      external: [],
+    },
+    // Include root src directory in build
+    commonjsOptions: {
+      include: [/node_modules/, /src/],
     },
   },
   define: {

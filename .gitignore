@@ -1,9 +1,9 @@
 # Dependencies
 node_modules/
-jspm_packages/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# jspm_packages/
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
 # Build output
 dist/
@@ -13,14 +13,14 @@ out
 .next
 .nuxt
 
-# Environment variables
-.env
-.env.local
-.env.development
-.env.production
-.env.test
-.env.*
-!.env.example
+# # Environment variables
+# .env
+# .env.local
+# .env.development
+# .env.production
+# .env.test
+# .env.*
+# !.env.example
 
 # IDE
 .vscode/

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
+import { useUnifiedAuth } from "../context/UnifiedAuthContext"';
 import { LayoutGrid, ChefHat, UtensilsCrossed, LogOut, Settings, BarChart3 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
