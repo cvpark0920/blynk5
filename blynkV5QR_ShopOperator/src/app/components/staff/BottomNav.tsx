@@ -1,7 +1,7 @@
 import React from 'react';
 import { LayoutGrid, ChefHat, UtensilsCrossed, BarChart3, Settings } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 
 interface BottomNavProps {
   currentTab: 'tables' | 'orders' | 'reports' | 'settings';

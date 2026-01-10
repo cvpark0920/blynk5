@@ -3,7 +3,7 @@ import { MenuItem, MenuCategory } from '../../data';
 import { Tag, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Image as ImageIcon, Check, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 import { apiClient } from '../../../lib/api';
 import { mapBackendCategoryToFrontend, mapBackendMenuItemToFrontend, mapFrontendCategoryToBackend, mapFrontendMenuItemToBackend } from '../../utils/mappers';
 import { BackendMenuCategory, BackendMenuItem } from '../../types/api';

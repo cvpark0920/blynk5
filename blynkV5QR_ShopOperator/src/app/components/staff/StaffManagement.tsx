@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Shield, Key, Plus, MoreHorizontal, Check, X, Trash2, Search, Briefcase, Mail, Lock, Upload, Phone } from 'lucide-react';
 import { Staff, UserRole, StaffStatus } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';

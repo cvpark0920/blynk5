@@ -5,7 +5,7 @@ import { TableManagement } from './TableManagement';
 import { PaymentMethodManagement } from './PaymentMethodManagement';
 import { Staff, MenuItem, MenuCategory, Table } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { UtensilsCrossed, Users, LayoutGrid, CreditCard } from 'lucide-react';
 

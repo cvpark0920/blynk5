@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
-import { useUnifiedAuth } from '../../context/UnifiedAuthContext';
+import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 import { toast } from 'sonner';
 import { apiClient } from '../../../lib/api';
 import { mapBackendTableToFrontend, mapFrontendTableToBackend } from '../../utils/mappers';
