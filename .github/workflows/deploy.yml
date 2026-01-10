@@ -55,7 +55,7 @@ jobs:
       - name: Copy root src to ShopOperator for build
         run: |
           mkdir -p blynkV5QR_ShopOperator/src/context
-          cp -r src/context/* blynkV5QR_ShopOperator/src/context/ || true
+          cp src/context/UnifiedAuthContext.tsx blynkV5QR_ShopOperator/src/context/ || true
 
       - name: Install dependencies - ShopOperator
         working-directory: ./blynkV5QR_ShopOperator
@@ -80,7 +80,7 @@ jobs:
       - name: Copy root src to Administrator for build
         run: |
           mkdir -p blynkV5QR_Administrator/src/context
-          cp -r src/context/* blynkV5QR_Administrator/src/context/ || true
+          cp src/context/UnifiedAuthContext.tsx blynkV5QR_Administrator/src/context/ || true
 
       - name: Install dependencies - Administrator
         working-directory: ./blynkV5QR_Administrator
