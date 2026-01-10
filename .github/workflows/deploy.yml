@@ -50,7 +50,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # Cache disabled - each app has its own package-lock.json in subdirectory
 
       - name: Install dependencies - ShopOperator
         working-directory: ./blynkV5QR_ShopOperator
