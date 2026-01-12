@@ -4,14 +4,15 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY blynk_backend/package*.json ./
+COPY blynk_backend/tsconfig.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY blynk_backend/src ./src
+COPY blynk_backend/prisma ./prisma
 
 # Generate Prisma Client
 RUN npx prisma generate
@@ -24,8 +25,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl openssl-dev
+
 # Copy package files
-COPY package*.json ./
+COPY blynk_backend/package*.json ./
 
 # Install production dependencies only
 RUN npm ci --only=production
@@ -34,6 +38,10 @@ RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Copy frontend build files (built from root directory)
+# Frontend dist folder should be built before Docker build
+COPY dist ./public
 
 # Create logs directory
 RUN mkdir -p logs
