@@ -104,8 +104,16 @@ jobs:
             if ! grep -q "^DOCKER_USERNAME=" .env.production 2>/dev/null; then
               echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env.production
             fi
+            # .env 파일 생성 (docker-compose가 자동으로 읽음)
+            cp .env.production .env
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            docker compose -f docker-compose.prod.yml pull
+            # 이미지 pull 시도 (실패해도 계속 진행)
+            docker compose -f docker-compose.prod.yml pull || true
+            # 이미지가 없으면 빌드
+            if ! docker images | grep -q "${{ secrets.DOCKER_USERNAME }}/blynk-backend"; then
+              echo "Building Docker image locally..."
+              docker compose -f docker-compose.prod.yml build backend
+            fi
             docker compose -f docker-compose.prod.yml up -d
             docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
             docker system prune -f
