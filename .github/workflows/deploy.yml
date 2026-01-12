@@ -99,7 +99,25 @@ jobs:
             fi
             
             # 배포 실행
-            cd /opt/blynk-backend/blynk_backend
+            cd /opt/blynk-backend
+            
+            # Node.js 설치 (없는 경우)
+            if ! command -v node &> /dev/null; then
+              echo "Installing Node.js..."
+              curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+              apt-get install -y nodejs
+            fi
+            
+            # 프론트엔드 빌드 (없는 경우)
+            if [ ! -d "dist" ]; then
+              echo "Building frontend..."
+              npm ci
+              export VITE_API_URL=${{ secrets.VITE_API_URL }}
+              export VITE_FRONTEND_BASE_URL=${{ secrets.VITE_FRONTEND_BASE_URL }}
+              npm run build
+            fi
+            
+            cd blynk_backend
             # DOCKER_USERNAME을 .env.production에 추가 (없는 경우)
             if ! grep -q "^DOCKER_USERNAME=" .env.production 2>/dev/null; then
               echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env.production
@@ -107,13 +125,14 @@ jobs:
             # .env 파일 생성 (docker-compose가 자동으로 읽음)
             cp .env.production .env
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            # 이미지 pull 시도 (실패해도 계속 진행)
-            docker compose -f docker-compose.prod.yml pull || true
-            # 이미지가 없으면 빌드
-            if ! docker images | grep -q "${{ secrets.DOCKER_USERNAME }}/blynk-backend"; then
-              echo "Building Docker image locally..."
-              docker compose -f docker-compose.prod.yml build backend
-            fi
+            
+            # Docker 이미지 빌드 (로컬에서)
+            echo "Building Docker image..."
+            cd ..
+            docker build -f blynk_backend/Dockerfile -t ${{ secrets.DOCKER_USERNAME }}/blynk-backend:latest .
+            
+            # 컨테이너 시작
+            cd blynk_backend
             docker compose -f docker-compose.prod.yml up -d
             docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
             docker system prune -f
