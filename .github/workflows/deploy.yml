@@ -101,7 +101,7 @@ jobs:
             # 배포 실행
             cd /opt/blynk-backend/blynk_backend
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            docker-compose -f docker-compose.prod.yml pull
-            docker-compose -f docker-compose.prod.yml up -d
-            docker-compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
             docker system prune -f
