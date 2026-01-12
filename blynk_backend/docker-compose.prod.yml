@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${DOCKER_USERNAME:-your-docker-username}/blynk-backend:latest
     container_name: blynk_backend_prod
     restart: unless-stopped
     ports:
@@ -15,10 +13,17 @@ services:
       DATABASE_URL: postgresql://blynk:blynk@postgres:5432/blynk_db
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
+      JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
       CORS_ORIGIN: ${CORS_ORIGIN}
+      VIETQR_CLIENT_ID: ${VIETQR_CLIENT_ID:-}
+      VIETQR_API_KEY: ${VIETQR_API_KEY:-}
+      UPLOAD_MAX_SIZE: ${UPLOAD_MAX_SIZE:-5242880}
+      UPLOAD_ALLOWED_TYPES: ${UPLOAD_ALLOWED_TYPES:-image/jpeg,image/png,image/webp}
     depends_on:
       postgres:
         condition: service_healthy

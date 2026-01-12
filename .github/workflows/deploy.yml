@@ -12,13 +12,27 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-backend:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    name: Build Backend Docker Image
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_FRONTEND_BASE_URL: ${{ secrets.VITE_FRONTEND_BASE_URL }}
+        run: npm run build
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -32,122 +46,23 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./blynk_backend
+          context: .
+          file: ./blynk_backend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/blynk-backend:latest
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/blynk-backend:latest
           cache-to: type=inline
 
-  build-frontend:
-    runs-on: ubuntu-latest
-    name: Build Frontend Apps
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies - ShopOperator
-        working-directory: ./blynkV5QR_ShopOperator
-        run: npm ci
-
-      - name: Build ShopOperator
-        working-directory: ./blynkV5QR_ShopOperator
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://your-domain.com/api' }}
-        run: npm run build
-
-      - name: Install dependencies - Customer
-        working-directory: ./blynkV5QR_Customer
-        run: npm ci
-
-      - name: Build Customer
-        working-directory: ./blynkV5QR_Customer
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://your-domain.com/api' }}
-        run: npm run build
-
-      - name: Install dependencies - Administrator
-        working-directory: ./blynkV5QR_Administrator
-        run: npm ci
-
-      - name: Build Administrator
-        working-directory: ./blynkV5QR_Administrator
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://your-domain.com/api' }}
-        run: npm run build
-
-      - name: Create deployment archive
-        run: |
-          mkdir -p deployment/dist
-          cp -r blynkV5QR_ShopOperator/dist deployment/dist/shop
-          cp -r blynkV5QR_Customer/dist deployment/dist/customer
-          cp -r blynkV5QR_Administrator/dist deployment/dist/admin
-          tar -czf frontend-build.tar.gz -C deployment dist
-
-      - name: Upload frontend build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: frontend-build.tar.gz
-          retention-days: 1
-
-  deploy:
-    needs: [build-backend, build-frontend]
-    runs-on: ubuntu-latest
-    name: Deploy to DigitalOcean Droplet
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download frontend build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: .
-
-      - name: Prepare deployment files
-        run: |
-          mkdir -p deployment-package
-          tar -xzf frontend-build.tar.gz -C deployment-package/
-          cp deployment/nginx.conf deployment-package/
-          cp deployment/deploy.sh deployment-package/
-          tar -czf deployment-package.tar.gz -C deployment-package .
-
       - name: Deploy to DigitalOcean Droplet
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          source: "frontend-build.tar.gz,deployment-package.tar.gz"
-          target: "/tmp/blynk-deploy"
-          strip_components: 0
-
-      - name: Execute deployment script
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script: |
-            set -e
-            cd /tmp/blynk-deploy
-            
-            # Extract deployment package
-            tar -xzf deployment-package.tar.gz
-            
-            # Make deploy script executable
-            chmod +x deploy.sh
-            
-            # Run deployment script as root
-            sudo ./deploy.sh
-            
-            # Cleanup
-            rm -rf /tmp/blynk-deploy
+            cd /opt/blynk-backend/blynk_backend
+            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            docker-compose -f docker-compose.prod.yml pull
+            docker-compose -f docker-compose.prod.yml up -d
+            docker-compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
+            docker system prune -f
