@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -117,6 +118,7 @@ model Restaurant {
   orders    Order[]
   waitingList WaitingList[]
   notifications Notification[]
+  quickChips   QuickChip[]
 
   @@map("restaurants")
 }
@@ -421,4 +423,33 @@ model Bank {
   @@map("banks")
   @@index([code])
   @@index([shortName])
+}
+
+enum QuickChipType {
+  CUSTOMER_REQUEST
+  STAFF_RESPONSE
+}
+
+model QuickChip {
+  id            String        @id @default(cuid())
+  restaurantId String?       @map("restaurant_id")
+  type         QuickChipType
+  icon         String
+  labelKo      String         @map("label_ko")
+  labelVn      String         @map("label_vn")
+  labelEn      String?        @map("label_en")
+  messageKo    String?        @map("message_ko")
+  messageVn    String?        @map("message_vn")
+  messageEn    String?        @map("message_en")
+  displayOrder Int           @default(0) @map("display_order")
+  isActive     Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  restaurant   Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("quick_chips")
+  @@index([restaurantId])
+  @@index([type])
+  @@index([displayOrder])
 }
