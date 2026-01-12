@@ -100,6 +100,10 @@ jobs:
             
             # 배포 실행
             cd /opt/blynk-backend/blynk_backend
+            # DOCKER_USERNAME을 .env.production에 추가 (없는 경우)
+            if ! grep -q "^DOCKER_USERNAME=" .env.production 2>/dev/null; then
+              echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env.production
+            fi
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
