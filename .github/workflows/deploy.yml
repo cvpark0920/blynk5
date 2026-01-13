@@ -108,14 +108,12 @@ jobs:
               apt-get install -y nodejs
             fi
             
-            # 프론트엔드 빌드 (없는 경우)
-            if [ ! -d "dist" ]; then
-              echo "Building frontend..."
-              npm ci
-              export VITE_API_URL=${{ secrets.VITE_API_URL }}
-              export VITE_FRONTEND_BASE_URL=${{ secrets.VITE_FRONTEND_BASE_URL }}
-              npm run build
-            fi
+            # 프론트엔드 빌드 (항상 재빌드하여 환경 변수 반영)
+            echo "Building frontend..."
+            npm ci
+            export VITE_API_URL=${{ secrets.VITE_API_URL }}
+            export VITE_FRONTEND_BASE_URL=${{ secrets.VITE_FRONTEND_BASE_URL }}
+            npm run build
             
             cd blynk_backend
             # DOCKER_USERNAME을 .env.production에 추가 (없는 경우)
