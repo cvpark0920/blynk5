@@ -133,4 +133,9 @@ jobs:
             cd blynk_backend
             docker compose -f docker-compose.prod.yml up -d
             docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
+            
+            # Seed 데이터 실행 (Quick Chips 등)
+            echo "Running database seed..."
+            docker compose -f docker-compose.prod.yml exec -T backend npx tsx prisma/seed.ts || echo "Seed 실행 중 오류 발생 (이미 데이터가 있을 수 있음)"
+            
             docker system prune -f

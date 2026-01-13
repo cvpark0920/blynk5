@@ -29,11 +29,12 @@ import * as LucideIcons from 'lucide-react';
 
 // 아이콘 목록 (자주 사용되는 아이콘들)
 const ICON_OPTIONS = [
-  'MessageSquare', 'Reply', 'Coffee', 'Utensils', 'Water', 'Wifi', 'Music', 'Volume2',
-  'Thermometer', 'Wind', 'Sun', 'Moon', 'Bell', 'AlertCircle', 'CheckCircle', 'XCircle',
+  'MessageSquare', 'Reply', 'Coffee', 'Utensils', 'UtensilsCrossed', 'Droplets', 'Water', 'Wifi', 'Music', 'Volume2',
+  'Thermometer', 'ThermometerSun', 'ThermometerSnowflake', 'Wind', 'Sun', 'Moon', 'Bell', 'AlertCircle', 'CheckCircle', 'XCircle',
   'Plus', 'Minus', 'Heart', 'Star', 'Smile', 'ThumbsUp', 'HelpCircle', 'Info',
   'Clock', 'Calendar', 'MapPin', 'Phone', 'Mail', 'User', 'Users', 'ShoppingCart',
-  'Package', 'Gift', 'CreditCard', 'DollarSign', 'Receipt', 'FileText', 'Image', 'Video'
+  'Package', 'Gift', 'CreditCard', 'DollarSign', 'Banknote', 'Receipt', 'FileText', 'Image', 'Video',
+  'ChefHat', 'ShoppingBag', 'Napkin', 'Flame', 'Leaf', 'ArrowRight'
 ];
 
 interface QuickChip {
