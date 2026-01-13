@@ -271,8 +271,11 @@ export const getUnreadCount = async (
       }
     }
 
+    // If no restaurant found, return 0 (e.g., for platform admin users)
+    // This is not an error - admin users may not be associated with a restaurant
     if (!restaurantId) {
-      throw createError('Restaurant not found for this user', 404);
+      res.json({ success: true, data: 0 });
+      return;
     }
 
     const count = await notificationService.getUnreadCount(restaurantId);

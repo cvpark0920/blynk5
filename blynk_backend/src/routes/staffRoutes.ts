@@ -3,6 +3,7 @@ import { authenticate, authorize } from '../middleware/auth';
 import {
   getTables,
   updateTableStatus,
+  resetTable,
   createTable,
   updateTable,
   deleteTable,
@@ -28,6 +29,7 @@ import {
   deleteStaff,
   getPaymentMethods,
   updatePaymentMethods,
+  generateQRCode,
   getSalesReport,
   getSalesHistory,
 } from '../controllers/staffController';
@@ -44,17 +46,19 @@ const router = Router();
 // All staff routes require authentication
 router.use(authenticate);
 // Note: authorize middleware removed - each controller handles its own authorization
-// This allows PIN-logged-in staff (with CUSTOMER role) to access endpoints
-// where controllers check for OWNER/MANAGER staff roles
+// PIN-logged-in staff have staffId in token, so they can access endpoints
+// Controllers check for OWNER/MANAGER staff roles or restaurant ownership
 
 router.get('/my-restaurant', getMyRestaurant);
 router.get('/payment-methods', getPaymentMethods);
 router.put('/payment-methods', updatePaymentMethods);
+router.post('/generate-qr', generateQRCode);
 router.get('/reports/sales', getSalesReport);
 router.get('/reports/sales-history', getSalesHistory);
 router.get('/tables', getTables);
 router.post('/tables', createTable);
 router.put('/tables/:tableId', updateTableStatus);
+router.put('/tables/:tableId/reset', resetTable);
 router.put('/tables/:tableId/info', updateTable);
 router.put('/tables/:tableId/guests', updateTableGuestCount);
 router.delete('/tables/:tableId', deleteTable);

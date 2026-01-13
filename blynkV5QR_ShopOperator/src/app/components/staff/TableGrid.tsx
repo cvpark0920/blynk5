@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, Clock, BellRing, UtensilsCrossed, MessageSquare, ArrowRight, ChefHat, CircleCheck, Check, List, X, Edit2, StickyNote, ShoppingCart } from 'lucide-react';
+import { User, Clock, BellRing, UtensilsCrossed, MessageSquare, ArrowRight, ChefHat, CircleCheck, Check, List, X, Edit2, StickyNote, ShoppingCart, RotateCcw, CheckCircle2, CreditCard } from 'lucide-react';
 import { Table, Order, WaitingEntry } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
@@ -57,9 +57,14 @@ interface TableGridProps {
 
 export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload, onTablesReload, menu = [], onChatNew, tableToOpen, onTableOpened }: TableGridProps) {
   const { t, language } = useLanguage();
-  const { shopRestaurantId: restaurantId } = useUnifiedAuth();
+  const { shopRestaurantId: restaurantId, shopUserRole, shopUser } = useUnifiedAuth();
   const [detailTableId, setDetailTableId] = useState<number | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  
+  // Debug: Log shopUserRole
+  useEffect(() => {
+    console.log('TableGrid shopUserRole:', shopUserRole, 'shopUser:', shopUser);
+  }, [shopUserRole, shopUser]);
   
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [waitingList, setWaitingList] = useState<WaitingEntry[]>([]);
@@ -73,6 +78,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
   const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [tableRequestStatus, setTableRequestStatus] = useState<Map<number, boolean>>(new Map());
   const [statusFilter, setStatusFilter] = useState<'all' | 'empty' | 'ordering' | 'dining' | 'cleaning'>('all');
+  const [quickReplies, setQuickReplies] = useState<Array<{ labelKo: string; labelVn: string; labelEn?: string; messageKo?: string; messageVn?: string; messageEn?: string }>>([]);
   const isDesktop = useIsDesktop();
 
   // Derived state for the table currently being viewed (or last viewed if closing)
@@ -277,12 +283,55 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     }
   }, [onChatNew, updateTableRequestStatus]);
 
-  const QUICK_REPLIES = [
-    t('reply.coming'),
-    t('reply.wait'),
-    t('reply.soldout'),
-    t('reply.kitchen')
-  ];
+  // Load quick reply chips from API
+  useEffect(() => {
+    const loadQuickReplies = async () => {
+      if (!restaurantId) return;
+      
+      try {
+        console.log('Loading quick reply chips for restaurant:', restaurantId);
+        const response = await apiClient.getQuickChips(restaurantId, 'STAFF_RESPONSE');
+        console.log('Quick reply chips response:', response);
+        
+        if (response.success && response.data) {
+          // Convert to format used in the component
+          const replies = response.data.map((chip) => ({
+            labelKo: chip.labelKo,
+            labelVn: chip.labelVn,
+            labelEn: chip.labelEn,
+            messageKo: chip.messageKo || chip.labelKo,
+            messageVn: chip.messageVn || chip.labelVn,
+            messageEn: chip.messageEn || chip.labelEn,
+          }));
+          setQuickReplies(replies);
+        } else {
+          console.error('Failed to load quick reply chips:', response.error);
+          // Fallback to empty array
+          setQuickReplies([]);
+        }
+      } catch (error) {
+        console.error('Failed to load quick reply chips:', error);
+        // Fallback to empty array
+        setQuickReplies([]);
+      }
+    };
+    
+    loadQuickReplies();
+  }, [restaurantId]);
+
+  // Get quick reply text based on language
+  const getQuickReplyText = (reply: { labelKo: string; labelVn: string; labelEn?: string }) => {
+    if (language === 'ko') return reply.labelKo;
+    if (language === 'vn') return reply.labelVn;
+    return reply.labelEn || reply.labelKo;
+  };
+
+  // Get quick reply message based on language
+  const getQuickReplyMessage = (reply: { messageKo?: string; messageVn?: string; messageEn?: string }) => {
+    if (language === 'ko') return reply.messageKo || '';
+    if (language === 'vn') return reply.messageVn || '';
+    return reply.messageEn || reply.messageKo || '';
+  };
 
   // Prevent duplicate message sending
   const sendingMessageRef = useRef<Set<string>>(new Set());
@@ -502,11 +551,24 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
             if (o.tableId !== selectedTable.id || o.status === 'cancelled') {
               return false;
             }
-            // If table has an active session, only show orders from that session
-            // This prevents showing orders from previous customers
-            if (selectedTable.currentSessionId && o.sessionId) {
-              return o.sessionId === selectedTable.currentSessionId;
+            
+            // If table has an active session, prioritize showing orders from that session
+            // But also show recent orders without sessionId (for orders created before sessionId is set)
+            if (selectedTable.currentSessionId) {
+              // If order has sessionId, it must match the table's currentSessionId
+              if (o.sessionId) {
+                return o.sessionId === selectedTable.currentSessionId;
+              }
+              // If order doesn't have sessionId but is recent (within 30 minutes), show it
+              // This handles the case where order was created before sessionId was set
+              if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
+                const orderAge = Date.now() - o.timestamp.getTime();
+                const thirtyMinutes = 30 * 60 * 1000;
+                return orderAge < thirtyMinutes;
+              }
+              return false;
             }
+            
             // If no active session but table is ordering/dining, show orders that match the table
             // This handles the case where order was just created but table's currentSessionId hasn't been updated yet
             // Only show recent orders (within last 30 minutes) to avoid showing old orders
@@ -581,20 +643,22 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         updates = { guests: guestsCount, orderTime: new Date(), totalAmount: 0 };
         break;
       case 'ordering':
-        // Check if there are any orders before allowing dining status
-        const ordersForTable = orders.filter(
+        // If there are served orders, open checkout sheet for payment
+        // No need to change to dining status - payment can be done while ordering
+        const servedOrdersForTable = orders.filter(
           o => o.tableId === selectedTable.id && 
-               o.status !== 'cancelled' &&
+               o.status === 'served' &&
                o.type === 'order'
         );
         
-        if (ordersForTable.length === 0) {
-          toast.error(t('table.error.no_orders') || '주문 내역이 없습니다. 먼저 주문을 추가해주세요.');
+        if (servedOrdersForTable.length > 0) {
+          // Open checkout sheet for payment
+          setIsCheckoutOpen(true);
+          return;
+        } else {
+          toast.error(t('table.error.no_served_orders') || '서빙 완료된 메뉴가 없습니다. 먼저 서빙을 완료해주세요.');
           return;
         }
-        
-        newStatus = 'dining';
-        break;
       case 'cleaning':
         newStatus = 'empty';
         // Reset guests count when table becomes empty
@@ -631,6 +695,67 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     } catch (error: unknown) {
       console.error('Error updating table status:', error);
       toast.error(t('table.error.update_failed'));
+    }
+  };
+
+  const handleResetTable = async () => {
+    if (!selectedTable || !selectedTable.tableId) return;
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      language === 'ko' 
+        ? `테이블 ${selectedTable.id}을(를) 공석으로 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
+        : language === 'vn'
+        ? `Bạn có chắc chắn muốn đặt lại bàn ${selectedTable.id} về trạng thái trống? Hành động này không thể hoàn tác.`
+        : `Are you sure you want to reset table ${selectedTable.id} to empty? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const result = await apiClient.resetTable(selectedTable.tableId);
+      
+      if (result.success) {
+        // Reload tables from backend to get accurate state
+        if (onTablesReload) {
+          await onTablesReload();
+        } else {
+          // Fallback: Update local state if reload callback is not available
+          setTables(prev => prev.map(t => 
+            t.id === selectedTable.id 
+              ? { ...t, status: 'empty', guests: 0, totalAmount: 0, orderTime: undefined }
+              : t
+          ));
+        }
+
+        // Reload orders to remove orders from reset table
+        // This ensures the orders array doesn't contain stale data for empty tables
+        if (onOrdersReload) {
+          await onOrdersReload();
+        }
+
+        // Close detail panel since table is now empty
+        setIsDetailOpen(false);
+
+        toast.success(
+          language === 'ko'
+            ? `테이블 ${selectedTable.id}이(가) 공석으로 초기화되었습니다.`
+            : language === 'vn'
+            ? `Bàn ${selectedTable.id} đã được đặt lại về trạng thái trống.`
+            : `Table ${selectedTable.id} has been reset to empty.`
+        );
+      } else {
+        throw new Error(result.error?.message || 'Failed to reset table');
+      }
+    } catch (error: unknown) {
+      console.error('Error resetting table:', error);
+      toast.error(
+        language === 'ko'
+          ? '테이블 초기화에 실패했습니다.'
+          : language === 'vn'
+          ? 'Không thể đặt lại bàn.'
+          : 'Failed to reset table.'
+      );
     }
   };
 
@@ -671,10 +796,12 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     }
   };
 
-  const getActionButtonText = (status: Table['status']) => {
+  const getActionButtonText = (status: Table['status'], hasServedOrders: boolean = false) => {
       switch (status) {
           case 'empty': return t('table.action.seat_guests');
-          case 'ordering': return t('table.action.start_dining');
+          case 'ordering': 
+            // If there are served orders, show "결제" (Payment) instead of "식사 시작" (Start Dining)
+            return hasServedOrders ? (t('table.action.checkout') || '결제') : t('table.action.start_dining');
           case 'dining': return t('table.action.checkout_clear');
           case 'cleaning': return t('table.action.mark_cleaned');
           default: return t('table.action.manage');
@@ -757,47 +884,80 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         );
     }
     
+    // Calculate table status badge using the same logic as table cards
+    // Priority: 청소중 > 결제완료 > 서빙완료 > 조리중 > 식사중 > 주문완료 > 주문중
+    const tableOrdersForStatus = tableOrders.filter((o: any) => o.type === 'order');
+    const pendingOrders = tableOrdersForStatus.filter((o: any) => o.status === 'pending');
+    const cookingOrders = tableOrdersForStatus.filter((o: any) => o.status === 'cooking');
+    const servedOrders = tableOrdersForStatus.filter((o: any) => o.status === 'served');
+    const paidOrders = tableOrdersForStatus.filter((o: any) => o.status === 'paid');
+    
+    let statusLabel = '';
+    if (selectedTable.status === 'cleaning') {
+      statusLabel = t('table.status.cleaning') || '청소중';
+    } else if (selectedTable.status === 'dining' && paidOrders.length > 0) {
+      statusLabel = t('payment.status.completed') || '결제완료';
+    } else if (cookingOrders.length > 0) {
+      statusLabel = t('order.status.cooking') || '조리중';
+    } else if (servedOrders.length > 0 && paidOrders.length === 0) {
+      // 서빙완료 - 서빙 완료된 주문이 있고 결제가 완료되지 않은 경우 (ORDERING 또는 DINING 상태)
+      statusLabel = t('order.status.served') || '서빙완료';
+    } else if (selectedTable.status === 'dining' && paidOrders.length === 0) {
+      // 서빙완료 - DINING 상태이고 결제가 완료되지 않은 경우 (서빙 완료 주문이 없어도)
+      statusLabel = t('order.status.served') || '서빙완료';
+    } else if (selectedTable.status === 'ordering' && pendingOrders.length === 0 && tableOrdersForStatus.length > 0 && (cookingOrders.length > 0 || servedOrders.length > 0 || paidOrders.length > 0)) {
+      statusLabel = t('order.status.completed') || '주문완료';
+    } else if (selectedTable.status === 'ordering') {
+      statusLabel = t('status.ordering') || '주문중';
+    } else {
+      // Fallback to table status
+      statusLabel = t(`status.${selectedTable.status}`) || selectedTable.status;
+    }
+    
     return (
-        <div className="bg-gradient-to-br from-white via-zinc-50/30 to-white px-6 py-6 rounded-t-[32px] border-b border-zinc-200/60 flex items-center justify-between sticky top-0 z-10 backdrop-blur-sm shadow-sm shadow-zinc-100/30">
-            <div className="flex items-center gap-4">
-                <div className="h-14 w-14 bg-gradient-to-br from-zinc-900 to-zinc-800 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-zinc-900/20">
+        <div className="bg-white px-4 py-4 border-b border-zinc-200 flex items-center justify-between sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-zinc-900 rounded-lg flex items-center justify-center text-white text-lg font-bold">
                     {selectedTable.id}
                 </div>
                 <div>
-                    <TitleComponent className="text-xl font-bold text-zinc-900 flex items-center gap-3 mb-1.5">
+                    <TitleComponent className="text-base font-semibold text-zinc-900 flex items-center gap-2 mb-0.5">
                         <span>{t('table.detail.orders')}</span>
-                        <Badge variant="secondary" className="bg-gradient-to-r from-zinc-100 to-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-200/60 font-semibold text-xs px-2.5 py-0.5">
-                            {t(`status.${selectedTable.status}`)}
-                        </Badge>
+                        <span className="text-xs font-medium text-zinc-500 px-2 py-0.5 bg-zinc-100 rounded">
+                            {statusLabel}
+                        </span>
                     </TitleComponent>
-                    <DescriptionComponent className="text-xs font-medium text-zinc-500 flex items-center gap-3">
-                        <span className="flex items-center gap-1.5">
-                            <User size={13} className="text-zinc-400" />
-                            <span className="font-semibold text-zinc-700">{selectedTable.guests}</span>
+                    <DescriptionComponent className="text-xs text-zinc-500 flex items-center gap-2">
+                        <span className="flex items-center gap-1">
+                            <User size={11} className="text-zinc-400" />
+                            <span className="font-medium text-zinc-700">{selectedTable.guests}</span>
                             <span className="text-zinc-400">/</span>
-                            <span>{t('table.guests')}</span>
+                            <span>{selectedTable.capacity}</span>
                         </span>
-                        <span className="w-1 h-1 rounded-full bg-zinc-300"></span>
-                        <span className="flex items-center gap-1.5">
-                            <Clock size={13} className="text-zinc-400" />
-                            <span className="font-semibold text-zinc-700 font-mono">
-                                {selectedTable.orderTime ? Math.floor((Date.now() - selectedTable.orderTime.getTime()) / 60000) : 0}
-                            </span>
-                            <span>{t('table.minutes')}</span>
-                        </span>
+                        {selectedTable.orderTime && (
+                            <>
+                                <span className="w-0.5 h-0.5 rounded-full bg-zinc-300"></span>
+                                <span className="flex items-center gap-1">
+                                    <Clock size={11} className="text-zinc-400" />
+                                    <span className="font-medium text-zinc-700 font-mono">
+                                        {Math.floor((Date.now() - selectedTable.orderTime.getTime()) / 60000)}
+                                    </span>
+                                    <span>분</span>
+                                </span>
+                            </>
+                        )}
                     </DescriptionComponent>
                 </div>
             </div>
             <div className="text-right">
-                <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">{t('table.detail.total')}</p>
-                <p className="text-2xl font-bold text-zinc-900 tracking-tight">
+                <p className="text-xs text-zinc-500 font-medium mb-0.5">{t('table.detail.total')}</p>
+                <p className="text-lg font-bold text-zinc-900">
                   {formatPriceVND(
                     tableOrders
                       .filter((o: any) => o.type === 'order')
                       .reduce((sum: number, order: any) => {
                         if (!order.items || order.items.length === 0) return sum;
                         const orderTotal = order.items.reduce((itemSum: number, item: any) => {
-                          // item.price is totalPrice (sum of unitPrice * quantity for the item)
                           return itemSum + (item.price || 0);
                         }, 0);
                         return sum + orderTotal;
@@ -877,19 +1037,103 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
             {tables
               .filter(table => statusFilter === 'all' || table.status === statusFilter)
               .map(table => {
-              const activeOrder = orders.find(o => o.tableId === table.id && o.status === 'pending' && o.type === 'order');
+              // Get all orders for this table (exclude cancelled orders)
+              // Also exclude orders for empty tables to prevent showing stale data
+              const tableOrders = table.status === 'empty' 
+                ? [] 
+                : orders.filter(o => 
+                    o.tableId === table.id && 
+                    o.type === 'order' && 
+                    o.status !== 'cancelled'
+                  );
+              const pendingOrders = tableOrders.filter(o => o.status === 'pending');
+              const cookingOrders = tableOrders.filter(o => o.status === 'cooking');
+              const servedOrders = tableOrders.filter(o => o.status === 'served');
+              const paidOrders = tableOrders.filter(o => o.status === 'paid');
               
               // Check for active requests from tableRequestStatus map
               const hasRequestFromStatus = tableRequestStatus.get(table.id) || false;
-              
-              // Also check orders array for request type (for backward compatibility)
               const activeRequestFromOrders = orders.find(o => o.tableId === table.id && o.status === 'pending' && o.type === 'request');
-              
               const activeRequest = hasRequestFromStatus || activeRequestFromOrders;
-              const hasAlert = activeOrder || activeRequest;
+              const hasAlert = pendingOrders.length > 0 || activeRequest;
+              
+              // Determine table status badge based on table status and order statuses
+              // Priority: 청소중 > 결제완료 > 서빙완료 > 조리중 > 식사중 > 주문완료 > 주문중
+              let tableStatusBadge: {
+                label: string;
+                color: string;
+                bgColor: string;
+                borderColor: string;
+                textColor: string;
+              } | null = null;
+              
+              if (table.status === 'cleaning') {
+                // 청소중
+                tableStatusBadge = {
+                  label: t('table.status.cleaning') || '청소중',
+                  color: 'blue',
+                  bgColor: 'bg-blue-500',
+                  borderColor: 'border-blue-500',
+                  textColor: 'text-white'
+                };
+              } else if (table.status === 'dining' && paidOrders.length > 0) {
+                // 결제완료
+                tableStatusBadge = {
+                  label: t('payment.status.completed') || '결제완료',
+                  color: 'emerald',
+                  bgColor: 'bg-emerald-500',
+                  borderColor: 'border-emerald-500',
+                  textColor: 'text-white'
+                };
+              } else if (cookingOrders.length > 0) {
+                // 조리중
+                tableStatusBadge = {
+                  label: t('order.status.cooking') || '조리중',
+                  color: 'blue',
+                  bgColor: 'bg-blue-500',
+                  borderColor: 'border-blue-500',
+                  textColor: 'text-white'
+                };
+              } else if (servedOrders.length > 0 && paidOrders.length === 0) {
+                // 서빙완료 - 서빙 완료된 주문이 있고 결제가 완료되지 않은 경우 (ORDERING 또는 DINING 상태)
+                tableStatusBadge = {
+                  label: t('order.status.served') || '서빙완료',
+                  color: 'zinc',
+                  bgColor: 'bg-zinc-500',
+                  borderColor: 'border-zinc-500',
+                  textColor: 'text-white'
+                };
+              } else if (table.status === 'dining' && paidOrders.length === 0) {
+                // 서빙완료 - DINING 상태이고 결제가 완료되지 않은 경우 (서빙 완료 주문이 없어도)
+                tableStatusBadge = {
+                  label: t('order.status.served') || '서빙완료',
+                  color: 'zinc',
+                  bgColor: 'bg-zinc-500',
+                  borderColor: 'border-zinc-500',
+                  textColor: 'text-white'
+                };
+              } else if (table.status === 'ordering' && pendingOrders.length === 0 && tableOrders.length > 0 && cookingOrders.length > 0) {
+                // 주문완료 - 주문이 있고 조리 중인 상태
+                tableStatusBadge = {
+                  label: t('order.status.completed') || '주문완료',
+                  color: 'orange',
+                  bgColor: 'bg-orange-500',
+                  borderColor: 'border-orange-500',
+                  textColor: 'text-white'
+                };
+              } else if (table.status === 'ordering') {
+                // 주문중 - 주문 대기 중이거나 아직 주문이 없는 상태
+                tableStatusBadge = {
+                  label: t('status.ordering') || '주문중',
+                  color: 'orange',
+                  bgColor: 'bg-orange-500',
+                  borderColor: 'border-orange-500',
+                  textColor: 'text-white'
+                };
+              }
               
               // Check if table is truly empty (status is empty AND no guests AND no active orders)
-              const isTableEmpty = table.status === 'empty' && table.guests === 0 && !activeOrder;
+              const isTableEmpty = table.status === 'empty' && table.guests === 0 && pendingOrders.length === 0;
               const isSeatingTarget = seatingCandidate && isTableEmpty;
               
               // If seating candidate exists, only allow clicking truly empty tables
@@ -928,7 +1172,8 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   `}
                 >
                   {/* Header: ID, Floor, Status */}
-                  <div className="flex justify-between items-start">
+                  <div className="flex flex-col gap-1.5">
+                    {/* First Row: Table Number and Floor */}
                     <div className="flex items-baseline gap-1.5">
                         <span className={`text-xl font-bold tracking-tight leading-none ${
                             hasAlert && !isSeatingTarget ? 'text-rose-600' : 
@@ -941,27 +1186,22 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                         </span>
                     </div>
 
-                    {/* Status Indicator */}
-                    {hasAlert && table.status !== 'cleaning' ? (
-                      <div className="bg-rose-500 text-white px-2 py-1 rounded-md shadow-sm shadow-rose-200 flex items-center gap-1.5 animate-in zoom-in-50">
-                        <BellRing size={10} fill="currentColor" className="animate-pulse" />
-                        <span className="text-[10px] font-bold leading-none">{activeRequest ? t('table.status.call') : t('table.status.order')}</span>
-                      </div>
-                    ) : (
-                       table.status !== 'empty' && (
-                           <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold capitalize border bg-white/50 backdrop-blur-sm ${
-                               table.status === 'ordering' ? 'border-orange-100 text-orange-600 bg-orange-50/50' :
-                               table.status === 'dining' ? 'border-emerald-100 text-emerald-600 bg-emerald-50/50' :
-                               table.status === 'cleaning' ? 'border-blue-100 text-blue-600 bg-blue-50/50' :
-                               'border-blue-100 text-blue-600 bg-blue-50/50'
-                           }`}>
-                               <div className={`w-1.5 h-1.5 rounded-full ${getIndicatorColor(table.status)}`} />
-                               <span className="leading-none">
-                                 {table.status === 'cleaning' ? t('table.status.cleaning') : t(`status.${table.status}`)}
-                               </span>
-                           </div>
-                       )
-                    )}
+                    {/* Second Row: Status Badge and Alert Badge */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Status Badge */}
+                      {tableStatusBadge && (
+                        <div className={`${tableStatusBadge.bgColor} ${tableStatusBadge.textColor} px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5`}>
+                          <span className="text-[10px] font-bold leading-none">{tableStatusBadge.label}</span>
+                        </div>
+                      )}
+                      {/* Alert Badge - Show separately from status badge */}
+                      {hasAlert && table.status !== 'cleaning' && (
+                        <div className="bg-rose-500 text-white px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5 animate-in zoom-in-50">
+                          <BellRing size={10} fill="currentColor" className="animate-pulse" />
+                          <span className="text-[10px] font-bold leading-none">{activeRequest ? t('table.status.call') : t('table.status.order')}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Content Area */}
@@ -1073,10 +1313,13 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     handleReply={handleReply}
                     handleUpdateOrderStatus={handleUpdateOrderStatus}
                     handleSmartAction={handleSmartAction}
+                    handleResetTable={handleResetTable}
                     closeTableDetail={closeTableDetail}
                     getActionButtonText={getActionButtonText}
                     getActionButtonColor={getActionButtonColor}
-                    QUICK_REPLIES={QUICK_REPLIES}
+                    quickReplies={quickReplies}
+                    getQuickReplyText={getQuickReplyText}
+                    getQuickReplyMessage={getQuickReplyMessage}
                     handleUpdateGuests={handleUpdateGuests}
                     handleUpdateMemo={handleUpdateMemo}
                     onOrderEntryClick={() => setIsOrderEntryOpen(true)}
@@ -1084,6 +1327,10 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     menu={menu}
                     formatPriceVND={formatPriceVND}
                     language={language}
+                    shopUserRole={shopUserRole}
+                    updateTableToCleaning={updateTableToCleaning}
+                    onTablesReload={onTablesReload}
+                    onCheckoutClick={() => setIsCheckoutOpen(true)}
                 />}
             </SheetContent>
           </Sheet>
@@ -1104,10 +1351,13 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     handleReply={handleReply}
                     handleUpdateOrderStatus={handleUpdateOrderStatus}
                     handleSmartAction={handleSmartAction}
+                    handleResetTable={handleResetTable}
                     closeTableDetail={closeTableDetail}
                     getActionButtonText={getActionButtonText}
                     getActionButtonColor={getActionButtonColor}
-                    QUICK_REPLIES={QUICK_REPLIES}
+                    quickReplies={quickReplies}
+                    getQuickReplyText={getQuickReplyText}
+                    getQuickReplyMessage={getQuickReplyMessage}
                     handleUpdateGuests={handleUpdateGuests}
                     handleUpdateMemo={handleUpdateMemo}
                     onOrderEntryClick={() => setIsOrderEntryOpen(true)}
@@ -1115,9 +1365,13 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     menu={menu}
                     formatPriceVND={formatPriceVND}
                     language={language}
+                    shopUserRole={shopUserRole}
+                    updateTableToCleaning={updateTableToCleaning}
+                    onTablesReload={onTablesReload}
+                    onCheckoutClick={() => setIsCheckoutOpen(true)}
                 />}
             </DrawerContent>
-          </Drawer>
+        </Drawer>
       )}
 
       {/* Order Entry Sheet */}
@@ -1162,10 +1416,19 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
 // Extracted Component for the body content
 function DetailBody({ 
     detailTableId, tables, selectedTable, tableOrders, chatMessages = [], isLoadingChat = false, t, replyingTo, setReplyingTo, handleReply, handleUpdateOrderStatus, 
-    handleSmartAction, closeTableDetail, getActionButtonText, getActionButtonColor, QUICK_REPLIES,
-    handleUpdateGuests, handleUpdateMemo, onOrderEntryClick, updatingOrderId, menu = [], formatPriceVND, language = 'ko'
+    handleSmartAction, handleResetTable, closeTableDetail, getActionButtonText, getActionButtonColor, quickReplies, getQuickReplyText, getQuickReplyMessage,
+    handleUpdateGuests, handleUpdateMemo, onOrderEntryClick, updatingOrderId, menu = [], formatPriceVND, language = 'ko', shopUserRole,
+    updateTableToCleaning, onTablesReload, onCheckoutClick
 }: any) {
     const [isEditingGuests, setIsEditingGuests] = useState(false);
+    
+    // Check if user can reset table (OWNER or MANAGER)
+    const canResetTable = shopUserRole === 'OWNER' || shopUserRole === 'MANAGER';
+    
+    // Debug log
+    useEffect(() => {
+        console.log('DetailBody shopUserRole:', shopUserRole, 'canResetTable:', canResetTable);
+    }, [shopUserRole, canResetTable]);
     const [isEditingMemo, setIsEditingMemo] = useState(false);
     const [chatInputText, setChatInputText] = useState('');
     const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
@@ -1175,19 +1438,31 @@ function DetailBody({
     const currentTable = tables.find((t: Table) => t.id === detailTableId) || selectedTable;
     const [tempGuests, setTempGuests] = useState(currentTable?.guests?.toString() || '0');
     const [tempMemo, setTempMemo] = useState(currentTable?.memo || '');
+    const [savedGuests, setSavedGuests] = useState<number | null>(null); // Track saved guest count for immediate UI update
 
     useEffect(() => {
         if (currentTable) {
-            setTempGuests(currentTable.guests?.toString() || '0');
+            const currentGuests = currentTable.guests ?? 0;
+            setTempGuests(currentGuests.toString());
+            // If savedGuests matches currentTable.guests, clear the saved state
+            if (savedGuests !== null && savedGuests === currentGuests) {
+                setSavedGuests(null);
+            }
             setTempMemo(currentTable.memo || '');
         }
     }, [currentTable?.guests, currentTable?.memo, currentTable?.id]); // tables 배열이 업데이트되면 자동으로 반영됨
 
-    const saveGuests = () => {
+    const saveGuests = async () => {
         const val = parseInt(tempGuests);
-        if (!isNaN(val)) {
-            handleUpdateGuests(val);
+        if (!isNaN(val) && val >= 0 && val <= (currentTable?.capacity || 0)) {
+            // Store the saved value for immediate UI update
+            setSavedGuests(val);
+            // Update backend
+            await handleUpdateGuests(val);
+            // Close edit mode after successful update
             setIsEditingGuests(false);
+        } else {
+            toast.error(t('table.error.guest_range')?.replace('{min}', '0').replace('{max}', (currentTable?.capacity || 0).toString()) || '인원 수는 0 이상이어야 합니다.');
         }
     };
 
@@ -1209,19 +1484,98 @@ function DetailBody({
     }, [chatMessages]);
 
     return (
-        <div className="h-full flex flex-col overflow-hidden min-h-0 bg-gradient-to-b from-zinc-50/50 to-white">
+        <div className="h-full flex flex-col overflow-hidden min-h-0 bg-white">
+            {/* Quick Action Bar - Fixed at top */}
+            <div className="shrink-0 px-4 pt-4 pb-3 bg-white border-b border-zinc-200 space-y-2">
+                {/* Primary Actions Row */}
+                <div className="grid grid-cols-2 gap-2">
+                    {(() => {
+                      const hasPaidOrders = tableOrders.some((o: any) => o.type === 'order' && o.status === 'paid');
+                      const effectiveGuests = savedGuests !== null ? savedGuests : (currentTable?.guests ?? 0);
+                      const servedOrders = tableOrders.filter((o: any) => o.type === 'order' && o.status === 'served');
+                      const hasServedOrders = servedOrders.length > 0;
+                      
+                      return (
+                        <>
+                          <button 
+                            onClick={onOrderEntryClick}
+                            disabled={
+                              hasPaidOrders || // 결제 완료 후 비활성화
+                              (currentTable?.status === 'empty' && (currentTable?.guests ?? 0) === 0) ||
+                              (currentTable?.status === 'empty' && savedGuests !== null && savedGuests === 0)
+                            }
+                            className="h-10 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <ShoppingCart size={16} />
+                            {t('order.entry.title')}
+                          </button>
+                          {/* Main Action Button */}
+                          {(() => {
+                            // DINING 상태일 때
+                            if (currentTable?.status === 'dining') {
+                              if (hasPaidOrders) {
+                                // 결제 완료된 경우 - 청소 완료 버튼
+                                return (
+                                  <button 
+                                    onClick={async () => {
+                                      if (updateTableToCleaning) {
+                                        await updateTableToCleaning();
+                                      }
+                                    }}
+                                    className="h-10 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <CheckCircle2 size={16} />
+                                    {t('table.action.complete_cleaning')}
+                                  </button>
+                                );
+                              } else {
+                                // 결제 및 정리 버튼
+                                return (
+                                  <button 
+                                    onClick={onCheckoutClick}
+                                    className="h-10 bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <CreditCard size={16} />
+                                    {t('table.action.checkout_clear')}
+                                  </button>
+                                );
+                              }
+                            }
+                            
+                            // ORDERING 상태일 때 - 식사 시작 버튼 제거 (hasServedOrders가 false일 때는 버튼 표시 안 함)
+                            if (currentTable?.status === 'ordering' && !hasServedOrders) {
+                              return null; // 식사 시작 버튼 제거
+                            }
+                            
+                            // EMPTY, CLEANING 상태일 때
+                            return (
+                              <button 
+                                onClick={handleSmartAction}
+                                disabled={
+                                  (currentTable?.status === 'empty' && effectiveGuests === 0)
+                                }
+                                className={`h-10 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 ${getActionButtonColor(currentTable?.status || selectedTable.status)} disabled:opacity-50 disabled:cursor-not-allowed`}
+                              >
+                                {getActionButtonText(currentTable?.status || selectedTable.status, hasServedOrders)}
+                              </button>
+                            );
+                          })()}
+                        </>
+                      );
+                    })()}
+                </div>
+            </div>
+            
             {/* Body */}
             <ScrollArea className="flex-1 min-h-0">
-                <div className="p-5 space-y-5">
-                     {/* Info Section - Modern Card Design */}
-                     <div className="bg-white/80 backdrop-blur-sm border border-zinc-200/60 p-5 rounded-3xl shadow-sm shadow-zinc-100/50 space-y-5">
+                <div className="p-4 space-y-4">
+                     {/* Info Section - Minimal Design */}
+                     <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
                         {/* Guest Count */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-                                    <User size={16} className="text-blue-600" />
-                                </div>
-                                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{t('table.detail.guest_count')}</span>
+                                <User size={14} className="text-zinc-400" />
+                                <span className="text-xs font-medium text-zinc-600">{t('table.detail.guest_count')}</span>
                             </div>
                             {isEditingGuests ? (
                                 <div className="flex items-center gap-2">
@@ -1229,63 +1583,60 @@ function DetailBody({
                                         type="number" 
                                         value={tempGuests} 
                                         onChange={(e) => setTempGuests(e.target.value)}
-                                        className="w-20 h-9 text-sm font-medium text-center border-zinc-200 focus:border-blue-400 focus:ring-blue-400/20"
+                                        className="w-20 h-8 text-sm font-medium text-center border-zinc-200 focus:border-blue-500 focus:ring-blue-500/20"
                                         autoFocus
                                         onKeyDown={(e) => e.key === 'Enter' && saveGuests()}
                                     />
-                                    <button onClick={saveGuests} className="p-2 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-sm shadow-blue-500/20">
-                                        <Check size={14} />
+                                    <button onClick={saveGuests} className="p-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                        <Check size={12} />
                                     </button>
-                                    <button onClick={() => setIsEditingGuests(false)} className="p-2 bg-zinc-100 text-zinc-500 rounded-xl hover:bg-zinc-200 transition-colors">
-                                        <X size={14} />
+                                    <button onClick={() => setIsEditingGuests(false)} className="p-1.5 bg-zinc-100 text-zinc-500 rounded-lg hover:bg-zinc-200 transition-colors">
+                                        <X size={12} />
                                     </button>
                                 </div>
                             ) : (
                                 <button 
                                     onClick={() => setIsEditingGuests(true)}
-                                    className="flex items-center gap-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50/80 px-3 py-2 rounded-xl transition-all group"
+                                    className="flex items-center gap-2 text-sm font-semibold text-zinc-900 hover:text-zinc-600 transition-colors group"
                                 >
-                                    <span className="text-base font-bold text-zinc-900">{currentTable?.guests || 0}</span>
+                                    <span>{savedGuests !== null ? savedGuests : (currentTable?.guests ?? 0)}</span>
                                     <span className="text-zinc-400">/</span>
-                                    <span className="text-zinc-600">{currentTable?.capacity || 0}</span>
-                                    <span className="text-xs text-zinc-400 ml-1">{t('table.guests')}</span>
-                                    <Edit2 size={13} className="text-zinc-400 group-hover:text-zinc-600 transition-colors" />
+                                    <span className="text-zinc-600">{currentTable?.capacity ?? 0}</span>
+                                    <Edit2 size={12} className="text-zinc-400 group-hover:text-zinc-600 transition-colors ml-1" />
                                 </button>
                             )}
                         </div>
 
                         {/* Memo */}
-                        <div className="space-y-2.5">
+                        <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center">
-                                        <StickyNote size={16} className="text-amber-600" />
-                                    </div>
-                                    <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{t('table.detail.memo')}</span>
+                                    <StickyNote size={14} className="text-zinc-400" />
+                                    <span className="text-xs font-medium text-zinc-600">{t('table.detail.memo')}</span>
                                 </div>
                                 {!isEditingMemo && (
                                     <button 
                                         onClick={() => setIsEditingMemo(true)}
-                                        className="text-xs font-medium text-zinc-500 hover:text-zinc-900 flex items-center gap-1.5 bg-zinc-50 hover:bg-zinc-100 px-2.5 py-1.5 rounded-lg transition-all"
+                                        className="text-xs font-medium text-zinc-500 hover:text-zinc-900 flex items-center gap-1 bg-zinc-50 hover:bg-zinc-100 px-2 py-1 rounded transition-colors"
                                     >
-                                        <Edit2 size={11} /> {t('table.management.edit')}
+                                        <Edit2 size={10} /> {t('table.management.edit')}
                                     </button>
                                 )}
                             </div>
                             
                             {isEditingMemo ? (
-                                <div className="space-y-3">
+                                <div className="space-y-2">
                                     <Textarea 
                                         value={tempMemo}
                                         onChange={(e) => setTempMemo(e.target.value)}
                                         placeholder={t('table.detail.memo')}
-                                        className="text-sm min-h-[90px] border-zinc-200 focus:border-amber-400 focus:ring-amber-400/20 resize-none"
+                                        className="text-sm min-h-[80px] border-zinc-200 focus:border-blue-500 focus:ring-blue-500/20 resize-none"
                                     />
                                     <div className="flex justify-end gap-2">
-                                        <button onClick={() => setIsEditingMemo(false)} className="px-4 py-2 text-xs font-semibold text-zinc-600 bg-zinc-100 rounded-xl hover:bg-zinc-200 transition-colors">
+                                        <button onClick={() => setIsEditingMemo(false)} className="px-3 py-1.5 text-xs font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">
                                             {t('btn.cancel')}
                                         </button>
-                                        <button onClick={saveMemo} className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm shadow-amber-500/20">
+                                        <button onClick={saveMemo} className="px-3 py-1.5 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">
                                             {t('btn.save')}
                                         </button>
                                     </div>
@@ -1293,27 +1644,78 @@ function DetailBody({
                             ) : (
                                 <div 
                                     onClick={() => setIsEditingMemo(true)}
-                                    className={`text-sm p-4 rounded-2xl border-2 border-dashed transition-all cursor-pointer group ${
+                                    className={`text-sm p-3 rounded-lg border border-dashed transition-all cursor-pointer ${
                                         currentTable?.memo 
-                                            ? 'bg-gradient-to-br from-amber-50/80 to-orange-50/80 border-amber-200/60 text-amber-900 hover:border-amber-300 hover:shadow-sm' 
-                                            : 'bg-zinc-50/50 border-zinc-200/60 text-zinc-400 hover:border-zinc-300 hover:bg-zinc-100/50'
+                                            ? 'bg-amber-50/50 border-amber-200 text-amber-900 hover:border-amber-300' 
+                                            : 'bg-zinc-50 border-zinc-200 text-zinc-400 hover:border-zinc-300'
                                     }`}
                                 >
                                     {currentTable?.memo ? (
-                                        <div className="flex gap-3 items-start">
-                                            <StickyNote size={18} className="shrink-0 mt-0.5 text-amber-500/60" />
-                                            <p className="flex-1 leading-relaxed">{currentTable.memo}</p>
-                                        </div>
+                                        <p className="leading-relaxed">{currentTable.memo}</p>
                                     ) : (
-                                        <span className="flex items-center gap-2.5 text-zinc-400 group-hover:text-zinc-500 transition-colors">
-                                            <StickyNote size={16} /> 
-                                            <span className="italic">{t('table.detail.memo')}</span>
-                                        </span>
+                                        <span className="italic">{t('table.detail.memo')}</span>
                                     )}
                                 </div>
                             )}
                         </div>
                      </div>
+
+                     {/* Payment Status Section - Show if there are paid orders */}
+                     {(() => {
+                       const paidOrders = tableOrders.filter((o: any) => o.type === 'order' && o.status === 'paid');
+                       if (paidOrders.length === 0) return null;
+                       
+                       // Calculate total payment amount
+                       const totalPaymentAmount = paidOrders.reduce((sum: number, order: any) => {
+                         if (!order.items || order.items.length === 0) return sum;
+                         const orderTotal = order.items.reduce((itemSum: number, item: any) => {
+                           return itemSum + (item.price || 0);
+                         }, 0);
+                         return sum + orderTotal;
+                       }, 0);
+                       
+                       // Get most recent payment time
+                       const mostRecentPayment = paidOrders.sort((a: any, b: any) => 
+                         b.timestamp.getTime() - a.timestamp.getTime()
+                       )[0];
+                       const paymentTime = mostRecentPayment.timestamp;
+                       
+                       // Payment method (could be extracted from notification metadata, but for now we'll use a default)
+                       // In a real implementation, this would come from the payment notification metadata
+                       const paymentMethod = language === 'ko' ? '계좌이체' : language === 'vn' ? 'Chuyển khoản' : 'Bank Transfer';
+                       
+                       return (
+                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                           <div className="flex items-center gap-2">
+                             <CheckCircle2 size={14} className="text-emerald-600" />
+                             <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">{t('payment.status.completed')}</span>
+                           </div>
+                           
+                           <div className="space-y-2">
+                             {/* Payment Amount */}
+                             <div className="flex items-center justify-between">
+                               <span className="text-xs font-medium text-zinc-600">{t('payment.amount')}</span>
+                               <span className="text-base font-bold text-emerald-900">{formatPriceVND(totalPaymentAmount)}</span>
+                             </div>
+                             
+                             {/* Payment Method */}
+                             <div className="flex items-center justify-between">
+                               <span className="text-xs font-medium text-zinc-600">{t('payment.method')}</span>
+                               <span className="text-xs font-semibold text-zinc-900">{paymentMethod}</span>
+                             </div>
+                             
+                             {/* Payment Time */}
+                             <div className="flex items-center justify-between">
+                               <span className="text-xs font-medium text-zinc-600">{t('payment.time')}</span>
+                               <span className="text-xs font-semibold text-zinc-900 flex items-center gap-1">
+                                 <Clock size={11} />
+                                 {paymentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                               </span>
+                             </div>
+                           </div>
+                         </div>
+                       );
+                     })()}
 
                 {tableOrders.length > 0 ? (
                     <div className="space-y-6">
@@ -1348,22 +1750,34 @@ function DetailBody({
                                                     </button>
                                                 </div>
                                                 <div className="flex flex-col gap-2">
-                                                    {QUICK_REPLIES.map((reply: string, idx: number) => (
-                                                        <button
-                                                            key={idx}
-                                                            onClick={() => {
-                                                                handleReply(order.id, reply);
-                                                                // Only update order status if it's not a request type
-                                                                if (order.type !== 'request') {
-                                                                    handleUpdateOrderStatus(order.id, 'served');
-                                                                }
-                                                            }}
-                                                            className="text-left text-sm p-3 rounded-xl bg-white text-zinc-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-700 transition-all font-medium shadow-sm border border-zinc-200/60 flex items-center justify-between group hover:shadow-md hover:border-blue-200/60"
-                                                        >
-                                                            <span className="flex-1">{reply}</span>
-                                                            <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all text-blue-600"/>
-                                                        </button>
-                                                    ))}
+                                                    {quickReplies.length === 0 ? (
+                                                        <div className="text-sm text-muted-foreground text-center py-4">
+                                                            상용구가 없습니다.
+                                                        </div>
+                                                    ) : (
+                                                        quickReplies.map((reply, idx: number) => {
+                                                            const replyText = getQuickReplyText(reply);
+                                                            const replyMessage = getQuickReplyMessage(reply);
+                                                            return (
+                                                                <button
+                                                                    key={idx}
+                                                                    onClick={() => {
+                                                                        if (replyMessage) {
+                                                                            handleReply(order.id, replyMessage);
+                                                                        }
+                                                                        // Only update order status if it's not a request type
+                                                                        if (order.type !== 'request') {
+                                                                            handleUpdateOrderStatus(order.id, 'served');
+                                                                        }
+                                                                    }}
+                                                                    className="text-left text-sm p-3 rounded-xl bg-white text-zinc-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-700 transition-all font-medium shadow-sm border border-zinc-200/60 flex items-center justify-between group hover:shadow-md hover:border-blue-200/60"
+                                                                >
+                                                                    <span className="flex-1">{replyText}</span>
+                                                                    <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all text-blue-600"/>
+                                                                </button>
+                                                            );
+                                                        })
+                                                    )}
                                                 </div>
                                             </div>
                                         ) : (
@@ -1391,89 +1805,98 @@ function DetailBody({
 
                         {/* Orders Section */}
                         {tableOrders.some((o: any) => o.type === 'order') && (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2 px-1">
-                                    <div className="w-1 h-4 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full"></div>
-                                    <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('table.detail.orders')}</h4>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 px-1 pb-1">
+                                    <h4 className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">{t('table.detail.orders')}</h4>
                                 </div>
                                 {tableOrders.filter((o: any) => o.type === 'order').map((order: any) => (
-                                    <div key={order.id} className="bg-white/90 backdrop-blur-sm border border-zinc-200/60 p-5 rounded-3xl shadow-sm shadow-zinc-100/30">
-                                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-100">
-                                            <span className="text-xs font-semibold text-zinc-500 flex items-center gap-2">
-                                                <Clock size={13} className="text-zinc-400" />
-                                                {order.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                            <span className={`text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide ${
-                                                order.status === 'pending' ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200/60' :
-                                                order.status === 'cooking' ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200/60' :
-                                                order.status === 'served' ? 'bg-zinc-100 text-zinc-600 border border-zinc-200/60' :
-                                                'bg-zinc-100 text-zinc-600 border border-zinc-200/60'
+                                    <div key={order.id} className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+                                        {/* Order Header */}
+                                        <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Clock size={12} className="text-zinc-400" />
+                                                <span className="text-xs font-medium text-zinc-600">
+                                                    {order.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                            <span className={`text-[10px] font-semibold px-2 py-1 rounded-md uppercase tracking-wide ${
+                                                order.status === 'pending' ? 'bg-orange-100 text-orange-700' :
+                                                order.status === 'cooking' ? 'bg-blue-100 text-blue-700' :
+                                                order.status === 'served' ? 'bg-zinc-100 text-zinc-600' :
+                                                order.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                                                'bg-zinc-100 text-zinc-600'
                                             }`}>
-                                                {order.status === 'served' ? t('order.status.payment_pending') || '결제 대기' : order.status}
+                                                {order.status === 'pending' ? t('order.status.pending') || '주문중' :
+                                                 order.status === 'cooking' ? t('order.status.cooking') || '조리중' :
+                                                 order.status === 'served' ? t('order.status.served') || '서빙완료' :
+                                                 order.status === 'paid' ? t('order.status.paid') || '결제 완료' : 
+                                                 order.status}
                                             </span>
                                         </div>
-                                        <ul className="space-y-3.5 mb-5">
+
+                                        {/* Order Items */}
+                                        <div className="px-4 py-3 space-y-2.5">
                                             {order.items.map((item: any, idx: number) => {
                                                 const menuItem = menu.find(m => m.name === item.name);
                                                 return (
-                                                    <li key={idx} className="flex justify-between items-start gap-4 p-3 rounded-2xl bg-zinc-50/50 hover:bg-zinc-100/50 transition-colors">
-                                                        <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                                                            <div className="w-12 h-12 rounded-xl bg-white overflow-hidden shrink-0 border border-zinc-200/60 shadow-sm">
-                                                                {menuItem?.imageUrl ? (
-                                                                    <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-zinc-300 bg-gradient-to-br from-zinc-50 to-zinc-100">
-                                                                        <UtensilsCrossed size={16} />
-                                                                    </div>
-                                                                )}
+                                                    <div key={idx} className="flex items-start gap-3">
+                                                        <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
+                                                            {menuItem?.imageUrl ? (
+                                                                <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center">
+                                                                    <UtensilsCrossed size={14} className="text-zinc-300" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-start justify-between gap-2 mb-1">
+                                                                <span className="text-sm font-semibold text-zinc-900 leading-snug">{item.name}</span>
+                                                                <span className="text-sm font-bold text-zinc-900 shrink-0">{formatPriceVND(item.price)}</span>
                                                             </div>
-                                                            <div className="flex flex-col flex-1 min-w-0">
-                                                                <span className="font-semibold text-zinc-900 text-sm mb-1">{item.name}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs text-zinc-500">
+                                                                    {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
+                                                                </span>
                                                                 {item.options && item.options.length > 0 && (
-                                                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                                                    <div className="flex flex-wrap gap-1">
                                                                         {item.options.map((opt: string, i: number) => (
-                                                                            <span key={i} className="text-[10px] font-medium text-zinc-600 bg-white px-2 py-0.5 rounded-lg border border-zinc-200/60 shadow-sm">
+                                                                            <span key={i} className="text-[10px] font-medium text-zinc-500 bg-zinc-50 px-1.5 py-0.5 rounded">
                                                                                 {opt}
                                                                             </span>
                                                                         ))}
                                                                     </div>
                                                                 )}
-                                                                <span className="text-xs text-zinc-500 mt-1.5 font-medium">
-                                                                    {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
-                                                                </span>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center shrink-0">
-                                                            <span className="font-bold text-zinc-900 text-sm">{formatPriceVND(item.price)}</span>
-                                                        </div>
-                                                    </li>
+                                                    </div>
                                                 );
                                             })}
-                                        </ul>
+                                        </div>
 
                                         {/* Order Actions */}
-                                        <div className="flex gap-2.5">
+                                        <div className="px-4 pb-3">
                                             {order.status === 'pending' && (
                                                 <button 
                                                     onClick={() => handleUpdateOrderStatus(order.id, 'cooking')}
                                                     disabled={updatingOrderId === order.id}
-                                                    className="flex-1 h-11 bg-gradient-to-r from-zinc-900 to-zinc-800 text-white text-sm font-semibold rounded-xl hover:from-zinc-800 hover:to-zinc-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-zinc-900/10"
+                                                    className="w-full h-9 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
-                                                    <ChefHat size={16}/> {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.start_cooking')}
+                                                    <ChefHat size={13}/> {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.start_cooking')}
                                                 </button>
                                             )}
                                             {order.status === 'cooking' && (
                                                 <button 
                                                     onClick={() => handleUpdateOrderStatus(order.id, 'served')}
                                                     disabled={updatingOrderId === order.id}
-                                                    className="flex-1 h-11 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-semibold rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-emerald-500/20"
+                                                    className="w-full h-9 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
-                                                    <CircleCheck size={16}/> {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.mark_served')}
+                                                    <CircleCheck size={13}/> {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.mark_served')}
                                                 </button>
                                             )}
                                             {order.status === 'served' && (
-                                                <div className="flex-1 h-11 bg-zinc-50/80 text-zinc-600 text-sm font-medium rounded-xl flex items-center justify-center gap-2 border border-zinc-200/60">
-                                                    <CircleCheck size={16} className="text-zinc-400"/> {t('order.status.payment_pending') || '결제 대기 중'}
+                                                <div className="w-full h-9 bg-zinc-50 text-zinc-500 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 border border-zinc-200">
+                                                    <CircleCheck size={13} className="text-zinc-400"/> {t('order.status.payment_pending') || '결제 대기 중'}
                                                 </div>
                                             )}
                                         </div>
@@ -1492,14 +1915,13 @@ function DetailBody({
                 )}
 
                 {/* Chat Messages Section */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-1">
-                        <div className="w-1 h-4 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-full"></div>
-                        <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('table.detail.chat')}</h4>
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2 px-1 pb-1">
+                        <h4 className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">{t('table.detail.chat')}</h4>
                     </div>
-                    <div className="bg-white/90 backdrop-blur-sm border border-zinc-200/60 rounded-3xl shadow-sm shadow-zinc-100/30 flex flex-col overflow-hidden" style={{ maxHeight: '520px' }}>
+                    <div className="bg-white border border-zinc-200 rounded-xl flex flex-col overflow-hidden" style={{ maxHeight: '520px' }}>
                         {/* Chat Messages List */}
-                        <div ref={chatMessagesContainerRef} className="flex-1 p-5 space-y-4 overflow-y-auto min-h-[240px] scroll-smooth">
+                        <div ref={chatMessagesContainerRef} className="flex-1 p-4 space-y-3 overflow-y-auto min-h-[240px] scroll-smooth">
                             {isLoadingChat ? (
                                 <div className="text-center py-12 text-zinc-400">
                                     <div className="inline-flex items-center gap-2 text-sm">
@@ -1524,18 +1946,18 @@ function DetailBody({
                                         return (
                                             <div
                                                 key={msg.id}
-                                                className={`flex gap-3 ${isUser ? 'flex-row' : isStaff ? 'flex-row-reverse' : 'flex-row'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                                                className={`flex gap-2 ${isUser ? 'flex-row' : isStaff ? 'flex-row-reverse' : 'flex-row'}`}
                                             >
-                                                <div className={`flex-1 ${isUser ? 'text-left' : isStaff ? 'text-right' : 'text-center'} max-w-[75%]`}>
-                                                    <div className={`inline-block px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
+                                                <div className={`flex-1 ${isUser ? 'text-left' : isStaff ? 'text-right' : 'text-center'} max-w-[80%]`}>
+                                                    <div className={`inline-block px-3 py-2 rounded-lg text-sm ${
                                                         isUser 
-                                                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-br-sm' 
+                                                            ? 'bg-blue-500 text-white' 
                                                             : isStaff 
-                                                            ? 'bg-gradient-to-br from-zinc-100 to-zinc-50 text-zinc-900 border border-zinc-200/60 rounded-bl-sm'
-                                                            : 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-900 border border-amber-200/60'
+                                                            ? 'bg-zinc-100 text-zinc-900'
+                                                            : 'bg-amber-50 text-amber-900 border border-amber-200'
                                                     }`}>
-                                                        <p className="font-medium leading-relaxed">{messageText}</p>
-                                                        <p className={`text-[10px] mt-1.5 font-medium ${
+                                                        <p className="font-medium leading-relaxed text-sm">{messageText}</p>
+                                                        <p className={`text-[10px] mt-1 font-medium ${
                                                             isUser ? 'text-blue-100' : isStaff ? 'text-zinc-500' : 'text-amber-600'
                                                         }`}>
                                                             {messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1547,18 +1969,18 @@ function DetailBody({
                                     })
                             ) : (
                                 <div className="text-center py-12 text-zinc-400">
-                                    <div className="w-12 h-12 rounded-2xl bg-zinc-100/50 flex items-center justify-center mx-auto mb-3">
-                                        <MessageSquare size={20} className="opacity-30" />
+                                    <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center mx-auto mb-2">
+                                        <MessageSquare size={16} className="text-zinc-400" />
                                     </div>
-                                    <p className="text-sm">{t('table.detail.no_messages') || '메시지가 없습니다.'}</p>
+                                    <p className="text-xs">{t('table.detail.no_messages') || '메시지가 없습니다.'}</p>
                                 </div>
                             )}
                         </div>
                         
                         {/* Chat Input Area */}
                         {selectedTable?.currentSessionId && (
-                            <div className="border-t border-zinc-200/60 p-4 bg-gradient-to-b from-zinc-50/80 to-white/80 backdrop-blur-sm">
-                                <div className="flex gap-2.5 items-end">
+                            <div className="border-t border-zinc-200 p-3 bg-white">
+                                <div className="flex gap-2">
                                     <Input
                                         value={chatInputText}
                                         onChange={(e) => setChatInputText(e.target.value)}
@@ -1577,7 +1999,7 @@ function DetailBody({
                                             }
                                         }}
                                         placeholder={t('reply.placeholder') || '메시지를 입력하세요...'}
-                                        className="flex-1 text-sm h-11 border-zinc-200 focus:border-indigo-400 focus:ring-indigo-400/20 bg-white/80 rounded-xl"
+                                        className="flex-1 text-sm h-9 border-zinc-200 focus:border-blue-500 focus:ring-blue-500/20 bg-white rounded-lg"
                                         disabled={isSendingChatMessage}
                                     />
                                     <button
@@ -1593,18 +2015,12 @@ function DetailBody({
                                             }
                                         }}
                                         disabled={!chatInputText.trim() || isSendingChatMessage}
-                                        className="px-5 py-2.5 h-11 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-sm shadow-indigo-500/20"
+                                        className="px-3 h-9 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 shrink-0"
                                     >
                                         {isSendingChatMessage ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                <span>{t('btn.sending') || '전송 중...'}</span>
-                                            </>
+                                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                         ) : (
-                                            <>
-                                                <MessageSquare size={16} />
-                                                <span>{t('btn.send') || '전송'}</span>
-                                            </>
+                                            <MessageSquare size={14} />
                                         )}
                                     </button>
                                 </div>
@@ -1615,30 +2031,27 @@ function DetailBody({
                 </div>
             </ScrollArea>
             
-            {/* Sheet Footer Actions */}
-            <div className="shrink-0 p-4 bg-white border-t border-zinc-100 space-y-3">
-                    <button 
-                        onClick={onOrderEntryClick}
-                        className="w-full h-12 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-200"
-                    >
-                        <ShoppingCart size={16} />
-                        {t('order.entry.title')}
-                    </button>
-                    <div className="grid grid-cols-2 gap-3">
+            {/* Sheet Footer Actions - 초기화 및 닫기 버튼 */}
+            <div className="shrink-0 bg-white border-t border-zinc-200">
+                <div className="p-3">
+                    <div className="flex gap-2">
+                        {handleResetTable && canResetTable && (
+                            <button 
+                                onClick={handleResetTable}
+                                className="flex-1 h-9 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                            >
+                                <RotateCcw size={13} />
+                                {language === 'ko' ? '초기화' : language === 'vn' ? 'Đặt lại' : 'Reset'}
+                            </button>
+                        )}
                         <button 
                             onClick={closeTableDetail}
-                            className="h-12 rounded-xl bg-zinc-100 text-zinc-600 font-bold text-sm hover:bg-zinc-200 transition-colors"
+                            className={`h-9 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold rounded-lg transition-colors ${handleResetTable && canResetTable ? 'flex-1' : 'w-full'}`}
                         >
                             {t('table.detail.close')}
                         </button>
-                        <button 
-                            onClick={handleSmartAction}
-                            disabled={currentTable?.status === 'ordering' && tableOrders.length === 0}
-                            className={`h-12 rounded-xl text-white font-bold text-sm transition-all shadow-lg shadow-zinc-200 active:scale-95 ${getActionButtonColor(currentTable?.status || selectedTable.status)} disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-opacity-50`}
-                        >
-                            {getActionButtonText(currentTable?.status || selectedTable.status)}
-                        </button>
                     </div>
+                </div>
             </div>
         </div>
     );

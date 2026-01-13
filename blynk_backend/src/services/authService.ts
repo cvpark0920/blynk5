@@ -19,7 +19,9 @@ export class AuthService {
     email: string,
     name: string,
     _googleId?: string,
-    avatarUrl?: string
+    avatarUrl?: string,
+    appType?: string,
+    restaurantId?: string
   ): Promise<AuthResult> {
     // 1. 슈퍼 관리자 체크
     if (email === 'cvpark0920@gmail.com') {
@@ -93,16 +95,13 @@ export class AuthService {
         });
       } else {
         // 역할 및 프로필 정보 업데이트 (Google OAuth에서 받은 정보로 업데이트)
-        const updateData: any = {
-          name: name || user.name,
-          avatarUrl: avatarUrl !== undefined ? avatarUrl : user.avatarUrl, // Google에서 받은 경우 업데이트
-        };
-        if (user.role === UserRole.CUSTOMER) {
-          updateData.role = UserRole.ADMIN;
-        }
         user = await prisma.user.update({
           where: { email },
-          data: updateData,
+          data: {
+            name: name || user.name,
+            avatarUrl: avatarUrl !== undefined ? avatarUrl : user.avatarUrl, // Google에서 받은 경우 업데이트
+            role: UserRole.ADMIN, // Restaurant owner always has ADMIN role
+          },
         });
       }
 
@@ -126,7 +125,74 @@ export class AuthService {
       };
     }
 
-    // 3. 일반 사용자는 CUSTOMER 역할
+    // 3. 일반 사용자 처리
+    // shop 앱 로그인인 경우, 식당 owner나 staff가 아니면 에러 반환
+    if (appType === 'shop') {
+      // Check if user is staff member of the restaurant
+      if (restaurantId) {
+        const staff = await prisma.staff.findFirst({
+          where: {
+            email: email,
+            restaurantId: restaurantId,
+            status: 'ACTIVE',
+          },
+        });
+        
+        if (staff) {
+          // Staff member - create user with ADMIN role and include staffId in token
+          let user = await prisma.user.findUnique({
+            where: { email },
+          });
+
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                email,
+                name,
+                avatarUrl,
+                role: UserRole.ADMIN,
+              },
+            });
+          } else {
+            // Staff member always has ADMIN role
+            user = await prisma.user.update({
+              where: { email },
+              data: {
+                name: name || user.name,
+                avatarUrl: avatarUrl !== undefined ? avatarUrl : user.avatarUrl,
+                role: UserRole.ADMIN,
+              },
+            });
+          }
+
+          const payload: TokenPayload = {
+            userId: user.id,
+            email: user.email,
+            role: user.role,
+            staffId: staff.id, // Include staffId for staff login
+          };
+
+          const accessToken = generateAccessToken(payload);
+          const refreshToken = generateRefreshToken(payload);
+
+          return {
+            user: {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+            },
+            accessToken,
+            refreshToken,
+            restaurantId: staff.restaurantId,
+          };
+        }
+      }
+      
+      // If shop app login but not owner or staff, reject
+      throw new Error('식당 주인이나 직원만 로그인할 수 있습니다. 일반 고객은 고객 앱을 사용해주세요.');
+    }
+
+    // For admin app or customer app (not shop app), create CUSTOMER role user
     let user = await prisma.user.findUnique({
       where: { email },
     });

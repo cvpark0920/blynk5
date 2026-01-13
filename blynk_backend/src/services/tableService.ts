@@ -219,6 +219,77 @@ export class TableService {
       where: { id },
     });
   }
+
+  async resetTableToEmpty(id: string) {
+    // Get current table state to check for existing session
+    const currentTable = await prisma.table.findUnique({
+      where: { id },
+      include: {
+        sessions: {
+          where: {
+            status: 'ACTIVE',
+          },
+          take: 1,
+        },
+        restaurant: true,
+      },
+    });
+
+    if (!currentTable) {
+      throw createError('Table not found', 404);
+    }
+
+    let endedSessionId: string | null = null;
+
+    // If there's an active session, end it first
+    if (currentTable.sessions && currentTable.sessions.length > 0) {
+      endedSessionId = currentTable.sessions[0].id;
+      await sessionService.endSession(endedSessionId);
+    }
+
+    // If there's a currentSessionId but no active session found, still clear it
+    // This handles edge cases where session might be in inconsistent state
+    const table = await prisma.table.update({
+      where: { id },
+      data: {
+        status: TableStatus.EMPTY,
+        currentSessionId: null,
+      },
+      include: {
+        restaurant: true,
+        sessions: {
+          where: {
+            status: 'ACTIVE',
+          },
+          include: {
+            orders: {
+              where: {
+                status: {
+                  in: ['PENDING', 'COOKING'],
+                },
+              },
+            },
+          },
+          take: 1,
+        },
+      },
+    });
+
+    // Emit SSE event for table status change
+    await eventEmitter.publishTableStatusChanged(
+      table.restaurantId,
+      id,
+      TableStatus.EMPTY,
+      undefined // No active session after reset
+    );
+
+    // Emit session ended event if a session was ended
+    if (endedSessionId) {
+      await eventEmitter.publishSessionEnded(endedSessionId);
+    }
+
+    return table;
+  }
 }
 
 export const tableService = new TableService();

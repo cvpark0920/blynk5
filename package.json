@@ -5,15 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite",
-    "test:build": "./scripts/test-local-docker-build.sh",
-    "test:compose": "./scripts/test-local-docker-compose.sh",
-    "pre-deploy": "./scripts/pre-deploy-check.sh",
-    "docker:local:up": "./scripts/start-local-stack.sh",
-    "docker:local:down": "./scripts/stop-local-stack.sh",
-    "docker:local:logs": "cd blynk_backend && docker compose -f docker-compose.local.yml logs -f",
-    "test:local": "./scripts/test-local-full-stack.sh",
-    "test:e2e": "./scripts/test-e2e.sh"
+    "dev": "vite"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { TableGrid } from './components/staff/TableGrid';
 import { OrderFeed } from './components/staff/OrderFeed';
 import { ReportsDashboard } from './components/staff/ReportsDashboard';
@@ -20,8 +19,19 @@ import { mapBackendTableToFrontend, mapBackendOrderToFrontend, mapBackendMenuIte
 import { BackendTable, BackendOrder, BackendMenuItem } from './types/api';
 
 export function MainApp() {
-  const { restaurantId: urlRestaurantId } = useParams<{ restaurantId: string }>();
-  const navigate = useNavigate();
+  // Parse restaurantId from URL
+  const pathMatch = window.location.pathname.match(/\/shop\/restaurant\/([^/]+)/);
+  const urlRestaurantId = pathMatch ? pathMatch[1] : null;
+  
+  // Navigate function using window.location
+  const navigate = useCallback((path: string, options?: { replace?: boolean }) => {
+    if (options?.replace) {
+      window.history.replaceState({}, '', path);
+    } else {
+      window.history.pushState({}, '', path);
+    }
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, []);
   const { 
     shopUser: currentUser, 
     shopStaffList: staffList, 
@@ -66,10 +76,16 @@ export function MainApp() {
   useEffect(() => {
     if (restaurantId && isAuthenticated) {
       loadTables();
-      loadOrders();
       loadMenu();
     }
   }, [restaurantId, isAuthenticated, language]);
+
+  // Load orders after tables are loaded to filter by active sessions
+  useEffect(() => {
+    if (restaurantId && isAuthenticated && tables.length > 0) {
+      loadOrders();
+    }
+  }, [restaurantId, isAuthenticated, tables.length]); // Reload orders when tables change
 
   // Helper function to check if token is expired or about to expire
   const isTokenExpiredOrExpiringSoon = (token: string): boolean => {
@@ -319,7 +335,38 @@ export function MainApp() {
       const result = await apiClient.getOrders(restaurantId);
       if (result.success && result.data) {
         const mappedOrders = result.data.map((order: BackendOrder) => mapBackendOrderToFrontend(order, language));
-        setOrders(mappedOrders);
+        
+        // Filter orders: only include orders from active sessions
+        // This prevents showing orders from ended sessions (e.g., after table reset)
+        // Use current tables state (from closure) to get active session IDs
+        const activeSessionIds = new Set(
+          tables
+            .map(t => t.currentSessionId)
+            .filter((id): id is string => id !== null && id !== undefined)
+        );
+        
+        const filteredOrders = mappedOrders.filter(order => {
+          // Include orders that belong to active sessions
+          if (order.sessionId && activeSessionIds.has(order.sessionId)) {
+            return true;
+          }
+          // Exclude orders from tables that are now empty (no active session)
+          const table = tables.find(t => t.id === order.tableId);
+          if (table && table.status === 'empty') {
+            return false;
+          }
+          // For backward compatibility: include recent orders (within 30 minutes) 
+          // if table is ordering/dining but sessionId is not set yet
+          if (table && (table.status === 'ordering' || table.status === 'dining')) {
+            const orderAge = Date.now() - order.timestamp.getTime();
+            const thirtyMinutes = 30 * 60 * 1000;
+            return orderAge < thirtyMinutes;
+          }
+          // Exclude all other orders
+          return false;
+        });
+        
+        setOrders(filteredOrders);
       } else {
         console.error('Failed to load orders:', result.error);
         toast.error('주문 목록을 불러오는데 실패했습니다.');

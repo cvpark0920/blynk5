@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MenuItem, MenuCategory } from '../../data';
-import { Tag, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Image as ImageIcon, Check, Upload } from 'lucide-react';
+import { Tag, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Image as ImageIcon, Check, Upload, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
@@ -158,6 +158,69 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
     } catch (error: unknown) {
       console.error('Error updating category:', error);
       const errorMessage = error instanceof Error ? error.message : '카테고리 수정에 실패했습니다';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReorderCategory = async (categoryId: string, direction: 'up' | 'down') => {
+    if (!restaurantId) {
+      toast.error('식당 ID가 필요합니다.');
+      return;
+    }
+
+    const sortedCategories = [...categories].sort((a, b) => a.order - b.order);
+    const currentIndex = sortedCategories.findIndex(c => c.id === categoryId);
+    
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    
+    if (newIndex < 0 || newIndex >= sortedCategories.length) {
+      return; // 이미 맨 위나 맨 아래
+    }
+
+    const currentCategory = sortedCategories[currentIndex];
+    const targetCategory = sortedCategories[newIndex];
+
+    setIsLoading(true);
+    try {
+      // 두 카테고리의 displayOrder를 교환
+      const currentOrder = currentCategory.order;
+      const targetOrder = targetCategory.order;
+
+      // 현재 카테고리의 순서를 변경
+      const result1 = await apiClient.updateCategory(restaurantId, categoryId, {
+        displayOrder: targetOrder,
+      });
+
+      // 대상 카테고리의 순서를 변경
+      const result2 = await apiClient.updateCategory(restaurantId, targetCategory.id, {
+        displayOrder: currentOrder,
+      });
+
+      if (result1.success && result2.success) {
+        // 로컬 상태 업데이트
+        setCategories(prev => {
+          const updated = prev.map(c => {
+            if (c.id === categoryId) {
+              return { ...c, order: targetOrder };
+            }
+            if (c.id === targetCategory.id) {
+              return { ...c, order: currentOrder };
+            }
+            return c;
+          });
+          return updated.sort((a, b) => a.order - b.order);
+        });
+        toast.success('카테고리 순서가 변경되었습니다');
+      } else {
+        throw new Error('카테고리 순서 변경에 실패했습니다');
+      }
+    } catch (error: unknown) {
+      console.error('Error reordering category:', error);
+      const errorMessage = error instanceof Error ? error.message : '카테고리 순서 변경에 실패했습니다';
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -441,6 +504,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
               categories={categories} 
               handleDeleteCategory={handleDeleteCategory}
               handleUpdateCategory={handleUpdateCategory}
+              handleReorderCategory={handleReorderCategory}
               newCategoryName={newCategoryName} 
               setNewCategoryName={setNewCategoryName} 
               handleAddCategory={handleAddCategory} 
@@ -462,6 +526,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
               categories={categories} 
               handleDeleteCategory={handleDeleteCategory}
               handleUpdateCategory={handleUpdateCategory}
+              handleReorderCategory={handleReorderCategory}
               newCategoryName={newCategoryName} 
               setNewCategoryName={setNewCategoryName} 
               handleAddCategory={handleAddCategory} 
@@ -520,7 +585,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
 }
 
 // Extracted Components to avoid duplication
-function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdateCategory, newCategoryName, setNewCategoryName, handleAddCategory, onClose, t, isLoading, language }: any) {
+function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdateCategory, handleReorderCategory, newCategoryName, setNewCategoryName, handleAddCategory, onClose, t, isLoading, language }: any) {
     const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
     const [editingCategoryName, setEditingCategoryName] = useState('');
 
@@ -542,11 +607,13 @@ function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdate
         }
     };
 
+    const sortedCategories = [...categories].sort((a: any, b: any) => a.order - b.order);
+
     return (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
              <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-2">
-                  {categories.map((cat: any) => (
+                  {sortedCategories.map((cat: any, index: number) => (
                     <div key={cat.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg border border-zinc-100">
                       {editingCategoryId === cat.id ? (
                         <>
@@ -587,7 +654,23 @@ function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdate
                         </>
                       ) : (
                         <>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-1">
+                              <div className="flex flex-col gap-0.5">
+                                  <button 
+                                      onClick={() => handleReorderCategory(cat.id, 'up')}
+                                      disabled={isLoading || index === 0}
+                                      className="text-zinc-400 hover:text-zinc-600 p-1 hover:bg-zinc-100 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                  >
+                                      <ArrowUp size={14} />
+                                  </button>
+                                  <button 
+                                      onClick={() => handleReorderCategory(cat.id, 'down')}
+                                      disabled={isLoading || index === sortedCategories.length - 1}
+                                      className="text-zinc-400 hover:text-zinc-600 p-1 hover:bg-zinc-100 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                  >
+                                      <ArrowDown size={14} />
+                                  </button>
+                              </div>
                               <div className="bg-white p-2 rounded-md border border-zinc-100 text-zinc-400">
                                   <Tag size={14} />
                               </div>
@@ -668,6 +751,16 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                     value={editingItem.name} 
                                     onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
                                     placeholder="e.g. Tomato Pasta"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">{t('menu.description') || '메뉴 설명'}</label>
+                                <textarea 
+                                    value={editingItem.description || ''} 
+                                    onChange={(e) => setEditingItem({...editingItem, description: e.target.value})}
+                                    placeholder="메뉴에 대한 설명을 입력하세요"
+                                    className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                                    rows={3}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">

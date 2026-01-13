@@ -4,6 +4,7 @@ import { OrderStatus } from '@prisma/client';
 import { eventEmitter } from '../sse/eventEmitter';
 import { notificationService } from './notificationService';
 import { chatService } from './chatService';
+import { tableService } from './tableService';
 
 export interface OrderItemInput {
   menuItemId: string;
@@ -275,30 +276,33 @@ export class OrderService {
     }));
 
     // Save order status change message to database with order items details
-    await chatService.createMessage({
-      sessionId: order.sessionId,
-      senderType: 'SYSTEM',
-      textKo: statusMessage.ko,
-      textVn: statusMessage.vn,
-      textEn: statusMessage.en,
-      messageType: 'TEXT',
-      metadata: {
-        orderId: order.id,
-        orderStatus: status,
-        tableNumber: order.table.tableNumber,
-        items: order.items.map(item => ({
-          id: item.id,
-          menuItemId: item.menuItem.id,
-          nameKO: item.menuItem.nameKo,
-          nameVN: item.menuItem.nameVn,
-          nameEN: item.menuItem.nameEn,
-          imageQuery: item.menuItem.imageUrl || '',
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-        })),
-      },
-    });
+    // SERVED 상태는 고객에게 알릴 필요 없으므로 채팅 메시지 생성하지 않음
+    if (status !== OrderStatus.SERVED) {
+      await chatService.createMessage({
+        sessionId: order.sessionId,
+        senderType: 'SYSTEM',
+        textKo: statusMessage.ko,
+        textVn: statusMessage.vn,
+        textEn: statusMessage.en,
+        messageType: 'TEXT',
+        metadata: {
+          orderId: order.id,
+          orderStatus: status,
+          tableNumber: order.table.tableNumber,
+          items: order.items.map(item => ({
+            id: item.id,
+            menuItemId: item.menuItem.id,
+            nameKO: item.menuItem.nameKo,
+            nameVN: item.menuItem.nameVn,
+            nameEN: item.menuItem.nameEn,
+            imageQuery: item.menuItem.imageUrl || '',
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+          })),
+        },
+      });
+    }
 
     // Emit SSE events with order items
     await eventEmitter.publishOrderStatusChanged(
@@ -383,6 +387,12 @@ export class OrderService {
     for (const order of session.orders) {
       await eventEmitter.publishOrderStatusChanged(session.restaurantId, order.id, OrderStatus.PAID);
       await eventEmitter.publishOrderStatus(sessionId, order.id, OrderStatus.PAID);
+    }
+
+    // Update table status to CLEANING after payment is completed
+    // This ensures the table card doesn't show "결제 완료" badge while table is still in DINING status
+    if (session.table.status === 'DINING') {
+      await tableService.updateTableStatus(session.tableId, 'CLEANING');
     }
 
     return {

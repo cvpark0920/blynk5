@@ -223,7 +223,8 @@ export function OrderEntrySheet({
         throw new Error(orderResult.error?.message || '주문 생성에 실패했습니다.');
       }
 
-      toast.success(t('order.entry.order_created') || '주문이 생성되었습니다.');
+      // Don't show toast here - SSE event will trigger toast notification
+      // This prevents duplicate toast messages (order creation + SSE event)
       
       // Call callback with order data
       onOrderCreated?.(orderResult.data);

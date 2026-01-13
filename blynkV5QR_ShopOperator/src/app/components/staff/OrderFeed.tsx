@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Order } from '../../data';
-import { ChefHat, CircleCheck, Clock, UtensilsCrossed, ArrowRight, Timer } from 'lucide-react';
+import { ChefHat, CircleCheck, Clock, UtensilsCrossed, ArrowRight, Timer, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../../context/LanguageContext';
 import { apiClient } from '../../../lib/api';
@@ -24,6 +24,33 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
 
   const pendingOrders = foodOrders.filter(o => o.status === 'pending');
   const cookingOrders = foodOrders.filter(o => o.status === 'cooking');
+
+  // Group orders by tableId
+  const groupOrdersByTable = (ordersList: Order[]) => {
+    const grouped = ordersList.reduce((acc, order) => {
+      const tableId = order.tableId || 'Unknown';
+      if (!acc[tableId]) {
+        acc[tableId] = [];
+      }
+      acc[tableId].push(order);
+      return acc;
+    }, {} as Record<string, Order[]>);
+
+    // Sort orders within each table group by timestamp
+    Object.keys(grouped).forEach(tableId => {
+      grouped[tableId].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    });
+
+    // Sort table groups by the earliest order timestamp
+    return Object.entries(grouped).sort((a, b) => {
+      const aEarliest = a[1][0]?.timestamp.getTime() || 0;
+      const bEarliest = b[1][0]?.timestamp.getTime() || 0;
+      return aEarliest - bEarliest;
+    });
+  };
+
+  const pendingOrdersByTable = groupOrdersByTable(pendingOrders);
+  const cookingOrdersByTable = groupOrdersByTable(cookingOrders);
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     setUpdatingOrderId(orderId);
@@ -58,178 +85,214 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
   };
 
   const EmptyState = ({ message }: { message: string }) => (
-    <div className="flex flex-col items-center justify-center py-24 text-zinc-300 min-h-[300px]">
-        <div className="w-16 h-16 rounded-2xl bg-zinc-100/50 flex items-center justify-center mb-4">
-            <UtensilsCrossed size={28} className="opacity-30" />
+    <div className="flex flex-col items-center justify-center py-24 min-h-[300px]">
+        <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+            <UtensilsCrossed size={20} className="text-zinc-400" />
         </div>
-        <p className="font-medium text-zinc-400">{message}</p>
+        <p className="text-sm font-medium text-zinc-500">{message}</p>
     </div>
   );
 
   return (
     <div className="w-full h-full flex flex-col">
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'cooking')} className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-6 shrink-0">
-          <TabsList className="bg-zinc-100 p-1 mb-4 w-full md:w-auto grid grid-cols-2 md:inline-flex">
-            <TabsTrigger value="pending" className="gap-2 px-6">
-              <ChefHat size={16} />
-              {t('feed.tab.new_orders')} ({pendingOrders.length})
+        <div className="px-6 shrink-0 border-b border-zinc-200">
+          <TabsList className="bg-transparent p-0 h-auto w-full md:w-auto gap-1">
+            <TabsTrigger value="pending" className="gap-2 px-4 py-2.5 data-[state=active]:bg-zinc-900 data-[state=active]:text-white data-[state=active]:shadow-none rounded-lg border-0">
+              <ChefHat size={14} />
+              <span className="text-sm font-semibold">{t('feed.tab.new_orders')}</span>
+              <span className="text-xs bg-zinc-200 data-[state=active]:bg-zinc-700 text-zinc-600 data-[state=active]:text-zinc-200 px-1.5 py-0.5 rounded font-medium">
+                {pendingOrders.length}
+              </span>
             </TabsTrigger>
-            <TabsTrigger value="cooking" className="gap-2 px-6">
-              <Timer size={16} />
-              {t('feed.tab.cooking')} ({cookingOrders.length})
+            <TabsTrigger value="cooking" className="gap-2 px-4 py-2.5 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-none rounded-lg border-0">
+              <Timer size={14} />
+              <span className="text-sm font-semibold">{t('feed.tab.cooking')}</span>
+              <span className="text-xs bg-zinc-200 data-[state=active]:bg-blue-400 text-zinc-600 data-[state=active]:text-white px-1.5 py-0.5 rounded font-medium">
+                {cookingOrders.length}
+              </span>
             </TabsTrigger>
           </TabsList>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 px-6 pb-32 md:pb-6">
           <TabsContent value="pending" className="m-0 h-full border-none">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-2">
-              {pendingOrders.length > 0 ? (
-                pendingOrders.map(order => (
-                        <div key={order.id} className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-                            <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
-                                <ChefHat size={80} />
-                            </div>
-                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-xl bg-zinc-100 text-zinc-900 font-bold text-lg flex items-center justify-center">
-                                        {order.tableId}
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Table {order.tableId}</p>
-                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md w-fit">
-                                            <Clock size={12} />
-                                            {Math.floor((Date.now() - order.timestamp.getTime()) / 60000)}m ago
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <ul className="space-y-3 mb-5 relative z-10">
-                                {order.items.map((item, idx) => {
-                                    const menuItem = menu.find(m => m.name === item.name);
-                                    return (
-                                        <li key={idx} className="flex justify-between items-start text-sm">
-                                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                <div className="w-12 h-12 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
-                                                    {menuItem?.imageUrl ? (
-                                                        <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-zinc-300">
-                                                            <UtensilsCrossed size={16} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col flex-1 min-w-0">
-                                                    <span className="font-bold text-zinc-800 text-base leading-tight">{item.name}</span>
-                                                    {item.options && item.options.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {item.options.map((opt, i) => (
-                                                                <span key={i} className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">
-                                                                    {opt}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <span className="font-bold text-zinc-900 bg-zinc-100 px-3 py-1 rounded-lg shrink-0 ml-2">×{item.quantity}</span>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-
-                            <button 
-                                onClick={() => handleUpdateStatus(order.id, 'cooking')}
-                                disabled={updatingOrderId === order.id}
-                                className="w-full h-12 bg-zinc-900 text-white rounded-xl font-bold text-sm shadow-lg shadow-zinc-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChefHat size={18} />
-                                {updatingOrderId === order.id ? 'Updating...' : 'Start Cooking'}
-                            </button>
-                        </div>
-                    ))
-                ) : (
-                    <div className="col-span-full">
-                        <EmptyState message="No new orders" />
+            <div className="space-y-8 pt-4">
+              {pendingOrdersByTable.length > 0 ? (
+                pendingOrdersByTable.map(([tableId, tableOrders]) => (
+                  <div key={tableId} className="space-y-4">
+                    {/* Table Header - Minimal */}
+                    <div className="flex items-center gap-3 pb-2 border-b border-zinc-100">
+                      <div className="w-8 h-8 rounded-lg bg-zinc-900 text-white font-semibold text-sm flex items-center justify-center">
+                        {tableId}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-zinc-900">
+                          Table {tableId}
+                        </h3>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          {tableOrders.length} {tableOrders.length === 1 ? 'order' : 'orders'}
+                        </p>
+                      </div>
                     </div>
-                )}
+                    {/* Orders Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {tableOrders.map(order => (
+                        <div key={order.id} className="bg-white rounded-xl border border-zinc-200/60 hover:border-zinc-300 hover:shadow-sm transition-all group">
+                          {/* Time Badge */}
+                          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                              <Clock size={12} className="text-orange-500" />
+                              <span className="text-orange-600">{Math.floor((Date.now() - order.timestamp.getTime()) / 60000)}m ago</span>
+                            </div>
+                          </div>
+
+                          {/* Menu Items */}
+                          <div className="px-4 pb-4 space-y-2.5">
+                            {order.items.map((item, idx) => {
+                              const menuItem = menu.find(m => m.name === item.name);
+                              return (
+                                <div key={idx} className="flex items-start gap-2.5">
+                                  <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
+                                    {menuItem?.imageUrl ? (
+                                      <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <UtensilsCrossed size={14} className="text-zinc-300" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0 pt-0.5">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="text-sm font-semibold text-zinc-900 leading-snug">{item.name}</span>
+                                      <span className="text-xs font-bold text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded shrink-0">×{item.quantity}</span>
+                                    </div>
+                                    {item.options && item.options.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {item.options.map((opt, i) => (
+                                          <span key={i} className="text-[10px] font-medium text-zinc-500 bg-zinc-50 px-1.5 py-0.5 rounded">
+                                            {opt}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Action Button */}
+                          <div className="px-4 pb-4">
+                            <button 
+                              onClick={() => handleUpdateStatus(order.id, 'cooking')}
+                              disabled={updatingOrderId === order.id}
+                              className="w-full h-10 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <ChefHat size={16} />
+                              {updatingOrderId === order.id ? 'Updating...' : 'Start Cooking'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full">
+                  <EmptyState message="No new orders" />
+                </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="cooking" className="m-0 h-full border-none">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-2">
-              {cookingOrders.length > 0 ? (
-                cookingOrders.map(order => (
-                        <div key={order.id} className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-                            <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
-                                <Clock size={80} />
-                            </div>
-                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-xl bg-zinc-100 text-zinc-900 font-bold text-lg flex items-center justify-center">
-                                        {order.tableId}
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Cooking</p>
-                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md w-fit">
-                                            <Clock size={12} />
-                                            {Math.floor((Date.now() - order.timestamp.getTime()) / 60000)}m elapsed
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <ul className="space-y-3 mb-5 relative z-10">
-                                {order.items.map((item, idx) => {
-                                    const menuItem = menu.find(m => m.name === item.name);
-                                    return (
-                                        <li key={idx} className="flex justify-between items-start text-sm">
-                                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                <div className="w-12 h-12 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
-                                                    {menuItem?.imageUrl ? (
-                                                        <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-zinc-300">
-                                                            <UtensilsCrossed size={16} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col flex-1 min-w-0">
-                                                    <span className="font-medium text-zinc-600 text-base leading-tight">{item.name}</span>
-                                                    {item.options && item.options.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {item.options.map((opt, i) => (
-                                                                <span key={i} className="text-[10px] font-bold text-zinc-400 bg-zinc-50 px-1.5 py-0.5 rounded border border-zinc-100">
-                                                                    {opt}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <span className="font-bold text-zinc-500 bg-zinc-50 px-3 py-1 rounded-lg border border-zinc-100 shrink-0 ml-2">×{item.quantity}</span>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-
-                            <button 
-                                onClick={() => handleUpdateStatus(order.id, 'served')}
-                                disabled={updatingOrderId === order.id}
-                                className="w-full h-12 bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <CircleCheck size={18} />
-                                {updatingOrderId === order.id ? 'Updating...' : 'Mark Served'}
-                            </button>
-                        </div>
-                    ))
-                ) : (
-                    <div className="col-span-full">
-                        <EmptyState message="Nothing cooking right now" />
+            <div className="space-y-8 pt-4">
+              {cookingOrdersByTable.length > 0 ? (
+                cookingOrdersByTable.map(([tableId, tableOrders]) => (
+                  <div key={tableId} className="space-y-4">
+                    {/* Table Header - Minimal */}
+                    <div className="flex items-center gap-3 pb-2 border-b border-zinc-100">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500 text-white font-semibold text-sm flex items-center justify-center">
+                        {tableId}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-zinc-900">
+                          Table {tableId}
+                        </h3>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          {tableOrders.length} {tableOrders.length === 1 ? 'order' : 'orders'} cooking
+                        </p>
+                      </div>
                     </div>
-                )}
+                    {/* Orders Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {tableOrders.map(order => (
+                        <div key={order.id} className="bg-white rounded-xl border border-blue-200/60 hover:border-blue-300 hover:shadow-sm transition-all group">
+                          {/* Time Badge */}
+                          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                              <Timer size={12} className="text-blue-500" />
+                              <span className="text-blue-600">{Math.floor((Date.now() - order.timestamp.getTime()) / 60000)}m elapsed</span>
+                            </div>
+                          </div>
+
+                          {/* Menu Items */}
+                          <div className="px-4 pb-4 space-y-2.5">
+                            {order.items.map((item, idx) => {
+                              const menuItem = menu.find(m => m.name === item.name);
+                              return (
+                                <div key={idx} className="flex items-start gap-2.5">
+                                  <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
+                                    {menuItem?.imageUrl ? (
+                                      <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <UtensilsCrossed size={14} className="text-zinc-300" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0 pt-0.5">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="text-sm font-semibold text-zinc-700 leading-snug">{item.name}</span>
+                                      <span className="text-xs font-bold text-zinc-500 bg-zinc-50 px-2 py-0.5 rounded shrink-0">×{item.quantity}</span>
+                                    </div>
+                                    {item.options && item.options.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {item.options.map((opt, i) => (
+                                          <span key={i} className="text-[10px] font-medium text-zinc-400 bg-zinc-50 px-1.5 py-0.5 rounded">
+                                            {opt}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Action Button */}
+                          <div className="px-4 pb-4">
+                            <button 
+                              onClick={() => handleUpdateStatus(order.id, 'served')}
+                              disabled={updatingOrderId === order.id}
+                              className="w-full h-10 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <CircleCheck size={16} />
+                              {updatingOrderId === order.id ? 'Updating...' : 'Mark Served'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full">
+                  <EmptyState message="Nothing cooking right now" />
+                </div>
+              )}
             </div>
           </TabsContent>
         </div>

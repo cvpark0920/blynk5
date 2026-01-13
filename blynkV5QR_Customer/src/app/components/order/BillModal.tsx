@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { CartItem } from '../../types';
-import { X, ArrowLeft, Download, Check, CreditCard, Banknote, QrCode } from 'lucide-react';
+import { X, ArrowLeft, Download, Check, CreditCard, Banknote, QrCode, Loader2 } from 'lucide-react';
 import { CurrencyDisplay } from '../CurrencyDisplay';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { getTranslation } from '../../i18n/translations';
+import { apiClient } from '../../../lib/api';
 
 interface BillModalProps {
   isOpen: boolean;
   onClose: () => void;
   orders: CartItem[];
+  restaurantId: string | null;
+  tableNumber: number | null;
   onPaymentRequest: (method: string) => void;
   onTransferComplete: () => void;
 }
@@ -22,31 +25,145 @@ export const BillModal: React.FC<BillModalProps> = ({
   isOpen, 
   onClose, 
   orders, 
+  restaurantId,
+  tableNumber,
   onPaymentRequest,
   onTransferComplete 
 }) => {
   const { lang } = useLanguage();
   const [step, setStep] = useState<BillStep>('bill');
   const dragControls = useDragControls();
+  const [isLoadingQR, setIsLoadingQR] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [bankInfo, setBankInfo] = useState<{
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+  } | null>(null);
 
   const total = orders.reduce((sum, item) => {
-    const itemTotal = (item.priceVND + (item.selectedOptions?.reduce((s,o)=>s+o.priceVND,0) || 0)) * item.quantity;
+    const basePrice = item.priceVND || 0;
+    const optionsPrice = item.selectedOptions?.reduce((s, o) => s + (o.priceVND || 0), 0) || 0;
+    const itemTotal = (basePrice + optionsPrice) * (item.quantity || 1);
     return sum + itemTotal;
   }, 0);
 
+  // 디버깅: orders와 total 값 확인
+  useEffect(() => {
+    if (isOpen && orders.length > 0) {
+      console.log('BillModal - orders:', orders);
+      console.log('BillModal - total:', total);
+      orders.forEach((item, idx) => {
+        console.log(`Item ${idx}:`, {
+          name: item.nameKO,
+          priceVND: item.priceVND,
+          quantity: item.quantity,
+          selectedOptions: item.selectedOptions,
+          itemTotal: (item.priceVND || 0) * (item.quantity || 1),
+        });
+      });
+    }
+  }, [isOpen, orders, total]);
+
   // Reset step when modal closes/opens
   useEffect(() => {
-    if (isOpen) setStep('bill');
+    if (isOpen) {
+      setStep('bill');
+      setQrCodeUrl(null);
+      setBankInfo(null);
+    }
   }, [isOpen]);
 
-  const handleDownloadQR = () => {
-    // Simulation of download
-    const message = getTranslation('bill.qrSaved', lang);
-    toast.success(message, {
-      description: lang === 'ko' ? '이미지가 갤러리에 저장되었습니다.' 
-        : lang === 'vn' ? 'Ảnh đã được lưu vào thư viện.'
-        : 'Image saved to gallery'
-    });
+  // Load payment methods and generate QR code when entering QR step
+  useEffect(() => {
+    if (step === 'qr' && restaurantId && !qrCodeUrl && !isLoadingQR) {
+      loadQRCode();
+    }
+  }, [step, restaurantId, qrCodeUrl, isLoadingQR]);
+
+  const loadQRCode = async () => {
+    if (!restaurantId) {
+      toast.error(getTranslation('toast.restaurantNotFound', lang));
+      return;
+    }
+
+    setIsLoadingQR(true);
+    try {
+      // First, get payment methods to check if bank transfer is enabled
+      const paymentMethodsResponse = await apiClient.getPaymentMethods(restaurantId);
+      
+      if (!paymentMethodsResponse.success || !paymentMethodsResponse.data) {
+        throw new Error(paymentMethodsResponse.error?.message || 'Failed to load payment methods');
+      }
+
+      const bankTransfer = paymentMethodsResponse.data.bankTransfer;
+      
+      if (!bankTransfer.enabled) {
+        toast.error(getTranslation('toast.bankTransferDisabled', lang));
+        setStep('method');
+        return;
+      }
+
+      if (!bankTransfer.bankName || !bankTransfer.accountNumber || !bankTransfer.accountHolder) {
+        toast.error(getTranslation('toast.accountInfoMissing', lang));
+        setStep('method');
+        return;
+      }
+
+      // Generate QR code
+      const qrResponse = await apiClient.generateQRCode({
+        restaurantId,
+        amount: total,
+        memo: lang === 'ko' ? `테이블 ${tableNumber}` : lang === 'vn' ? `Bàn ${tableNumber}` : `Table ${tableNumber}`,
+        tableNumber: tableNumber || undefined,
+      });
+
+      if (!qrResponse.success || !qrResponse.data) {
+        throw new Error(qrResponse.error?.message || 'Failed to generate QR code');
+      }
+
+      setQrCodeUrl(qrResponse.data.qrCodeUrl);
+      setBankInfo({
+        bankName: qrResponse.data.bankName,
+        accountNumber: qrResponse.data.accountNumber,
+        accountHolder: qrResponse.data.accountHolder,
+      });
+    } catch (error: any) {
+      console.error('Failed to load QR code:', error);
+      toast.error(getTranslation('toast.qrGenerateFailed', lang));
+      setStep('method');
+    } finally {
+      setIsLoadingQR(false);
+    }
+  };
+
+  const handleDownloadQR = async () => {
+    if (!qrCodeUrl) {
+      toast.error(getTranslation('toast.qrCodeMissing', lang));
+      return;
+    }
+
+    try {
+      // Fetch the QR code image
+      const response = await fetch(qrCodeUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `qr-code-${tableNumber || 'payment'}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      const message = getTranslation('bill.qrSaved', lang);
+      toast.success(message, {
+        description: getTranslation('toast.imageSaved', lang)
+      });
+    } catch (error) {
+      console.error('Failed to download QR code:', error);
+      toast.error(getTranslation('toast.qrDownloadFailed', lang));
+    }
   };
 
   const StepHeader = () => (
@@ -218,53 +335,95 @@ export const BillModal: React.FC<BillModalProps> = ({
                {/* STEP 3: QR CODE */}
                {step === 'qr' && (
                  <div className="flex flex-col h-full">
-                   <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
-                      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                        {/* Placeholder QR Code */}
-                        <div className="w-48 h-48 bg-gray-900 rounded-lg flex items-center justify-center relative overflow-hidden">
-                           <div className="absolute inset-2 bg-white flex items-center justify-center">
-                             <QrCode size={120} className="text-gray-900" />
+                   {isLoadingQR ? (
+                     <div className="flex-1 flex flex-col items-center justify-center p-6">
+                       <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-4" />
+                       <p className="text-gray-500">
+                         {lang === 'ko' ? 'QR 코드 생성 중...' : lang === 'vn' ? 'Đang tạo mã QR...' : 'Generating QR code...'}
+                       </p>
+                     </div>
+                   ) : qrCodeUrl && bankInfo ? (
+                     <>
+                       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
+                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                           {/* Actual QR Code Image */}
+                           <div className="w-48 h-48 bg-white rounded-lg flex items-center justify-center relative overflow-hidden border-2 border-gray-200">
+                             <img 
+                               src={qrCodeUrl} 
+                               alt="QR Code" 
+                               className="w-full h-full object-contain"
+                               onError={(e) => {
+                                 // Fallback to placeholder if image fails to load
+                                 const target = e.target as HTMLImageElement;
+                                 target.style.display = 'none';
+                                 const placeholder = target.parentElement?.querySelector('.qr-placeholder');
+                                 if (placeholder) {
+                                   (placeholder as HTMLElement).style.display = 'flex';
+                                 }
+                               }}
+                             />
+                             {/* Placeholder fallback */}
+                             <div className="qr-placeholder hidden absolute inset-0 bg-gray-900 flex items-center justify-center">
+                               <div className="absolute inset-2 bg-white flex items-center justify-center">
+                                 <QrCode size={120} className="text-gray-900" />
+                               </div>
+                               {/* Decorative corners */}
+                               <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-black rounded-tl-lg" />
+                               <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-black rounded-tr-lg" />
+                               <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-black rounded-bl-lg" />
+                               <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-black rounded-br-lg" />
+                             </div>
                            </div>
-                           {/* Decorative corners */}
-                           <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-black rounded-tl-lg" />
-                           <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-black rounded-tr-lg" />
-                           <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-black rounded-bl-lg" />
-                           <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-black rounded-br-lg" />
-                        </div>
-                      </div>
+                         </div>
 
-                      <div className="space-y-1">
-                        <div className="text-sm text-gray-500">
-                          {lang === 'ko' ? '신한은행' : lang === 'vn' ? 'Ngân hàng Shinhan' : 'Shinhan Bank'}
-                        </div>
-                        <div className="text-xl font-bold tracking-wider">110-123-456789</div>
-                        <div className="text-sm text-gray-400">{getTranslation('bill.accountHolder', lang)}</div>
-                      </div>
+                         <div className="space-y-1">
+                           <div className="text-sm text-gray-500">
+                             {bankInfo.bankName}
+                           </div>
+                           <div className="text-xl font-bold tracking-wider">{bankInfo.accountNumber}</div>
+                           <div className="text-sm text-gray-400">
+                             {lang === 'ko' ? `예금주: ${bankInfo.accountHolder}` : lang === 'vn' ? `Chủ tài khoản: ${bankInfo.accountHolder}` : `Account Holder: ${bankInfo.accountHolder}`}
+                           </div>
+                         </div>
 
-                      <div className="bg-blue-50 px-6 py-3 rounded-xl">
-                        <span className="text-blue-600 font-bold text-2xl">
-                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(total)}
-                        </span>
-                      </div>
-                   </div>
+                         <div className="bg-blue-50 px-6 py-3 rounded-xl">
+                           <span className="text-blue-600 font-bold text-2xl">
+                             {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(total)}
+                           </span>
+                         </div>
+                       </div>
 
-                   <div className="p-4 bg-white border-t border-gray-100 space-y-3 pb-safe">
-                     <Button 
-                      onClick={handleDownloadQR}
-                      variant="outline"
-                      className="w-full h-12 text-base font-medium flex items-center justify-center gap-2"
-                     >
-                       <Download size={18} />
-                       {getTranslation('bill.qrDownload', lang)}
-                     </Button>
-                     <Button 
-                      onClick={onTransferComplete}
-                      className="w-full h-12 text-lg bg-blue-600 text-white hover:bg-blue-700 rounded-xl flex items-center justify-center gap-2"
-                     >
-                       <Check size={18} />
-                       {getTranslation('bill.transferComplete', lang)}
-                     </Button>
-                   </div>
+                       <div className="p-4 bg-white border-t border-gray-100 space-y-3 pb-safe">
+                         <Button 
+                           onClick={handleDownloadQR}
+                           variant="outline"
+                           className="w-full h-12 text-base font-medium flex items-center justify-center gap-2"
+                         >
+                           <Download size={18} />
+                           {getTranslation('bill.qrDownload', lang)}
+                         </Button>
+                         <Button 
+                           onClick={onTransferComplete}
+                           className="w-full h-12 text-lg bg-blue-600 text-white hover:bg-blue-700 rounded-xl flex items-center justify-center gap-2"
+                         >
+                           <Check size={18} />
+                           {getTranslation('bill.transferComplete', lang)}
+                         </Button>
+                       </div>
+                     </>
+                   ) : (
+                     <div className="flex-1 flex flex-col items-center justify-center p-6">
+                       <p className="text-gray-500 mb-4">
+                         {lang === 'ko' ? 'QR 코드를 불러올 수 없습니다.' : lang === 'vn' ? 'Không thể tải mã QR.' : 'Unable to load QR code.'}
+                       </p>
+                       <Button 
+                         onClick={() => setStep('method')}
+                         variant="outline"
+                       >
+                         {lang === 'ko' ? '돌아가기' : lang === 'vn' ? 'Quay lại' : 'Go Back'}
+                       </Button>
+                     </div>
+                   )}
                  </div>
                )}
              </div>

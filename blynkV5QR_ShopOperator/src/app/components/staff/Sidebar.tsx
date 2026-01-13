@@ -31,7 +31,7 @@ export function Sidebar({ currentTab, onTabChange, activeOrders }: SidebarProps)
     { id: 'tables', icon: LayoutGrid, label: 'nav.tables' },
     { id: 'orders', icon: ChefHat, label: 'nav.orders' },
     { id: 'reports', icon: BarChart3, label: 'nav.reports', restricted: true },
-    { id: 'settings', icon: Settings, label: 'nav.settings' },
+    { id: 'settings', icon: Settings, label: 'nav.settings', restricted: true },
   ] as const;
 
   // Check if user has owner/manager permissions (for PIN login: currentUser.role, for Google login: userRole)

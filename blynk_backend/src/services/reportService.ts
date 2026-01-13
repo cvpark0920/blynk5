@@ -55,6 +55,7 @@ export interface SalesHistoryItem {
 export interface SalesHistoryEntry {
   orderId: string;
   orderNumber: number; // 순번 (1, 2, 3, ...)
+  sessionId: string; // 세션 ID (테이블별 그룹핑용)
   tableNumber: number;
   createdAt: string;
   totalAmount: number;
@@ -106,11 +107,11 @@ export class ReportService {
       periodEnd = todayEnd;
     }
 
-    // Get today's orders
+    // Get today's orders (include both SERVED and PAID orders)
     const todayOrders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: OrderStatus.SERVED,
+        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
         createdAt: {
           gte: todayStart,
           lt: todayEnd,
@@ -126,11 +127,11 @@ export class ReportService {
     const todayOrderCount = todayOrders.length;
     const avgOrderValue = todayOrderCount > 0 ? Math.round(todayRevenue / todayOrderCount) : 0;
 
-    // Get yesterday's orders
+    // Get yesterday's orders (include both SERVED and PAID orders)
     const yesterdayOrders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: OrderStatus.SERVED,
+        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
         createdAt: {
           gte: yesterdayStart,
           lt: yesterdayEnd,
@@ -178,7 +179,7 @@ export class ReportService {
       const dayOrders = await prisma.order.findMany({
         where: {
           restaurantId,
-          status: OrderStatus.SERVED,
+          status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
           createdAt: {
             gte: date,
             lt: dateEnd,
@@ -260,11 +261,11 @@ export class ReportService {
       periodEnd.setDate(periodEnd.getDate() + 1);
     }
 
-    // Get all orders for the period
+    // Get all orders for the period (include both SERVED and PAID orders)
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: OrderStatus.SERVED,
+        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
@@ -332,11 +333,11 @@ export class ReportService {
       periodEnd.setDate(periodEnd.getDate() + 1);
     }
 
-    // Get all served orders in the period
+    // Get all served/paid orders in the period
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: OrderStatus.SERVED,
+        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
@@ -431,11 +432,11 @@ export class ReportService {
       periodEnd.setDate(periodEnd.getDate() + 1);
     }
 
-    // Get all served orders in the period
+    // Get all served/paid orders in the period
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: OrderStatus.SERVED,
+        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
@@ -554,11 +555,11 @@ export class ReportService {
       periodEnd.setDate(periodEnd.getDate() + 1);
     }
 
-    // Get all served orders in the period
+    // Get all served/paid orders in the period
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: OrderStatus.SERVED,
+        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
@@ -588,6 +589,7 @@ export class ReportService {
       return {
         orderId: order.id,
         orderNumber: orders.length - index, // Most recent order = highest number
+        sessionId: order.sessionId, // Include sessionId for grouping
         tableNumber: order.table.tableNumber,
         createdAt: order.createdAt.toISOString(),
         totalAmount: order.totalAmount,

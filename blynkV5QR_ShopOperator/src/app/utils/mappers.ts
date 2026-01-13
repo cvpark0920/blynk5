@@ -92,6 +92,7 @@ export function mapBackendOrderToFrontend(backendOrder: BackendOrder, language: 
     status: backendOrder.status.toLowerCase() as Order['status'],
     timestamp: new Date(backendOrder.createdAt),
     type: 'order',
+    totalAmount: backendOrder.totalAmount || 0, // 백엔드에서 받은 totalAmount 추가
   };
 }
 
@@ -296,5 +297,6 @@ export function mapChatMessageToOrder(
     timestamp: new Date(chatMessage.createdAt),
     type: 'request',
     requestDetail: messageText,
+    totalAmount: 0, // Request messages don't have amounts
   };
 }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Loader2, ChefHat, Lock, ArrowLeft, Delete, DeleteIcon } from 'lucide-react';
@@ -10,8 +9,15 @@ import { cn } from '../ui/utils';
 import { apiClient } from '../../../lib/api';
 
 export function LoginScreen() {
-  const { restaurantId: urlRestaurantId } = useParams<{ restaurantId: string }>();
-  const navigate = useNavigate();
+  // Parse restaurantId from URL
+  const pathMatch = window.location.pathname.match(/\/shop\/restaurant\/([^/]+)/);
+  const urlRestaurantId = pathMatch ? pathMatch[1] : null;
+  
+  // Navigate function using window.location
+  const navigate = (path: string) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
   const { 
     loginShop, 
     loginShopWithPin, 
@@ -20,7 +26,10 @@ export function LoginScreen() {
     setShopStaffList: setStaffList, 
     shopRestaurantId: restaurantId, 
     setShopRestaurantId: setRestaurantId, 
-    setShopRestaurantName: setRestaurantName 
+    setShopRestaurantName: setRestaurantName,
+    isShopAuthenticated,
+    shopUserRole,
+    shopOwnerInfo
   } = useUnifiedAuth();
   const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +39,22 @@ export function LoginScreen() {
   const [mode, setMode] = useState<'pin' | 'email'>('pin'); // 'pin' | 'email'
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [pinInput, setPinInput] = useState('');
+
+  // Debug logging
+  useEffect(() => {
+    console.log('=== LoginScreen Component Mounted ===');
+    console.log('URL restaurantId:', urlRestaurantId);
+    console.log('Context restaurantId:', restaurantId);
+    console.log('isShopAuthenticated:', isShopAuthenticated);
+    console.log('shopUser:', currentUser);
+    console.log('shopUserRole:', shopUserRole);
+    console.log('shopOwnerInfo:', shopOwnerInfo);
+    console.log('localStorage accessToken:', localStorage.getItem('unified_accessToken') ? 'exists' : 'missing');
+    console.log('localStorage refreshToken:', localStorage.getItem('unified_refreshToken') ? 'exists' : 'missing');
+    console.log('localStorage appType:', localStorage.getItem('unified_appType'));
+    console.log('Current URL:', window.location.href);
+    console.log('URL search params:', window.location.search);
+  }, [urlRestaurantId, restaurantId, isShopAuthenticated, currentUser, shopUserRole, shopOwnerInfo]);
 
   // Load restaurant info and staff list from URL restaurantId (public API, no auth required)
   useEffect(() => {
@@ -98,14 +123,20 @@ export function LoginScreen() {
   const activeStaff = staffList.filter(s => s.status === 'active');
 
   const handleEmailLogin = async () => {
+    console.log('=== handleEmailLogin called ===');
+    console.log('urlRestaurantId:', urlRestaurantId);
+    
     if (!urlRestaurantId) {
+      console.error('No restaurantId found');
       toast.error(t('login.error.restaurant_id_required'));
       return;
     }
 
     setIsLoading(true);
     try {
+      console.log('Calling loginShop with restaurantId:', urlRestaurantId);
       await loginShop(urlRestaurantId);
+      console.log('loginShop completed');
       // After successful login, navigate to dashboard
       navigate(`/shop/restaurant/${urlRestaurantId}/dashboard`);
     } finally {

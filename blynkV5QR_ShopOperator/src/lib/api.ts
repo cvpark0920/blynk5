@@ -350,6 +350,12 @@ class ApiClient {
     });
   }
 
+  async resetTable(tableId: string) {
+    return this.request<any>(`/api/staff/tables/${tableId}/reset`, {
+      method: 'PUT',
+    });
+  }
+
   async updateTableGuestCount(tableId: string, restaurantId: string, guestCount: number) {
     return this.request<any>(`/api/staff/tables/${tableId}/guests?restaurantId=${restaurantId}&guestCount=${guestCount}`, {
       method: 'PUT',
@@ -425,6 +431,20 @@ class ApiClient {
     return this.request<any[]>(`/api/public/restaurant/${restaurantId}/staff-list`);
   }
 
+  // Generate QR code for bank transfer
+  async generateQRCode(data: {
+    bankId: string;
+    accountNo: string;
+    accountName?: string;
+    amount?: number;
+    memo?: string;
+  }) {
+    return this.request<any>('/api/staff/generate-qr', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Get list of banks (public endpoint)
   async getBanks() {
     return this.request<Array<{
@@ -434,6 +454,7 @@ class ApiClient {
       shortName: string;
       logo: string | null;
       swiftCode: string | null;
+      bin: string;
     }>>('/api/public/banks');
   }
 
@@ -513,6 +534,27 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Quick Chip methods (public API)
+  async getQuickChips(restaurantId?: string, type?: 'CUSTOMER_REQUEST' | 'STAFF_RESPONSE'): Promise<ApiResponse<Array<{
+    id: string;
+    restaurantId: string | null;
+    type: 'CUSTOMER_REQUEST' | 'STAFF_RESPONSE';
+    icon: string;
+    labelKo: string;
+    labelVn: string;
+    labelEn?: string;
+    messageKo?: string;
+    messageVn?: string;
+    messageEn?: string;
+    displayOrder: number;
+    isActive: boolean;
+  }>>> {
+    const params = new URLSearchParams();
+    if (restaurantId) params.append('restaurantId', restaurantId);
+    if (type) params.append('type', type);
+    return this.request(`/api/public/quick-chips?${params.toString()}`);
   }
 }
 

@@ -37,6 +37,11 @@ export function SettingsPage({
   const canManageStaff = 
     (userRole && ['OWNER', 'MANAGER'].includes(userRole)) ||
     (currentUser?.role && ['owner', 'manager'].includes(currentUser.role.toLowerCase()));
+  
+  // Check if user is OWNER (only OWNER can manage payment methods)
+  const isOwner = 
+    userRole === 'OWNER' ||
+    (currentUser?.role && currentUser.role.toLowerCase() === 'owner');
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -48,7 +53,7 @@ export function SettingsPage({
       
       <Tabs defaultValue="menu" className="flex-1 flex flex-col overflow-hidden">
         <div className="px-6 shrink-0">
-            <TabsList className={`bg-zinc-100 p-1 mb-4 w-full md:w-auto grid ${canManageStaff ? 'grid-cols-4' : 'grid-cols-3'} md:inline-flex`}>
+            <TabsList className={`bg-zinc-100 p-1 mb-4 w-full md:w-auto grid ${isOwner ? (canManageStaff ? 'grid-cols-4' : 'grid-cols-3') : (canManageStaff ? 'grid-cols-3' : 'grid-cols-2')} md:inline-flex`}>
                 <TabsTrigger value="menu" className="gap-2 px-6">
                     <UtensilsCrossed size={16} />
                     {t('settings.tab_menu')}
@@ -63,7 +68,7 @@ export function SettingsPage({
                         {t('settings.tab_staff')}
                     </TabsTrigger>
                 )}
-                {canManageStaff && (
+                {isOwner && (
                     <TabsTrigger value="payment" className="gap-2 px-6">
                         <CreditCard size={16} />
                         {t('settings.tab_payment')}
@@ -100,7 +105,7 @@ export function SettingsPage({
                     />
                 </TabsContent>
             )}
-            {canManageStaff && (
+            {isOwner && (
                 <TabsContent value="payment" className="m-0 h-full border-none">
                     <PaymentMethodManagement isEmbedded={true} />
                 </TabsContent>

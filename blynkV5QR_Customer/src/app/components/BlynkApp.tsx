@@ -20,7 +20,7 @@ import {
 } from './ui/dropdown-menu';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useSession } from '../context/SessionContext';
-import { apiClient, Menu, MenuItem as BackendMenuItem, ChatMessage as BackendChatMessage } from '../../lib/api';
+import { apiClient, Menu, MenuItem as BackendMenuItem, ChatMessage as BackendChatMessage, Restaurant } from '../../lib/api';
 import { SSEClient, SSEEvent } from '../../lib/sseClient';
 import { toast } from 'sonner';
 import { getTranslation } from '../i18n/translations';
@@ -43,7 +43,7 @@ const convertBackendMessage = (msg: BackendChatMessage): ChatMessage => {
 };
 
 // 백엔드 MenuItem을 프론트엔드 MenuItem으로 변환
-const convertBackendMenuItem = (item: BackendMenuItem, category: string): FrontendMenuItem => {
+const convertBackendMenuItem = (item: BackendMenuItem, category: string, categoryId: string): FrontendMenuItem => {
   // optionGroups를 평탄화하여 options 배열로 변환
   const options = (item.optionGroups && Array.isArray(item.optionGroups) 
     ? item.optionGroups.flatMap(group => 
@@ -65,7 +65,8 @@ const convertBackendMenuItem = (item: BackendMenuItem, category: string): Fronte
     nameVN: item.nameVn,
     nameEN: item.nameEn,
     priceVND: item.priceVnd,
-    category: category as 'food' | 'drink' | 'dessert',
+    category: category as 'food' | 'drink' | 'dessert', // 하위 호환성을 위해 유지
+    categoryId: categoryId, // 실제 카테고리 ID 추가
     imageQuery: item.imageUrl || '',
     descriptionKO: item.descriptionKo,
     descriptionVN: item.descriptionVn,
@@ -87,6 +88,7 @@ export const BlynkApp: React.FC = () => {
   const [isLoadingMenu, setIsLoadingMenu] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [sessionOrders, setSessionOrders] = useState<CartItem[]>([]);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   
   // Coach mark state
   const [showCoachMark, setShowCoachMark] = useState(false);
@@ -105,9 +107,38 @@ export const BlynkApp: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sseClientRef = useRef<SSEClient | null>(null);
+  const hasAutoOpenedMenuRef = useRef(false);
 
   // Calculate cart item count for badge
   const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+  // 식당 정보 로드
+  useEffect(() => {
+    if (!restaurantId || sessionLoading) {
+      setRestaurant(null);
+      return;
+    }
+
+    const loadRestaurant = async () => {
+      try {
+        console.log('Loading restaurant for ID:', restaurantId); // 디버깅용
+        const response = await apiClient.getRestaurant(restaurantId);
+        console.log('Restaurant API Response:', response); // 디버깅용
+        if (response.success && response.data) {
+          console.log('Restaurant data loaded:', response.data); // 디버깅용
+          setRestaurant(response.data);
+        } else {
+          console.error('Failed to load restaurant - API error:', response.error);
+          setRestaurant(null);
+        }
+      } catch (error) {
+        console.error('Failed to load restaurant - Exception:', error);
+        setRestaurant(null);
+      }
+    };
+
+    loadRestaurant();
+  }, [restaurantId, sessionLoading]);
 
   // 메뉴 로드
   useEffect(() => {
@@ -146,7 +177,7 @@ export const BlynkApp: React.FC = () => {
               if (category.menuItems && Array.isArray(category.menuItems)) {
                 category.menuItems.forEach(item => {
                   if (!item.isSoldOut) {
-                    allItems.push(convertBackendMenuItem(item, categoryName));
+                    allItems.push(convertBackendMenuItem(item, categoryName, category.id));
                   }
                 });
               }
@@ -160,59 +191,41 @@ export const BlynkApp: React.FC = () => {
           setMenuCategories(categories);
           setMenuItems(allItems);
 
-          // TODO: 백엔드 API 연동 필요
-          // QuickChips는 현재 하드코딩되어 있음
-          // 백엔드에 QuickChips 모델/API가 추가되면 API를 통해 가져오도록 변경 필요
-          setQuickChips([
-            {
-              id: 'c1',
-              icon: 'Droplets',
-              labelKO: '물 주세요',
-              labelVN: 'Cho tôi nước',
-              labelEN: 'Water',
-              action: 'message',
-              messageKO: '물 좀 주시겠어요?',
-              messageVN: 'Làm ơn cho tôi xin nước lọc.',
-              messageEN: 'Can I have some water please?'
-            },
-            {
-              id: 'c2',
-              icon: 'Utensils',
-              labelKO: '수저',
-              labelVN: 'Muỗng đũa',
-              labelEN: 'Cutlery',
-              action: 'message',
-              messageKO: '수저 세트 부탁드립니다.',
-              messageVN: 'Làm ơn cho tôi xin bộ muỗng đũa.',
-              messageEN: 'Can I have a cutlery set please?'
-            },
-            {
-              id: 'c3',
-              icon: 'Leaf',
-              labelKO: '고수 빼고',
-              labelVN: 'Không rau mùi',
-              labelEN: 'No Cilantro',
-              action: 'message',
-              messageKO: '고수는 빼주세요.',
-              messageVN: 'Vui lòng không cho rau mùi.',
-              messageEN: 'No cilantro please.'
-            },
-            {
-              id: 'c4',
-              icon: 'ThermometerSnowflake',
-              labelKO: '얼음',
-              labelVN: 'Đá lạnh',
-              labelEN: 'Ice',
-              action: 'message',
-              messageKO: '얼음 좀 주실 수 있나요?',
-              messageVN: 'Cho tôi xin ít đá lạnh.',
-              messageEN: 'Can I have some ice please?'
+          // Load quick chips from API
+          try {
+            console.log('Loading quick chips for restaurant:', restaurantId);
+            const quickChipsResponse = await apiClient.getQuickChips(restaurantId, 'CUSTOMER_REQUEST');
+            console.log('Quick chips response:', quickChipsResponse);
+            
+            if (quickChipsResponse.success && quickChipsResponse.data) {
+              // Convert backend format to frontend format
+              const convertedChips: QuickChip[] = quickChipsResponse.data.map((chip) => ({
+                id: chip.id,
+                icon: chip.icon,
+                labelKO: chip.labelKo,
+                labelVN: chip.labelVn,
+                labelEN: chip.labelEn,
+                action: 'message' as const,
+                messageKO: chip.messageKo,
+                messageVN: chip.messageVn,
+                messageEN: chip.messageEn,
+              }));
+              console.log('Converted chips:', convertedChips);
+              setQuickChips(convertedChips);
+            } else {
+              console.error('Failed to load quick chips:', quickChipsResponse.error);
+              // Fallback to empty array if API fails
+              setQuickChips([]);
             }
-          ]);
+          } catch (error) {
+            console.error('Failed to load quick chips:', error);
+            // Fallback to empty array on error
+            setQuickChips([]);
+          }
         } else if (response.error) {
           // API 응답은 받았지만 에러가 있는 경우
           console.error('Failed to load menu:', response.error);
-          toast.error(response.error.message || '메뉴를 불러오는데 실패했습니다.');
+          toast.error(response.error.message || getTranslation('toast.menuLoadFailed', userLang));
           setMenuCategories([]);
           setMenuItems([]);
         } else {
@@ -226,9 +239,9 @@ export const BlynkApp: React.FC = () => {
         console.error('Failed to load menu:', error);
         const errorMessage = error instanceof Error 
           ? error.message.includes('fetch') || error.message.includes('network')
-            ? '네트워크 연결을 확인해주세요.'
+            ? getTranslation('toast.networkError', userLang)
             : error.message
-          : '메뉴를 불러오는데 실패했습니다.';
+          : getTranslation('toast.menuLoadFailed', userLang);
         toast.error(errorMessage);
         setMenuCategories([]);
         setMenuItems([]);
@@ -278,12 +291,7 @@ export const BlynkApp: React.FC = () => {
     }
     
     // 사용자에게 알림 표시
-    const message = userLang === 'ko' 
-      ? '테이블이 초기화되었습니다.'
-      : userLang === 'vn'
-      ? 'Bàn đã được khởi tạo lại.'
-      : 'Table has been reset.';
-    toast.info(message);
+    toast.info(getTranslation('toast.tableReset', userLang));
   };
 
   // SSE 이벤트 핸들러
@@ -328,44 +336,36 @@ export const BlynkApp: React.FC = () => {
     await refreshSessionOrders();
 
     // 주문 상태에 따른 메시지 생성 (토스트 알림용)
+    // SERVED 상태는 고객에게 알릴 필요 없음
     const statusMessages = {
-      PENDING: {
-        ko: '주문이 접수되었습니다.',
-        vn: 'Đơn hàng đã được tiếp nhận.',
-        en: 'Order has been received.',
-      },
-      COOKING: {
-        ko: '주문이 조리 중입니다.',
-        vn: 'Đơn hàng đang được chế biến.',
-        en: 'Order is being prepared.',
-      },
-      SERVED: {
-        ko: '주문이 준비되었습니다.',
-        vn: 'Đơn hàng đã sẵn sàng.',
-        en: 'Order is ready.',
-      },
-      PAID: {
-        ko: '결제가 완료되었습니다.',
-        vn: 'Thanh toán đã hoàn tất.',
-        en: 'Payment has been completed.',
-      },
-      CANCELLED: {
-        ko: '주문이 취소되었습니다.',
-        vn: 'Đơn hàng đã bị hủy.',
-        en: 'Order has been cancelled.',
-      },
+      PENDING: getTranslation('toast.orderReceived', userLang),
+      COOKING: getTranslation('toast.cookingStarted', userLang),
+      PAID: getTranslation('toast.paymentCompleted', userLang),
+      CANCELLED: getTranslation('toast.orderCancelled', userLang),
     };
 
-    const message = statusMessages[status as keyof typeof statusMessages] || statusMessages.PENDING;
-    
     // 채팅 히스토리를 다시 로드하여 DB에 저장된 메시지 표시 (중복 방지)
     // DB에 이미 저장된 메시지가 있으므로 SSE 이벤트로 메시지를 추가하지 않음
+    // SERVED 상태 메시지는 필터링하여 표시하지 않음
     if (sessionId && !reloadingChatRef.current) {
       reloadingChatRef.current = true;
       try {
         const response = await apiClient.getChatHistory(sessionId);
         if (response.success && response.data) {
-          const convertedMessages = response.data.map(convertBackendMessage);
+          const convertedMessages = response.data
+            .map(convertBackendMessage)
+            .filter(msg => {
+              // SERVED 상태 메시지 필터링 (서빙 완료 메시지는 고객에게 표시하지 않음)
+              if (msg.type === 'text' && msg.metadata?.orderStatus === 'SERVED') {
+                return false;
+              }
+              // "서빙이 완료되었습니다" 텍스트가 포함된 메시지도 필터링
+              const text = userLang === 'ko' ? msg.textKO : userLang === 'vn' ? msg.textVN : msg.textEN || msg.textKO;
+              if (text && (text.includes('서빙이 완료되었습니다') || text.includes('서빙 완료') || text.includes('Đã phục vụ xong') || text.includes('Order has been served'))) {
+                return false;
+              }
+              return true;
+            });
           setMessages(convertedMessages);
         }
       } catch (error) {
@@ -375,9 +375,13 @@ export const BlynkApp: React.FC = () => {
       }
     }
 
-    // 토스트 알림만 표시 (채팅 메시지는 DB에서 로드됨)
-    const toastMessage = userLang === 'ko' ? message.ko : userLang === 'vn' ? message.vn : message.en;
-    toast.info(toastMessage);
+    // 토스트 알림 표시 (SERVED 상태는 제외)
+    if (status !== 'SERVED') {
+      const message = statusMessages[status as keyof typeof statusMessages];
+      if (message) {
+        toast.info(message);
+      }
+    }
   };
 
   // Prevent duplicate chat history reloads
@@ -466,7 +470,7 @@ export const BlynkApp: React.FC = () => {
                         labelKO: opt.option.nameKo || '',
                         labelVN: opt.option.nameVn || '',
                         labelEN: opt.option.nameEn,
-                        priceVND: opt.option.priceVnd || 0,
+                        priceVND: (opt.option.priceVnd !== undefined && opt.option.priceVnd !== null) ? opt.option.priceVnd : 0,
                       }))
                       .filter(opt => opt.id) // 유효한 옵션만 필터링
                   : [];
@@ -480,19 +484,26 @@ export const BlynkApp: React.FC = () => {
                             labelKO: opt.nameKo,
                             labelVN: opt.nameVn,
                             labelEN: opt.nameEn,
-                            priceVND: opt.priceVnd,
+                            priceVND: (opt.priceVnd !== undefined && opt.priceVnd !== null) ? opt.priceVnd : 0,
                           }))
                         : [])
                     )
                   : [];
 
                 // 프론트엔드 MenuItem 형식으로 변환
+                // priceVnd 필드가 없거나 null/undefined인 경우를 대비
+                const priceVND = (backendMenuItem.priceVnd !== undefined && backendMenuItem.priceVnd !== null) 
+                  ? backendMenuItem.priceVnd 
+                  : (backendMenuItem.priceVND !== undefined && backendMenuItem.priceVND !== null)
+                    ? backendMenuItem.priceVND
+                    : 0;
+                
                 const frontendMenuItem: FrontendMenuItem = {
                   id: backendMenuItem.id,
                   nameKO: backendMenuItem.nameKo,
                   nameVN: backendMenuItem.nameVn,
                   nameEN: backendMenuItem.nameEn,
-                  priceVND: backendMenuItem.priceVnd,
+                  priceVND: priceVND,
                   category: 'food', // 기본값, 실제로는 categoryId로 확인 필요
                   imageQuery: backendMenuItem.imageUrl || '',
                   descriptionKO: backendMenuItem.descriptionKo,
@@ -500,6 +511,17 @@ export const BlynkApp: React.FC = () => {
                   descriptionEN: backendMenuItem.descriptionEn,
                   options: options.length > 0 ? options : undefined,
                 };
+                
+                // 디버깅: priceVND 값 확인
+                if (priceVND === 0 && backendMenuItem.priceVnd === undefined && backendMenuItem.priceVND === undefined) {
+                  console.warn('MenuItem priceVND is missing or zero:', {
+                    id: backendMenuItem.id,
+                    name: backendMenuItem.nameKo,
+                    priceVnd: backendMenuItem.priceVnd,
+                    priceVND: backendMenuItem.priceVND,
+                    backendMenuItem,
+                  });
+                }
 
                 orders.push({
                   ...frontendMenuItem,
@@ -622,9 +644,23 @@ export const BlynkApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, sessionLoading, showIntro]);
 
-  // Initial Welcome Message & Coach Mark Check
+  // Initial Welcome Message & Coach Mark Check & Auto-open menu for tables without orders
   useEffect(() => {
-    if (!showIntro && !isLoadingChat) {
+    if (!showIntro && !isLoadingChat && !sessionLoading) {
+      // Check if table has no orders (no session orders, no confirmed orders, no cart)
+      const hasNoOrders = sessionOrders.length === 0 && confirmedOrders.length === 0 && cart.length === 0;
+      
+      // Only auto-open menu on initial load (first time when there are no orders)
+      // Don't auto-open after placing an order
+      if (hasNoOrders && !hasAutoOpenedMenuRef.current) {
+        // Small delay to ensure UI is ready, then open menu
+        setTimeout(() => {
+          setIsMenuOpen(true);
+          setActiveTab('menu');
+          hasAutoOpenedMenuRef.current = true; // Mark as opened
+        }, 300);
+      }
+      
       // Check for coach mark
       const hasSeen = localStorage.getItem('hasSeenCoachMark');
       if (!hasSeen) {
@@ -632,7 +668,7 @@ export const BlynkApp: React.FC = () => {
         setTimeout(() => setShowCoachMark(true), 500);
       }
     }
-  }, [showIntro, isLoadingChat]);
+  }, [showIntro, isLoadingChat, sessionLoading, sessionOrders, confirmedOrders, cart]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -669,13 +705,30 @@ export const BlynkApp: React.FC = () => {
       });
 
       if (response.success) {
-        // Don't add message to local state here - wait for SSE event to reload chat history
-        // This prevents duplicate messages (one from local state, one from SSE reload)
-        // SSE event will trigger handleChatMessage which will reload the full chat history
+        // 메시지 전송 성공 후 채팅 히스토리를 즉시 다시 로드
+        // SSE 이벤트가 오지 않거나 지연될 수 있으므로 직접 로드
+        try {
+          const chatResponse = await apiClient.getChatHistory(sessionId);
+          if (chatResponse.success && chatResponse.data) {
+            const backendMessages = chatResponse.data;
+            const convertedMessages = backendMessages.map(convertBackendMessage);
+            setMessages(convertedMessages);
+            
+            // 자동 스크롤
+            setTimeout(() => {
+              if (scrollRef.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              }
+            }, 100);
+          }
+        } catch (chatError) {
+          console.error('Failed to reload chat history after quick action:', chatError);
+          // SSE 이벤트가 나중에 올 수 있으므로 에러만 로그
+        }
       }
     } catch (error) {
       console.error('Failed to send quick action message:', error);
-      toast.error('메시지 전송에 실패했습니다.');
+      toast.error(getTranslation('toast.messageSendFailed', userLang));
     }
   };
 
@@ -695,7 +748,7 @@ export const BlynkApp: React.FC = () => {
     if (!sessionId || (!inputText.trim() && !previewImage)) return;
 
     const messageText = inputText || (previewImage 
-      ? (userLang === 'ko' ? '사진을 보냈습니다.' : userLang === 'vn' ? 'Đã gửi ảnh' : 'Photo sent')
+      ? getTranslation('toast.photoSent', userLang)
       : '');
 
     try {
@@ -710,21 +763,39 @@ export const BlynkApp: React.FC = () => {
       });
 
       if (response.success) {
-        // Don't add message to local state here - wait for SSE event to reload chat history
-        // This prevents duplicate messages (one from local state, one from SSE reload)
+        // 메시지 전송 성공 후 채팅 히스토리를 즉시 다시 로드
+        // SSE 이벤트가 오지 않거나 지연될 수 있으므로 직접 로드
         setInputText('');
         setPreviewImage(null);
-        // SSE event will trigger handleChatMessage which will reload the full chat history
+        
+        try {
+          const chatResponse = await apiClient.getChatHistory(sessionId);
+          if (chatResponse.success && chatResponse.data) {
+            const backendMessages = chatResponse.data;
+            const convertedMessages = backendMessages.map(convertBackendMessage);
+            setMessages(convertedMessages);
+            
+            // 자동 스크롤
+            setTimeout(() => {
+              if (scrollRef.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              }
+            }, 100);
+          }
+        } catch (chatError) {
+          console.error('Failed to reload chat history after send message:', chatError);
+          // SSE 이벤트가 나중에 올 수 있으므로 에러만 로그
+        }
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      toast.error('메시지 전송에 실패했습니다.');
+      toast.error(getTranslation('toast.messageSendFailed', userLang));
     }
   };
 
   const handlePlaceOrder = async (items: CartItem[]) => {
     if (!sessionId || !tableId || !restaurantId) {
-      toast.error('세션 정보가 없습니다.');
+      toast.error(getTranslation('toast.sessionInfoMissing', userLang));
       return;
     }
 
@@ -750,6 +821,10 @@ export const BlynkApp: React.FC = () => {
       if (response.success && response.data) {
         setConfirmedOrders(prev => [...prev, ...items]);
         setCart([]);
+        
+        // 주문 완료 후 메뉴 닫기
+        setIsMenuOpen(false);
+        setActiveTab('chat');
         
         // 세션의 주문 목록 새로고침
         await refreshSessionOrders();
@@ -777,13 +852,14 @@ export const BlynkApp: React.FC = () => {
           setMessages(convertedMessages);
         }
 
-        toast.success(userLang === 'ko' ? '주문이 전달되었습니다.' : userLang === 'vn' ? 'Đơn hàng đã được gửi.' : 'Order sent.');
+        // Don't show toast here - SSE event will trigger toast notification
+        // This prevents duplicate toast messages (order creation + SSE event)
       } else {
         throw new Error(response.error?.message || 'Failed to create order');
       }
     } catch (error) {
       console.error('Failed to place order:', error);
-      toast.error(userLang === 'ko' ? '주문에 실패했습니다.' : userLang === 'vn' ? 'Đặt hàng thất bại.' : 'Failed to place order.');
+      toast.error(getTranslation('toast.orderFailed', userLang));
     }
   };
 
@@ -839,7 +915,7 @@ export const BlynkApp: React.FC = () => {
       const paymentResponse = await apiClient.completePayment(sessionId, paymentMethod);
       if (!paymentResponse.success) {
         console.error('Failed to complete payment:', paymentResponse.error);
-        toast.error(userLang === 'ko' ? '결제 완료 처리에 실패했습니다.' : userLang === 'vn' ? 'Xử lý thanh toán thất bại.' : 'Failed to complete payment.');
+        toast.error(getTranslation('toast.paymentFailed', userLang));
       }
 
       // 채팅 히스토리 새로고침
@@ -853,7 +929,7 @@ export const BlynkApp: React.FC = () => {
       setIsBillOpen(false);
     } catch (error) {
       console.error('Failed to send transfer complete:', error);
-      toast.error(userLang === 'ko' ? '결제 완료 처리에 실패했습니다.' : userLang === 'vn' ? 'Xử lý thanh toán thất bại.' : 'Failed to complete payment.');
+      toast.error(getTranslation('toast.paymentFailed', userLang));
     }
   };
 
@@ -892,7 +968,8 @@ export const BlynkApp: React.FC = () => {
             transition={{ duration: 1.0, ease: "easeInOut" }}
           >
             <LanguageSelector 
-              onComplete={() => setShowIntro(false)} 
+              onComplete={() => setShowIntro(false)}
+              restaurantName={restaurant?.nameKo || restaurant?.nameVn || null}
             />
           </motion.div>
         )}
@@ -923,9 +1000,21 @@ export const BlynkApp: React.FC = () => {
 
       {/* Header - Fixed Height, No Sticky needed in Flex Col */}
       <header className="flex-none flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100 z-20 shadow-sm h-14">
-        <h1 className="font-bold text-xl tracking-tight text-slate-900">
-          BLYNK
-        </h1>
+        <div className="flex items-center gap-3">
+          {/* 식당 상호 및 테이블 번호 */}
+          <div className="flex items-center gap-2">
+            <h1 className="font-bold text-base tracking-tight text-slate-900 leading-tight">
+              {restaurant 
+                ? (userLang === 'ko' ? restaurant.nameKo : userLang === 'vn' ? restaurant.nameVn : restaurant.nameEn || restaurant.nameKo)
+                : 'BLYNK'}
+            </h1>
+            {tableNumber && (
+              <div className="w-5 h-5 rounded-md bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center">
+                {tableNumber}
+              </div>
+            )}
+          </div>
+        </div>
         
         <div className="flex items-center gap-2">
           {/* Language Selector */}
@@ -1111,6 +1200,8 @@ export const BlynkApp: React.FC = () => {
           setActiveTab('chat'); // Return to chat tab when closed
         }}
         orders={sessionOrders.length > 0 ? sessionOrders : confirmedOrders}
+        restaurantId={restaurantId}
+        tableNumber={tableNumber}
         onPaymentRequest={handlePaymentRequest}
         onTransferComplete={handleTransferComplete}
       />

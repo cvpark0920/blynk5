@@ -147,6 +147,9 @@ export function RestaurantsView() {
   const { t } = useTranslation();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   
+  // Frontend base URL from environment variable or fallback to current origin
+  const frontendBaseUrl = import.meta.env.VITE_FRONTEND_BASE_URL || window.location.origin;
+  
   // Data state
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [categories, setCategories] = useState<Array<{ id: string; nameKo: string; nameVn: string; nameEn?: string }>>([]);
@@ -1086,14 +1089,14 @@ export function RestaurantsView() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 px-3 py-2 bg-muted rounded-md text-sm font-mono break-all">
-                      {`${window.location.origin}/shop/restaurant/${editingRestaurant.id}/login`}
+                      {`${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`}
                     </div>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const url = `${window.location.origin}/shop/restaurant/${editingRestaurant.id}/login`;
+                        const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
                         navigator.clipboard.writeText(url);
                         toast.success('URL이 클립보드에 복사되었습니다.');
                       }}
@@ -1107,7 +1110,7 @@ export function RestaurantsView() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const url = `${window.location.origin}/shop/restaurant/${editingRestaurant.id}/login`;
+                        const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
                         window.open(url, '_blank');
                       }}
                       className="shrink-0"
@@ -1254,14 +1257,14 @@ export function RestaurantsView() {
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 px-3 py-2 bg-muted rounded-md text-sm font-mono break-all">
-                          {`${window.location.origin}/shop/restaurant/${editingRestaurant.id}/login`}
+                          {`${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`}
                         </div>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = `${window.location.origin}/shop/restaurant/${editingRestaurant.id}/login`;
+                            const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
                             navigator.clipboard.writeText(url);
                             toast.success('URL이 클립보드에 복사되었습니다.');
                           }}
@@ -1275,7 +1278,7 @@ export function RestaurantsView() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = `${window.location.origin}/shop/restaurant/${editingRestaurant.id}/login`;
+                            const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
                             window.open(url, '_blank');
                           }}
                           className="shrink-0"
@@ -1332,7 +1335,7 @@ export function RestaurantsView() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-8 pt-4">
                   {tables.map((table) => {
-                    const customerUrl = `${window.location.origin}/customer/r/${selectedRestaurantForQr?.id}/t/${table.tableNumber}`;
+                    const customerUrl = `${frontendBaseUrl}/customer/r/${selectedRestaurantForQr?.id}/t/${table.tableNumber}`;
                     return (
                       <div key={table.id} className="group flex flex-col items-center p-6 rounded-3xl bg-secondary/20 hover:bg-secondary/40 transition-colors duration-300">
                         <div className="flex flex-col items-center mb-5">
@@ -1442,7 +1445,7 @@ export function RestaurantsView() {
               ) : (
                 <div className="grid grid-cols-1 gap-6 p-6 pt-2">
                   {tables.map((table) => {
-                    const customerUrl = `${window.location.origin}/customer/r/${selectedRestaurantForQr?.id}/t/${table.tableNumber}`;
+                    const customerUrl = `${frontendBaseUrl}/customer/r/${selectedRestaurantForQr?.id}/t/${table.tableNumber}`;
                     return (
                       <div key={table.id} className="group flex flex-col items-center p-6 rounded-3xl bg-secondary/20 hover:bg-secondary/40 transition-colors duration-300">
                         <div className="flex flex-col items-center mb-5">
@@ -1538,7 +1541,7 @@ export function RestaurantsView() {
                   <div className="flex items-center gap-2">
                      <span className="text-xs font-mono text-muted-foreground">#{(currentPage - 1) * itemsPerPage + index + 1}</span>
                      <a
-                       href={`${window.location.origin}/shop/restaurant/${restaurant.id}/login`}
+                       href={`${frontendBaseUrl}/shop/restaurant/${restaurant.id}/login`}
                        target="_blank"
                        rel="noopener noreferrer"
                        className="font-bold text-lg text-foreground hover:text-primary hover:underline cursor-pointer transition-colors"
@@ -1710,7 +1713,7 @@ export function RestaurantsView() {
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2">
                             <a
-                              href={`${window.location.origin}/shop/restaurant/${restaurant.id}/login`}
+                              href={`${frontendBaseUrl}/shop/restaurant/${restaurant.id}/login`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-medium text-base hover:text-primary hover:underline cursor-pointer transition-colors"

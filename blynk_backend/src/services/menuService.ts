@@ -116,6 +116,7 @@ export class MenuService {
   }
 
   async updateMenuItem(id: string, data: {
+    categoryId?: string;
     nameKo?: string;
     nameVn?: string;
     nameEn?: string;

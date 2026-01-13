@@ -32,11 +32,25 @@ if (config.google.clientId && config.google.clientSecret &&
 
           logger.info(`Google OAuth login: email=${email}, name=${name}, avatarUrl=${avatarUrl ? 'present' : 'missing'}`);
 
+          // Get appType and restaurantId from state parameter (passed from googleAuth)
+          let appType: string | undefined;
+          let restaurantId: string | undefined;
+          try {
+            // Note: state is passed through passport, we need to get it from the request
+            // For now, we'll pass it through a different mechanism or check in callback
+            // This is a limitation - passport doesn't easily pass state to the verify callback
+            // We'll handle validation in the callback instead
+          } catch (error) {
+            // Ignore
+          }
+
           const result = await authService.createOrUpdateUser(
             email,
             name,
             profile.id,
-            avatarUrl
+            avatarUrl,
+            appType,
+            restaurantId
           );
 
           return done(null, result);
@@ -114,6 +128,58 @@ export const googleCallback: RequestHandler = async (
       logger.warn('Failed to decode state parameter, using default appType');
     }
     
+    // Validate shop app login: user must be restaurant owner or staff
+    if (appType === 'shop') {
+      if (!restaurantId) {
+        return next(createError('식당 ID가 필요합니다.', 400));
+      }
+      
+      // Check if user is restaurant owner or staff
+      const user = await prisma.user.findUnique({
+        where: { id: result.user.id },
+      });
+      
+      if (!user) {
+        return next(createError('사용자를 찾을 수 없습니다.', 404));
+      }
+      
+      // Check if user is restaurant owner
+      const restaurant = await prisma.restaurant.findFirst({
+        where: {
+          id: restaurantId,
+          ownerId: user.id,
+          status: 'active',
+        },
+      });
+      
+      // Check if user is staff member
+      const staff = await prisma.staff.findFirst({
+        where: {
+          email: user.email,
+          restaurantId: restaurantId,
+          status: 'ACTIVE',
+        },
+      });
+      
+      if (!restaurant && !staff) {
+        // Also check by email in case ownerId is not set correctly
+        const restaurantByEmail = await prisma.restaurant.findFirst({
+          where: {
+            id: restaurantId,
+            owner: {
+              email: user.email,
+            },
+            status: 'active',
+          },
+        });
+        
+        if (!restaurantByEmail && !staff) {
+          logger.warn(`Shop login denied: user ${user.email} is not owner or staff of restaurant ${restaurantId}`);
+          return next(createError('식당 주인이나 직원만 로그인할 수 있습니다.', 403));
+        }
+      }
+    }
+    
     // Use single port base URL
     const baseUrl = config.frontend.baseUrl || 'http://localhost:5173';
     
@@ -162,7 +228,8 @@ export const getMe = async (
       throw createError('Authentication required', 401);
     }
 
-    const user = await prisma.user.findUnique({
+    // Try to find user by ID first
+    let user = await prisma.user.findUnique({
       where: { id: authReq.user.userId },
       select: {
         id: true,
@@ -174,7 +241,24 @@ export const getMe = async (
       },
     });
 
+    // If user not found by ID, try to find by email (fallback)
+    if (!user && authReq.user.email) {
+      logger.warn(`User not found by ID ${authReq.user.userId}, trying email ${authReq.user.email}`);
+      user = await prisma.user.findUnique({
+        where: { email: authReq.user.email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          avatarUrl: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+    }
+
     if (!user) {
+      logger.error(`User not found: userId=${authReq.user.userId}, email=${authReq.user.email}`);
       throw createError('User not found', 404);
     }
 
@@ -206,11 +290,48 @@ export const getMe = async (
       }
     }
 
+    // Check if user is a restaurant owner (for Google login)
+    // Only ADMIN role can be restaurant owner
+    let ownerRestaurantId = null;
+    if (user.role === 'ADMIN' && !staffData) {
+      const restaurant = await prisma.restaurant.findFirst({
+        where: {
+          ownerId: user.id,
+          status: 'active',
+        },
+        select: {
+          id: true,
+        },
+      });
+      if (restaurant) {
+        ownerRestaurantId = restaurant.id;
+        logger.info(`Found owner restaurant for user ${user.email}: ${ownerRestaurantId}`);
+      } else {
+        // Also check by email in case ownerId is not set correctly
+        const restaurantByEmail = await prisma.restaurant.findFirst({
+          where: {
+            owner: {
+              email: user.email,
+            },
+            status: 'active',
+          },
+          select: {
+            id: true,
+          },
+        });
+        if (restaurantByEmail) {
+          ownerRestaurantId = restaurantByEmail.id;
+          logger.info(`Found owner restaurant by email for user ${user.email}: ${ownerRestaurantId}`);
+        }
+      }
+    }
+
     res.json({ 
       success: true, 
       data: {
         ...user,
         staff: staffData, // Include staff info if available
+        ownerRestaurantId: ownerRestaurantId, // Include restaurant ID if user is owner
       }
     });
   } catch (error) {

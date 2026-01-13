@@ -12,7 +12,8 @@ export interface MenuItem {
   nameVN: string;
   nameEN?: string;
   priceVND: number;
-  category: 'food' | 'drink' | 'dessert';
+  category: 'food' | 'drink' | 'dessert'; // 하위 호환성을 위해 유지
+  categoryId: string; // 실제 카테고리 ID
   imageQuery: string;
   descriptionKO?: string;
   descriptionVN?: string;

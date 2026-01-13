@@ -225,6 +225,72 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // Quick Chip methods
+  async getQuickChips(restaurantId?: string | null, type?: string) {
+    const params = new URLSearchParams();
+    // restaurantId가 null이면 쿼리 파라미터에 포함하지 않음 (백엔드에서 null로 처리)
+    // restaurantId가 undefined가 아닌 실제 값이면 포함
+    if (restaurantId !== null && restaurantId !== undefined) {
+      params.append('restaurantId', restaurantId);
+    }
+    if (type) params.append('type', type);
+    const queryString = params.toString();
+    return this.request<any[]>(`/api/admin/quick-chips${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getQuickChip(id: string) {
+    return this.request<any>(`/api/admin/quick-chips/${id}`);
+  }
+
+  async createQuickChip(data: {
+    restaurantId?: string | null;
+    type: 'CUSTOMER_REQUEST' | 'STAFF_RESPONSE';
+    icon: string;
+    labelKo: string;
+    labelVn: string;
+    labelEn?: string;
+    messageKo?: string;
+    messageVn?: string;
+    messageEn?: string;
+    displayOrder?: number;
+    isActive?: boolean;
+  }) {
+    return this.request<any>('/api/admin/quick-chips', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateQuickChip(id: string, data: {
+    icon?: string;
+    labelKo?: string;
+    labelVn?: string;
+    labelEn?: string;
+    messageKo?: string;
+    messageVn?: string;
+    messageEn?: string;
+    displayOrder?: number;
+    isActive?: boolean;
+  }) {
+    return this.request<any>(`/api/admin/quick-chips/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteQuickChip(id: string) {
+    return this.request(`/api/admin/quick-chips/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async reorderQuickChips(ids: string[]) {
+    return this.request('/api/admin/quick-chips/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  }
 }
 
 export const apiClient = new ApiClient();

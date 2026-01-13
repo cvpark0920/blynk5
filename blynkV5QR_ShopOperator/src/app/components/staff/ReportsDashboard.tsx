@@ -276,11 +276,47 @@ export function ReportsDashboard() {
   // Show message if custom period is selected but date range is incomplete
   const showDateRangePrompt = period === 'custom' && (!dateRange.from || !dateRange.to);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(salesHistory.length / itemsPerPage);
+  // Group sales history by session (table)
+  const groupBySession = (orders: BackendSalesHistoryEntry[]) => {
+    const grouped = orders.reduce((acc, order) => {
+      const sessionKey = order.sessionId || `table-${order.tableNumber}-${order.createdAt}`; // Fallback to table+time if no sessionId
+      if (!acc[sessionKey]) {
+        acc[sessionKey] = {
+          sessionId: order.sessionId,
+          tableNumber: order.tableNumber,
+          orders: [],
+          totalAmount: 0,
+          createdAt: order.createdAt, // Use earliest order time
+        };
+      }
+      acc[sessionKey].orders.push(order);
+      acc[sessionKey].totalAmount += order.totalAmount;
+      // Update createdAt to earliest order time
+      if (new Date(order.createdAt) < new Date(acc[sessionKey].createdAt)) {
+        acc[sessionKey].createdAt = order.createdAt;
+      }
+      return acc;
+    }, {} as Record<string, {
+      sessionId: string;
+      tableNumber: number;
+      orders: BackendSalesHistoryEntry[];
+      totalAmount: number;
+      createdAt: string;
+    }>);
+
+    // Convert to array and sort by createdAt (most recent first)
+    return Object.values(grouped).sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  };
+
+  const sessionsGrouped = groupBySession(salesHistory);
+
+  // Pagination calculations (for sessions)
+  const totalPages = Math.ceil(sessionsGrouped.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedSalesHistory = salesHistory.slice(startIndex, endIndex);
+  const paginatedSessions = sessionsGrouped.slice(startIndex, endIndex);
 
   // Generate page numbers for pagination
   const getPageNumbers = () => {
@@ -475,43 +511,52 @@ export function ReportsDashboard() {
           </div>
         ) : (
           <>
-            <div className="space-y-2">
-              {paginatedSalesHistory.map((order) => {
-              const isExpanded = expandedOrders.has(order.orderId);
-              const orderDate = new Date(order.createdAt);
-              const firstItem = order.items[0];
-              const remainingItems = order.items.length - 1;
+            <div className="space-y-3">
+              {paginatedSessions.map((session) => {
+              const sessionKey = session.sessionId || `table-${session.tableNumber}-${session.createdAt}`;
+              const isExpanded = expandedOrders.has(sessionKey);
+              const sessionDate = new Date(session.createdAt);
+              const allItems = session.orders.flatMap(order => order.items);
+              const firstItem = allItems[0];
+              const remainingItems = allItems.length - 1;
 
               return (
-                <div key={order.orderId} className="border border-zinc-200 rounded-lg overflow-hidden hover:border-zinc-300 transition-colors">
-                  {/* Order Header */}
+                <div key={sessionKey} className="border border-zinc-200 rounded-lg overflow-hidden hover:border-zinc-300 transition-colors">
+                  {/* Session Header */}
                   <button
-                    onClick={() => toggleOrderExpanded(order.orderId)}
+                    onClick={() => toggleOrderExpanded(sessionKey)}
                     className="w-full p-3 sm:p-4 flex items-center justify-between hover:bg-zinc-50 transition-colors text-left"
                   >
                     <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                      <div className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 bg-zinc-100 rounded-md flex items-center justify-center">
-                        <span className="text-[10px] sm:text-xs font-semibold text-zinc-700">#{order.orderNumber}</span>
+                      <div className="flex-shrink-0 w-10 h-10 sm:w-11 sm:h-11 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <TableIcon size={14} className="sm:w-4 sm:h-4 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
                           <span className="text-xs sm:text-sm font-medium text-zinc-900">
-                            {orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {sessionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
-                          <span className="text-[10px] sm:text-xs text-zinc-500 flex items-center gap-1">
-                            <TableIcon size={10} className="sm:w-3 sm:h-3" />
-                            {t('table.number')} {order.tableNumber}
+                          <span className="text-xs sm:text-sm font-semibold text-zinc-900 flex items-center gap-1">
+                            {t('table.number')} {session.tableNumber}
+                          </span>
+                          <span className="text-[10px] sm:text-xs text-zinc-500">
+                            {session.orders.length} {session.orders.length === 1 ? (language === 'ko' ? '주문' : language === 'vn' ? 'đơn' : 'order') : (language === 'ko' ? '주문' : language === 'vn' ? 'đơn' : 'orders')}
                           </span>
                         </div>
                         <div className="text-[10px] sm:text-xs text-zinc-500 truncate">
-                          {firstItem.menuItemName} x{firstItem.quantity}
+                          {firstItem?.menuItemName} x{firstItem?.quantity}
                           {remainingItems > 0 && ` ${t('report.and_more')} ${remainingItems}${t('report.items')}`}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                        <span className="text-xs sm:text-sm font-semibold text-zinc-900 whitespace-nowrap">
-                          {formatPriceVND(order.totalAmount)}
-                        </span>
+                        <div className="text-right">
+                          <div className="text-xs sm:text-sm font-semibold text-zinc-900 whitespace-nowrap">
+                            {formatPriceVND(session.totalAmount)}
+                          </div>
+                          <div className="text-[10px] text-zinc-500">
+                            {t('checkout.total')}
+                          </div>
+                        </div>
                         {isExpanded ? (
                           <ChevronUp size={14} className="sm:w-4 sm:h-4 text-zinc-400 flex-shrink-0" />
                         ) : (
@@ -521,30 +566,55 @@ export function ReportsDashboard() {
                     </div>
                   </button>
 
-                  {/* Expanded Order Details */}
+                  {/* Expanded Session Details */}
                   {isExpanded && (
-                    <div className="border-t border-zinc-200 bg-zinc-50/50 p-3 sm:p-4">
-                      <div className="space-y-2 sm:space-y-2.5">
-                        {order.items.map((item, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs sm:text-sm">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className="text-zinc-800 truncate">{item.menuItemName}</span>
-                              <span className="text-zinc-500 flex-shrink-0">x{item.quantity}</span>
+                    <div className="border-t border-zinc-200 bg-zinc-50/50">
+                      <div className="p-3 sm:p-4 space-y-3">
+                        {session.orders.map((order, orderIdx) => {
+                          const orderDate = new Date(order.createdAt);
+                          return (
+                            <div key={order.orderId} className="bg-white rounded-lg border border-zinc-200 p-3">
+                              {/* Order Header */}
+                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-100">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] sm:text-xs font-semibold text-zinc-500">
+                                    #{order.orderNumber}
+                                  </span>
+                                  <span className="text-[10px] sm:text-xs text-zinc-400">
+                                    {orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <span className="text-xs sm:text-sm font-semibold text-zinc-900">
+                                  {formatPriceVND(order.totalAmount)}
+                                </span>
+                              </div>
+                              {/* Order Items */}
+                              <div className="space-y-1.5">
+                                {order.items.map((item, idx) => (
+                                  <div key={idx} className="flex items-center justify-between text-xs sm:text-sm">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <span className="text-zinc-800 truncate">{item.menuItemName}</span>
+                                      <span className="text-zinc-500 flex-shrink-0">x{item.quantity}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
+                                      <span className="text-zinc-500 text-[10px] sm:text-xs hidden sm:inline">
+                                        {formatPriceVND(item.unitPrice)} × {item.quantity}
+                                      </span>
+                                      <span className="text-zinc-900 font-semibold text-xs sm:text-sm">
+                                        {formatPriceVND(item.totalPrice)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
-                              <span className="text-zinc-500 text-[10px] sm:text-xs hidden sm:inline">
-                                {formatPriceVND(item.unitPrice)} × {item.quantity}
-                              </span>
-                              <span className="text-zinc-900 font-semibold text-xs sm:text-sm">
-                                {formatPriceVND(item.totalPrice)}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="pt-2 sm:pt-3 mt-2 sm:mt-3 border-t border-zinc-300 flex items-center justify-between">
-                          <span className="text-xs sm:text-sm font-medium text-zinc-700">{t('checkout.total')}</span>
-                          <span className="text-sm sm:text-base font-semibold text-zinc-900">
-                            {formatPriceVND(order.totalAmount)}
+                          );
+                        })}
+                        {/* Session Total */}
+                        <div className="pt-2 mt-2 border-t border-zinc-300 flex items-center justify-between bg-white rounded-lg p-3">
+                          <span className="text-sm sm:text-base font-semibold text-zinc-900">{t('checkout.total')}</span>
+                          <span className="text-base sm:text-lg font-bold text-zinc-900">
+                            {formatPriceVND(session.totalAmount)}
                           </span>
                         </div>
                       </div>
@@ -559,7 +629,7 @@ export function ReportsDashboard() {
             {totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between">
                 <div className="text-xs sm:text-sm text-zinc-500">
-                  {startIndex + 1}-{Math.min(endIndex, salesHistory.length)} / {salesHistory.length}
+                  {startIndex + 1}-{Math.min(endIndex, sessionsGrouped.length)} / {sessionsGrouped.length}
                 </div>
                 <Pagination>
                   <PaginationContent>

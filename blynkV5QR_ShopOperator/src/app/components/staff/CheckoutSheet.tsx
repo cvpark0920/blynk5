@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { formatPriceVND } from '../../utils/priceFormat';
 import { Order } from '../../data';
 import { X, Banknote, CreditCard, Building2, Loader2 } from 'lucide-react';
+import { QRCodeModal } from './QRCodeModal';
 import {
   Sheet,
   SheetContent,
@@ -69,6 +70,7 @@ export function CheckoutSheet({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'bankTransfer' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
 
   // Filter served orders for checkout - only show orders from the active session
   const servedOrders = orders.filter(o => {
@@ -83,7 +85,22 @@ export function CheckoutSheet({
     // If no active session, don't show any orders (shouldn't happen in checkout)
     return false;
   });
-  const totalAmount = servedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const totalAmount = servedOrders.reduce((sum, order) => {
+    const orderAmount = order.totalAmount || 0;
+    return sum + (typeof orderAmount === 'number' ? orderAmount : 0);
+  }, 0);
+  
+  // Debug: Log totalAmount calculation
+  useEffect(() => {
+    if (isOpen) {
+      console.log('CheckoutSheet totalAmount calculation:', {
+        servedOrdersCount: servedOrders.length,
+        servedOrders: servedOrders.map(o => ({ id: o.id, totalAmount: o.totalAmount, totalAmountType: typeof o.totalAmount })),
+        totalAmount,
+        totalAmountType: typeof totalAmount,
+      });
+    }
+  }, [isOpen, servedOrders, totalAmount]);
 
   useEffect(() => {
     if (isOpen && restaurantId) {
@@ -181,12 +198,17 @@ export function CheckoutSheet({
                         </span>
                       </div>
                       <ul className="space-y-2">
-                        {order.items.map((item, idx) => (
-                          <li key={idx} className="flex justify-between items-center text-sm">
-                            <span className="text-zinc-700">{item.name} x{item.quantity}</span>
-                            <span className="text-zinc-500">{formatPriceVND(item.price * item.quantity)}</span>
-                          </li>
-                        ))}
+                        {order.items.map((item, idx) => {
+                          // item.price is already totalPrice (unitPrice * quantity + options)
+                          // So we should use it directly, not multiply by quantity again
+                          const itemTotal = item.price || (item.unitPrice ? item.unitPrice * item.quantity : 0);
+                          return (
+                            <li key={idx} className="flex justify-between items-center text-sm">
+                              <span className="text-zinc-700">{item.name} x{item.quantity}</span>
+                              <span className="text-zinc-500">{formatPriceVND(itemTotal)}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   ))
@@ -216,7 +238,13 @@ export function CheckoutSheet({
                       return (
                         <button
                           key={method.key}
-                          onClick={() => setSelectedPaymentMethod(method.key)}
+                          onClick={() => {
+                            setSelectedPaymentMethod(method.key);
+                            // If bank transfer is selected, open QR modal
+                            if (method.key === 'bankTransfer' && paymentMethods?.bankTransfer?.enabled) {
+                              setIsQRModalOpen(true);
+                            }
+                          }}
                           className={cn(
                             "w-full p-4 rounded-xl border-2 transition-all text-left",
                             isSelected
@@ -287,27 +315,63 @@ export function CheckoutSheet({
 
   if (isDesktop) {
     return (
-      <Sheet open={isOpen} onOpenChange={onClose}>
-        <SheetContent side="right" className="w-full h-full sm:w-[540px] p-0 flex flex-col rounded-l-[32px] rounded-bl-[32px] border-none outline-none overflow-hidden">
-          <SheetHeader className="px-6 pt-6 pb-4 border-b border-zinc-100">
-            <SheetTitle className="text-xl font-bold text-zinc-900">
-              {t('checkout.title')} - 테이블 {tableNumber}
-            </SheetTitle>
-          </SheetHeader>
-          {content}
-        </SheetContent>
-      </Sheet>
+      <>
+        <Sheet open={isOpen} onOpenChange={onClose}>
+          <SheetContent side="right" className="w-full h-full sm:w-[540px] p-0 flex flex-col rounded-l-[32px] rounded-bl-[32px] border-none outline-none overflow-hidden">
+            <SheetHeader className="px-6 pt-6 pb-4 border-b border-zinc-100">
+              <SheetTitle className="text-xl font-bold text-zinc-900">
+                {t('checkout.title')} - 테이블 {tableNumber}
+              </SheetTitle>
+            </SheetHeader>
+            {content}
+          </SheetContent>
+        </Sheet>
+
+        {/* QR Code Modal */}
+        {paymentMethods?.bankTransfer?.enabled && paymentMethods.bankTransfer.bankName && paymentMethods.bankTransfer.accountNumber && paymentMethods.bankTransfer.accountHolder && (
+          <QRCodeModal
+            isOpen={isQRModalOpen}
+            onClose={() => setIsQRModalOpen(false)}
+            restaurantId={restaurantId || ''}
+            tableNumber={tableNumber}
+            totalAmount={totalAmount}
+            bankInfo={{
+              bankName: paymentMethods.bankTransfer.bankName,
+              accountNumber: paymentMethods.bankTransfer.accountNumber,
+              accountHolder: paymentMethods.bankTransfer.accountHolder,
+            }}
+          />
+        )}
+      </>
     );
   }
 
   return (
-    <Drawer open={isOpen} onOpenChange={onClose}>
-      <DrawerContent className="max-h-[90vh] flex flex-col">
-        <DrawerTitle className="px-6 pt-6 pb-4 border-b border-zinc-100 text-xl font-bold text-zinc-900">
-          {t('checkout.title')} - 테이블 {tableNumber}
-        </DrawerTitle>
-        {content}
-      </DrawerContent>
-    </Drawer>
+    <>
+      <Drawer open={isOpen} onOpenChange={onClose}>
+        <DrawerContent className="max-h-[90vh] flex flex-col">
+          <DrawerTitle className="px-6 pt-6 pb-4 border-b border-zinc-100 text-xl font-bold text-zinc-900">
+            {t('checkout.title')} - 테이블 {tableNumber}
+          </DrawerTitle>
+          {content}
+        </DrawerContent>
+      </Drawer>
+
+      {/* QR Code Modal */}
+      {paymentMethods?.bankTransfer?.enabled && paymentMethods.bankTransfer.bankName && paymentMethods.bankTransfer.accountNumber && paymentMethods.bankTransfer.accountHolder && (
+        <QRCodeModal
+          isOpen={isQRModalOpen}
+          onClose={() => setIsQRModalOpen(false)}
+          restaurantId={restaurantId || ''}
+          tableNumber={tableNumber}
+          totalAmount={totalAmount}
+          bankInfo={{
+            bankName: paymentMethods.bankTransfer.bankName,
+            accountNumber: paymentMethods.bankTransfer.accountNumber,
+            accountHolder: paymentMethods.bankTransfer.accountHolder,
+          }}
+        />
+      )}
+    </>
   );
 }

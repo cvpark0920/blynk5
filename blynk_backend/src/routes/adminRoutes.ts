@@ -2,6 +2,14 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { restaurantService } from '../services/restaurantService';
 import { categoryRegionService } from '../services/categoryRegionService';
+import {
+  getQuickChips,
+  getQuickChipById,
+  createQuickChip,
+  updateQuickChip,
+  deleteQuickChip,
+  reorderQuickChips,
+} from '../controllers/quickChipController';
 
 const router = Router();
 
@@ -197,5 +205,13 @@ router.delete('/regions/:id', async (req: Request, res: Response, next: NextFunc
     return next(error);
   }
 });
+
+// Quick Chip routes
+router.get('/quick-chips', getQuickChips);
+router.get('/quick-chips/:id', getQuickChipById);
+router.post('/quick-chips', createQuickChip);
+router.put('/quick-chips/:id', updateQuickChip);
+router.delete('/quick-chips/:id', deleteQuickChip);
+router.post('/quick-chips/reorder', reorderQuickChips);
 
 export default router;

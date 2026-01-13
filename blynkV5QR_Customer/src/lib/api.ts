@@ -84,6 +84,17 @@ export interface Menu {
   categories: MenuCategory[];
 }
 
+// Restaurant 타입
+export interface Restaurant {
+  id: string;
+  nameKo: string;
+  nameVn: string;
+  nameEn?: string;
+  status: string;
+  qrCode: string;
+  createdAt: string;
+}
+
 // Order 타입 (백엔드 구조에 맞춤)
 export interface OrderItemOption {
   optionId: string;
@@ -176,6 +187,11 @@ class ApiClient {
     }
   }
 
+  // Restaurant methods
+  async getRestaurant(restaurantId: string): Promise<ApiResponse<Restaurant>> {
+    return this.request<Restaurant>(`/api/public/restaurant/${restaurantId}`);
+  }
+
   // Table methods
   async getTableByNumber(restaurantId: string, tableNumber: number): Promise<ApiResponse<Table>> {
     return this.request<Table>(`/api/customer/restaurant/${restaurantId}/tables/${tableNumber}`);
@@ -241,6 +257,58 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ sessionId, paymentMethod }),
     });
+  }
+
+  // Get payment methods for restaurant (public API)
+  async getPaymentMethods(restaurantId: string): Promise<ApiResponse<{
+    bankTransfer: {
+      enabled: boolean;
+      bankName?: string;
+      accountHolder?: string;
+      accountNumber?: string;
+    };
+  }>> {
+    return this.request(`/api/customer/payment-methods/${restaurantId}`);
+  }
+
+  // Generate QR code for bank transfer (public API)
+  async generateQRCode(data: {
+    restaurantId: string;
+    amount: number;
+    memo?: string;
+    tableNumber?: number;
+  }): Promise<ApiResponse<{
+    qrCodeUrl: string;
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    amount: number | null;
+  }>> {
+    return this.request('/api/customer/generate-qr', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Quick Chip methods (public API)
+  async getQuickChips(restaurantId?: string, type?: 'CUSTOMER_REQUEST' | 'STAFF_RESPONSE'): Promise<ApiResponse<Array<{
+    id: string;
+    restaurantId: string | null;
+    type: 'CUSTOMER_REQUEST' | 'STAFF_RESPONSE';
+    icon: string;
+    labelKo: string;
+    labelVn: string;
+    labelEn?: string;
+    messageKo?: string;
+    messageVn?: string;
+    messageEn?: string;
+    displayOrder: number;
+    isActive: boolean;
+  }>>> {
+    const params = new URLSearchParams();
+    if (restaurantId) params.append('restaurantId', restaurantId);
+    if (type) params.append('type', type);
+    return this.request(`/api/public/quick-chips?${params.toString()}`);
   }
 }
 

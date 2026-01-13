@@ -66,69 +66,89 @@ const MenuItemCard: React.FC<{
   const description = lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : (item.descriptionEN || item.descriptionKO);
 
   return (
-    <div className={`bg-white rounded-xl p-3 shadow-sm border transition-all duration-200 ${isExpanded ? 'border-blue-200 ring-1 ring-blue-50' : 'border-gray-100'}`}>
-      <div className="flex gap-4">
-        <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 relative">
-          <img 
-            src={item.imageQuery} 
-            alt={primaryName}
-            className="w-full h-full object-cover"
-          />
-          {quantity > 0 && (
-            <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg">
-              {quantity}
-            </div>
-          )}
-        </div>
-        <div className="flex-1 flex flex-col justify-between">
-          <div>
-            <h3 className="font-bold text-gray-900 leading-tight mb-0.5">{primaryName}</h3>
-            <p className="text-xs text-gray-500 mb-2 line-clamp-2">{description || secondaryName}</p>
-            <CurrencyDisplay amountVND={item.priceVND} />
+    <div className={`bg-white rounded-2xl overflow-hidden shadow-sm border transition-all duration-200 hover:shadow-md hover:border-gray-200 flex flex-col ${isExpanded ? 'border-blue-200 ring-1 ring-blue-50' : 'border-gray-100'}`}>
+      {/* 이미지 영역 */}
+      <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden group">
+        <img 
+          src={item.imageQuery} 
+          alt={primaryName}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+        {/* 그라데이션 오버레이 - 하단 끝부분에서만 시작 */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(to top, black 0%, transparent 15%)'
+          }}
+        />
+        
+        {/* 수량 배지 */}
+        {quantity > 0 && (
+          <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg backdrop-blur-sm">
+            {quantity}
           </div>
-          
-          <div className="flex items-center justify-end gap-3 mt-2">
-            {hasOptions ? (
-              <Button 
-                onClick={() => setIsExpanded(!isExpanded)}
-                variant={isExpanded ? "secondary" : "outline"}
-                size="sm"
-                className={`h-8 px-3 text-xs font-medium rounded-lg border transition-colors ${
-                  isExpanded 
-                    ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
-                }`}
-              >
-                {isExpanded ? UI_TEXT.fold[lang] : UI_TEXT.selectOption[lang]}
-              </Button>
-            ) : (
-              quantity > 0 ? (
-                <>
-                  <button 
-                    onClick={() => removeFromCart(item.id)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 active:scale-90 transition-transform"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span className="font-medium w-4 text-center text-sm">{quantity}</span>
-                  <button 
-                    onClick={() => addToCart(item)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 text-white active:scale-90 transition-transform"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </>
-              ) : (
+        )}
+      </div>
+      
+      {/* 메뉴명 및 설명 영역 - 검은색 배경 */}
+      <div className="bg-black px-3 py-2.5">
+        <h3 className="font-bold text-white text-[15px] leading-tight">
+          {primaryName}
+        </h3>
+        {description && (
+          <p className="text-xs text-white/90 mt-1 leading-relaxed line-clamp-3">
+            {description}
+          </p>
+        )}
+      </div>
+      
+      {/* 금액 및 담기 버튼 영역 - 한 줄 배치 */}
+      <div className="px-3 py-2.5">
+        {hasOptions ? (
+          <Button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            variant={isExpanded ? "secondary" : "default"}
+            size="sm"
+            className={`w-full h-8 text-xs font-semibold rounded-lg transition-all ${
+              isExpanded 
+                ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+            }`}
+          >
+            {isExpanded ? UI_TEXT.fold[lang] : UI_TEXT.selectOption[lang]}
+          </Button>
+        ) : (
+          quantity > 0 ? (
+            <div className="flex items-center gap-2.5">
+              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-gray-900 flex-1" />
+              <div className="flex items-center gap-0.5 bg-gray-50 rounded-lg px-1 py-0.5 border border-gray-200/60">
+                <button 
+                  onClick={() => removeFromCart(item.id)}
+                  className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:scale-90 transition-all"
+                >
+                  <Minus size={12} strokeWidth={2.5} />
+                </button>
+                <span className="text-xs font-bold text-gray-900 min-w-[20px] text-center">{quantity}</span>
                 <button 
                   onClick={() => addToCart(item)}
-                  className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold active:scale-95 transition-transform"
+                  className="w-6 h-6 flex items-center justify-center rounded bg-blue-600 text-white hover:bg-blue-700 active:scale-90 transition-all"
                 >
-                  {UI_TEXT.addToCart[lang]}
+                  <Plus size={12} strokeWidth={2.5} />
                 </button>
-              )
-            )}
-          </div>
-        </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-gray-900 flex-1" />
+              <button 
+                onClick={() => addToCart(item)}
+                className="h-7 w-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm active:scale-95 transition-all"
+              >
+                <Plus size={13} strokeWidth={2.5} />
+              </button>
+            </div>
+          )
+        )}
       </div>
 
       <AnimatePresence>
@@ -294,21 +314,8 @@ export const MenuModal: React.FC<MenuModalProps> = ({
   const filteredItems = activeCategory === 'all' 
     ? menuItems 
     : menuItems.filter(item => {
-        // menuItems의 category는 'food'|'drink'|'dessert' 형식이지만
-        // 실제로는 카테고리 ID로 매핑해야 함
-        // 현재는 카테고리 이름 기반으로 매핑되어 있으므로, 
-        // 카테고리 ID를 찾아서 해당 카테고리의 메뉴 아이템만 필터링
-        const category = menuCategories.find(cat => cat.id === activeCategory);
-        if (!category) return false;
-        
-        // 카테고리 이름 기반으로 매칭 (기존 로직 유지)
-        const categoryName = category.nameKo.toLowerCase().includes('음식') || category.nameKo.toLowerCase().includes('food') 
-          ? 'food' 
-          : category.nameKo.toLowerCase().includes('음료') || category.nameKo.toLowerCase().includes('drink')
-          ? 'drink'
-          : 'dessert';
-        
-        return item.category === categoryName;
+        // 카테고리 ID로 직접 매칭
+        return item.categoryId === activeCategory;
       });
 
   // 'all' 카테고리를 첫 번째로 추가하고, API에서 받은 카테고리들을 추가
@@ -396,7 +403,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
           )}
 
           {/* Menu List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-48">
+          <div className="flex-1 overflow-y-auto p-4 pb-48">
             {showCartDetails ? (
               <div className="space-y-4">
                  {cart.length === 0 ? (
@@ -461,16 +468,18 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                   <p className="text-gray-500 text-base font-medium">{UI_TEXT.menuEmpty[lang]}</p>
                 </div>
               ) : (
-                filteredItems.map(item => (
-                  <MenuItemCard 
-                    key={item.id} 
-                    item={item} 
-                    cart={cart} 
-                    addToCart={addToCart} 
-                    removeFromCart={removeFromCart} 
-                    lang={lang}
-                  />
-                ))
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredItems.map(item => (
+                    <MenuItemCard 
+                      key={item.id} 
+                      item={item} 
+                      cart={cart} 
+                      addToCart={addToCart} 
+                      removeFromCart={removeFromCart} 
+                      lang={lang}
+                    />
+                  ))}
+                </div>
               )
             )}
           </div>

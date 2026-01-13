@@ -48,6 +48,36 @@ export const translations = {
     tissue: { ko: '휴지', vn: 'Khăn giấy', en: 'Tissue' },
     bill: { ko: '계산서', vn: 'Hóa đơn', en: 'Bill' },
   },
+
+  // Toast Messages
+  toast: {
+    // Order Status
+    orderReceived: { ko: '주문이 접수되었습니다.', vn: 'Đơn hàng đã được tiếp nhận.', en: 'Order has been received.' },
+    cookingStarted: { ko: '주문이 조리 중입니다.', vn: 'Đơn hàng đang được chế biến.', en: 'Order is being prepared.' },
+    paymentCompleted: { ko: '결제가 완료되었습니다.', vn: 'Thanh toán đã hoàn tất.', en: 'Payment has been completed.' },
+    orderCancelled: { ko: '주문이 취소되었습니다.', vn: 'Đơn hàng đã bị hủy.', en: 'Order has been cancelled.' },
+    tableReset: { ko: '테이블이 초기화되었습니다.', vn: 'Bàn đã được khởi tạo lại.', en: 'Table has been reset.' },
+    
+    // Errors
+    menuLoadFailed: { ko: '메뉴를 불러오는데 실패했습니다.', vn: 'Không thể tải thực đơn.', en: 'Failed to load menu.' },
+    networkError: { ko: '네트워크 연결을 확인해주세요.', vn: 'Vui lòng kiểm tra kết nối mạng.', en: 'Please check your network connection.' },
+    messageSendFailed: { ko: '메시지 전송에 실패했습니다.', vn: 'Gửi tin nhắn thất bại.', en: 'Failed to send message.' },
+    sessionInfoMissing: { ko: '세션 정보가 없습니다.', vn: 'Thiếu thông tin phiên.', en: 'Session information is missing.' },
+    orderFailed: { ko: '주문에 실패했습니다.', vn: 'Đặt hàng thất bại.', en: 'Failed to place order.' },
+    paymentFailed: { ko: '결제 완료 처리에 실패했습니다.', vn: 'Xử lý thanh toán thất bại.', en: 'Failed to complete payment.' },
+    
+    // Photo
+    photoSent: { ko: '사진을 보냈습니다.', vn: 'Đã gửi ảnh', en: 'Photo sent' },
+    
+    // Bill Modal
+    restaurantNotFound: { ko: '식당 정보를 찾을 수 없습니다.', vn: 'Không tìm thấy thông tin nhà hàng.', en: 'Restaurant information not found.' },
+    bankTransferDisabled: { ko: '계좌이체가 활성화되지 않았습니다.', vn: 'Chuyển khoản chưa được kích hoạt.', en: 'Bank transfer is not enabled.' },
+    accountInfoMissing: { ko: '계좌 정보가 설정되지 않았습니다.', vn: 'Thông tin tài khoản chưa được cấu hình.', en: 'Account information is not configured.' },
+    qrGenerateFailed: { ko: 'QR 코드 생성에 실패했습니다.', vn: 'Không thể tạo mã QR.', en: 'Failed to generate QR code.' },
+    qrCodeMissing: { ko: 'QR 코드가 없습니다.', vn: 'Không có mã QR.', en: 'No QR code available.' },
+    qrDownloadFailed: { ko: 'QR 코드 다운로드에 실패했습니다.', vn: 'Không thể tải mã QR.', en: 'Failed to download QR code.' },
+    imageSaved: { ko: '이미지가 갤러리에 저장되었습니다.', vn: 'Ảnh đã được lưu vào thư viện.', en: 'Image saved to gallery' },
+  },
 };
 
 // 헬퍼 함수: 언어에 따른 텍스트 가져오기

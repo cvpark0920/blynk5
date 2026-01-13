@@ -1,6 +1,11 @@
 import dotenv from 'dotenv';
 
-dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
+// Load .env file first (base configuration)
+dotenv.config();
+
+// Then load environment-specific file to override (e.g., .env.development)
+const nodeEnv = process.env.NODE_ENV || 'development';
+dotenv.config({ path: `.env.${nodeEnv}`, override: true });
 
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
@@ -31,21 +36,28 @@ export const config = {
   },
   
   // Frontend URLs
+  // All apps are served from a single port with path-based routing
   frontend: {
     baseUrl: process.env.FRONTEND_BASE_URL || 'http://localhost:5173',
-    adminUrl: process.env.FRONTEND_ADMIN_URL || 'http://localhost:5173/admin',
-    shopUrl: process.env.FRONTEND_SHOP_URL || 'http://localhost:5173/shop',
-    customerUrl: process.env.FRONTEND_CUSTOMER_URL || 'http://localhost:5173/customer',
+    adminUrl: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/admin`,
+    shopUrl: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/shop`,
+    customerUrl: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/customer`,
   },
   
   // CORS
   cors: {
-    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+    origin: process.env.CORS_ORIGIN?.split(',').map(origin => origin.trim()) || ['http://localhost:5173'],
   },
   
   // File upload
   upload: {
     maxSize: parseInt(process.env.UPLOAD_MAX_SIZE || '5242880', 10), // 5MB
     allowedTypes: process.env.UPLOAD_ALLOWED_TYPES?.split(',') || ['image/jpeg', 'image/png', 'image/webp'],
+  },
+  
+  // VietQR
+  vietqr: {
+    clientId: process.env.VIETQR_CLIENT_ID || '',
+    apiKey: process.env.VIETQR_API_KEY || '',
   },
 };

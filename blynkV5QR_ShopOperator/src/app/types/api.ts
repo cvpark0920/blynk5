@@ -230,6 +230,7 @@ export interface BackendSalesHistoryItem {
 export interface BackendSalesHistoryEntry {
   orderId: string;
   orderNumber: number;
+  sessionId: string; // 세션 ID (테이블별 그룹핑용)
   tableNumber: number;
   createdAt: string;
   totalAmount: number;

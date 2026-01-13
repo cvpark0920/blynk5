@@ -3,15 +3,16 @@ import { motion } from 'motion/react';
 
 interface LanguageSelectorProps {
   onComplete: () => void;
+  restaurantName?: string | null;
 }
 
-export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onComplete }) => {
+export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onComplete, restaurantName }) => {
   
   useEffect(() => {
-    // Splash screen duration - 2.5 seconds
+    // Splash screen duration - 1.5 seconds
     const timer = setTimeout(() => {
       onComplete();
-    }, 2500);
+    }, 1500);
     
     return () => clearTimeout(timer);
   }, [onComplete]);
@@ -53,16 +54,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onComplete }
              B
            </motion.div>
            <h1 className="text-4xl font-bold text-white mb-2 tracking-tight drop-shadow-lg">
-             BLYNK
+             {restaurantName || 'BLYNK'}
            </h1>
-           <motion.p 
-             className="text-white font-medium tracking-wide drop-shadow-md text-center"
-             initial={{ opacity: 0 }}
-             animate={{ opacity: 1 }}
-             transition={{ delay: 0.5 }}
-           >
-             QR Scan & Chat Order Service
-           </motion.p>
         </motion.div>
       </div>
     </div>

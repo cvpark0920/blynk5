@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma';
 import { createError } from '../middleware/errorHandler';
+import { QuickChipType } from '@prisma/client';
 
 // Get restaurant public information (no authentication required)
 export const getRestaurantPublic = async (
@@ -114,6 +115,7 @@ export const getBanks = async (
         shortName: true,
         logo: true,
         swiftCode: true,
+        bin: true, // Include BIN code for QR generation
       },
       orderBy: {
         shortName: 'asc',
@@ -121,6 +123,62 @@ export const getBanks = async (
     });
 
     res.json({ success: true, data: banks });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get quick chips (public API - no authentication required)
+export const getQuickChipsPublic = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { restaurantId, type } = req.query;
+    
+    const where: any = {
+      isActive: true, // Only return active chips
+    };
+    
+    if (restaurantId) {
+      // 특정 식당의 상용구 또는 플랫폼 전체 상용구
+      where.OR = [
+        { restaurantId: restaurantId as string },
+        { restaurantId: null }
+      ];
+    } else {
+      // restaurantId가 없으면 플랫폼 전체 상용구만
+      where.restaurantId = null;
+    }
+    
+    if (type && Object.values(QuickChipType).includes(type as QuickChipType)) {
+      where.type = type;
+    }
+    
+    const chips = await prisma.quickChip.findMany({
+      where,
+      orderBy: [
+        { displayOrder: 'asc' },
+        { createdAt: 'asc' }
+      ],
+      select: {
+        id: true,
+        restaurantId: true,
+        type: true,
+        icon: true,
+        labelKo: true,
+        labelVn: true,
+        labelEn: true,
+        messageKo: true,
+        messageVn: true,
+        messageEn: true,
+        displayOrder: true,
+        isActive: true,
+      },
+    });
+    
+    res.json({ success: true, data: chips });
   } catch (error) {
     next(error);
   }

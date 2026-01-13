@@ -12,6 +12,7 @@ export interface Order {
   timestamp: Date;
   type: 'order' | 'request';
   requestDetail?: string;
+  totalAmount: number; // 주문 총액 추가
 }
 
 export interface Table {

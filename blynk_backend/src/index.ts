@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import passport from 'passport';
-import { config } from './config';
+import path from 'path';
+import { config } from './config'; // Environment variables are loaded in config/index.ts
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import authRoutes from './routes/authRoutes';
@@ -12,9 +12,6 @@ import adminRoutes from './routes/adminRoutes';
 import sseRoutes from './routes/sseRoutes';
 import publicRoutes from './routes/publicRoutes';
 import { connectRedis, connectRedisPubSub } from './utils/redis';
-
-// Load environment variables
-dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
 const app = express();
 
@@ -40,6 +37,22 @@ app.use('/api/customer', customerRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/sse', sseRoutes);
+
+// Serve static files from frontend build (after API routes)
+const publicPath = path.join(__dirname, '../public');
+app.use(express.static(publicPath));
+
+// SPA Fallback: All non-API routes should serve index.html for React Router
+// Note: API routes are already handled above, so this will only match non-API routes
+app.get('*', (req, res) => {
+  // Serve index.html for all non-API routes (React Router will handle client-side routing)
+  res.sendFile(path.join(publicPath, 'index.html'), (err) => {
+    if (err) {
+      // If index.html doesn't exist, return 404
+      res.status(404).json({ error: 'Frontend build not found' });
+    }
+  });
+});
 
 // Error handling
 app.use(errorHandler);

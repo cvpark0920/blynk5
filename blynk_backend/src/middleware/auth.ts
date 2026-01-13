@@ -66,7 +66,11 @@ export const checkRestaurantAccess = async (
     where: { id: userId },
   });
   
-  if (user?.role === 'PLATFORM_ADMIN') {
+  if (!user) {
+    return { hasAccess: false, isOwner: false, isManager: false };
+  }
+  
+  if (user.role === 'PLATFORM_ADMIN') {
     return { hasAccess: true, isOwner: false, isManager: false };
   }
   

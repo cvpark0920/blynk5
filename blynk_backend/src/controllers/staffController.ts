@@ -10,6 +10,8 @@ import { createError } from '../middleware/errorHandler';
 import { OrderStatus, WaitingStatus, StaffRole, StaffStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
+import { VietQR } from 'vietqr';
+import { config } from '../config';
 
 export const getMyRestaurant = async (
   req: Request,
@@ -58,10 +60,53 @@ export const getMyRestaurant = async (
       }
 
       // Check if user has access
-      // 1. Owner of the restaurant
-      // 2. PLATFORM_ADMIN
-      // 3. Staff member of the restaurant (PIN login)
+      // 1. Owner of the restaurant (by ownerId)
+      // 2. Owner of the restaurant (by email - fallback for data inconsistency)
+      // 3. PLATFORM_ADMIN
+      // 4. Staff member of the restaurant (PIN login)
       let hasAccess = restaurant.ownerId === userId || user.role === 'PLATFORM_ADMIN';
+      
+      // Fallback: Check by email if ownerId doesn't match (for data consistency issues)
+      // Normalize emails for comparison (case-insensitive, trim whitespace)
+      const userEmailNormalized = user.email?.toLowerCase().trim();
+      const ownerEmailNormalized = restaurant.owner?.email?.toLowerCase().trim();
+      
+      if (!hasAccess && restaurant.owner && userEmailNormalized && ownerEmailNormalized) {
+        // Check exact match
+        if (userEmailNormalized === ownerEmailNormalized) {
+          hasAccess = true;
+          console.log(`Access granted by email match: ${user.email} is owner of restaurant ${restaurantId}`);
+          // Auto-fix: Update restaurant ownerId to current user if emails match
+          try {
+            await prisma.restaurant.update({
+              where: { id: restaurantId },
+              data: { ownerId: userId },
+            });
+            console.log(`Auto-fixed restaurant ownerId: ${restaurantId} now owned by ${userId}`);
+          } catch (error) {
+            console.error('Failed to auto-fix restaurant ownerId:', error);
+          }
+        } else {
+          // Check if emails are similar (might have typos)
+          // Compare email local part (before @) - ignore domain typos
+          const userEmailLocal = userEmailNormalized.split('@')[0];
+          const ownerEmailLocal = ownerEmailNormalized.split('@')[0];
+          if (userEmailLocal === ownerEmailLocal) {
+            hasAccess = true;
+            console.log(`Access granted by email local match: ${user.email} matches owner ${restaurant.owner.email} for restaurant ${restaurantId}`);
+            // Auto-fix: Update restaurant ownerId to current user
+            try {
+              await prisma.restaurant.update({
+                where: { id: restaurantId },
+                data: { ownerId: userId },
+              });
+              console.log(`Auto-fixed restaurant ownerId: ${restaurantId} now owned by ${userId}`);
+            } catch (error) {
+              console.error('Failed to auto-fix restaurant ownerId:', error);
+            }
+          }
+        }
+      }
       
       if (!hasAccess && authReq.user.staffId) {
         // Check if staff member belongs to this restaurant
@@ -74,6 +119,7 @@ export const getMyRestaurant = async (
       }
 
       if (!hasAccess) {
+        console.log(`Access denied: userId=${userId}, restaurant.ownerId=${restaurant.ownerId}, user.email=${user.email}, restaurant.owner.email=${restaurant.owner?.email}`);
         throw createError('Access denied to this restaurant', 403);
       }
 
@@ -179,6 +225,88 @@ export const updateTableStatus = async (
 
     const table = await tableService.updateTableStatus(tableId, status as any);
     res.json({ success: true, data: table });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetTable = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { tableId } = req.params;
+    const userId = authReq.user.userId;
+
+    // Get table to check restaurant access
+    const table = await tableService.getTableById(tableId);
+    const restaurantId = table.restaurantId;
+
+    // Check if user is restaurant owner
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      include: {
+        owner: true,
+      },
+    });
+
+    if (!restaurant) {
+      throw createError('Restaurant not found', 404);
+    }
+
+    const isOwner = restaurant.ownerId === userId;
+
+    // If not owner, check if user is staff with OWNER or MANAGER role
+    let staffMember = null;
+    if (!isOwner) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw createError('User not found', 404);
+      }
+
+      // Check by staffId first (for PIN login)
+      if (authReq.user.staffId) {
+        staffMember = await prisma.staff.findFirst({
+          where: {
+            id: authReq.user.staffId,
+            restaurantId: restaurantId,
+            role: { in: [StaffRole.OWNER, StaffRole.MANAGER] },
+            status: StaffStatus.ACTIVE,
+          },
+        });
+      }
+
+      // If not found by staffId, check by email (for Google login staff)
+      if (!staffMember && user.email) {
+        staffMember = await prisma.staff.findFirst({
+          where: {
+            restaurantId,
+            email: user.email,
+            status: StaffStatus.ACTIVE,
+            role: { in: [StaffRole.OWNER, StaffRole.MANAGER] },
+          },
+        });
+      }
+    }
+
+    // Check access (only OWNER and MANAGER can reset tables)
+    const hasAccess = isOwner || (staffMember && (staffMember.role === StaffRole.OWNER || staffMember.role === StaffRole.MANAGER));
+
+    if (!hasAccess) {
+      throw createError('Only owners and managers can reset tables', 403);
+    }
+
+    const resetTable = await tableService.resetTableToEmpty(tableId);
+    res.json({ success: true, data: resetTable });
   } catch (error) {
     next(error);
   }
@@ -757,6 +885,7 @@ export const updateMenuItem = async (
     }
 
     const userId = authReq.user.userId;
+    console.log('[updateMenuItem] Request:', { itemId, restaurantId, userId, staffId: authReq.user.staffId, email: authReq.user.email });
 
     // Check if user is restaurant owner
     const user = await prisma.user.findUnique({
@@ -769,11 +898,18 @@ export const updateMenuItem = async (
     });
 
     if (!user) {
+      console.log('[updateMenuItem] User not found:', userId);
       throw createError('User not found', 404);
     }
 
     let restaurant = user.ownedRestaurants.find(r => r.id === restaurantId);
     let staffMember: any = null;
+
+    console.log('[updateMenuItem] Owner check:', { 
+      isOwner: !!restaurant, 
+      ownedRestaurants: user.ownedRestaurants.map(r => r.id),
+      requestedRestaurantId: restaurantId 
+    });
 
     // If not owner, check if user is staff with OWNER or MANAGER role
     if (!restaurant) {
@@ -793,6 +929,11 @@ export const updateMenuItem = async (
             restaurant: true,
           },
         });
+        console.log('[updateMenuItem] Staff check by staffId:', { 
+          staffId: authReq.user.staffId, 
+          found: !!staffMember,
+          role: staffMember?.role 
+        });
       }
 
       // If not found by staffId, check by email (for Google login staff)
@@ -811,6 +952,11 @@ export const updateMenuItem = async (
             restaurant: true,
           },
         });
+        console.log('[updateMenuItem] Staff check by email:', { 
+          email: user.email, 
+          found: !!staffMember,
+          role: staffMember?.role 
+        });
       }
 
       if (staffMember) {
@@ -819,6 +965,12 @@ export const updateMenuItem = async (
     }
 
     if (!restaurant) {
+      console.log('[updateMenuItem] Restaurant access denied:', { 
+        userId, 
+        restaurantId, 
+        staffId: authReq.user.staffId,
+        userEmail: user.email 
+      });
       throw createError('Restaurant not found or access denied', 404);
     }
 
@@ -2021,6 +2173,154 @@ export const updatePaymentMethods = async (
   }
 };
 
+// Generate QR code for bank transfer using VietQR API
+export const generateQRCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { bankId, accountNo, accountName, amount, memo } = req.body;
+
+    if (!bankId || !accountNo) {
+      throw createError('Bank ID and Account Number are required', 400);
+    }
+
+    // Validate VietQR credentials
+    if (!config.vietqr.clientId || !config.vietqr.apiKey) {
+      throw createError('VietQR API credentials are not configured', 500);
+    }
+
+    // Initialize VietQR
+    const vietQR = new VietQR({
+      clientID: config.vietqr.clientId,
+      apiKey: config.vietqr.apiKey,
+    });
+
+    // Generate QR code link
+    // Note: VietQR genQuickLink URL format: https://api.vietqr.io/{bank}/{accountNumber}/{template}.{media}?accountName={name}&amount={amount}
+    // Ensure accountNumber doesn't have trailing slashes or special characters
+    const cleanAccountNo = accountNo.trim().replace(/\/+/g, '');
+    
+    console.log('Generating QR with params:', {
+      bank: bankId,
+      accountNumber: cleanAccountNo,
+      accountName: accountName || undefined,
+      amount: amount !== undefined && amount !== null ? amount.toString() : undefined,
+      memo: memo || undefined,
+      rawAmount: amount,
+      amountType: typeof amount,
+    });
+    
+    const qrLinkResponse = await vietQR.genQuickLink({
+      bank: bankId,
+      accountNumber: cleanAccountNo,
+      accountName: accountName || undefined,
+      amount: amount ? amount.toString() : undefined,
+      memo: memo || undefined,
+      template: 'KzSd83k',
+      media: '.jpg',
+    });
+
+    // Debug: Log the raw response from VietQR API
+    console.log('VietQR genQuickLink raw response:', {
+      type: typeof qrLinkResponse,
+      value: qrLinkResponse,
+      stringified: JSON.stringify(qrLinkResponse, null, 2),
+    });
+
+    // Handle different response formats from VietQR API
+    // genQuickLink may return a string URL or an object with data property
+    let qrCodeUrl: string;
+    
+    // Helper function to fix URL format (remove extra slashes after accountNumber)
+    const fixQRUrl = (url: string): string => {
+      // Fix URL format: replace /// or // with / after accountNumber
+      // Pattern: https://api.vietqr.io/970424/700033260211///KzSd83k.jpg?accountName=... 
+      // -> https://api.vietqr.io/970424/700033260211/KzSd83k.jpg?accountName=...
+      // The issue is that VietQR API includes extra slashes when memo is empty or undefined
+      
+      // Match pattern: /{bank}/{accountNumber}/{multiple slashes}{template}.jpg{query string}
+      // Example: /970424/700033260211///KzSd83k.jpg?accountName=IM+ILSOON
+      const pattern = /(https?:\/\/api\.vietqr\.io\/\d+\/\d+\/)(\/{2,})([^\/\?]+\.jpg)/;
+      const match = url.match(pattern);
+      
+      if (match) {
+        // Replace multiple slashes (2 or more) with single slash
+        const fixed = url.replace(pattern, '$1/$3');
+        console.log('URL fix applied:', { 
+          original: url, 
+          fixed, 
+          matched: match[0],
+          before: match[1],
+          slashes: match[2],
+          after: match[3]
+        });
+        return fixed;
+      } else {
+        // Fallback: try simpler pattern without full domain
+        const simplePattern = /(\/\d+\/\d+\/)(\/{2,})([^\/\?]+\.jpg)/;
+        if (simplePattern.test(url)) {
+          const fixed = url.replace(simplePattern, '$1/$3');
+          console.log('URL fix applied (simple pattern):', { original: url, fixed });
+          return fixed;
+        }
+        console.log('URL fix: no pattern matched, returning original', { url });
+        return url;
+      }
+    };
+    
+    if (typeof qrLinkResponse === 'string') {
+      qrCodeUrl = fixQRUrl(qrLinkResponse);
+      console.log('QR code URL (string, after fix):', qrCodeUrl);
+    } else if (qrLinkResponse && typeof qrLinkResponse === 'object') {
+      // Check for common response structures
+      if ('data' in qrLinkResponse && typeof qrLinkResponse.data === 'string') {
+        qrCodeUrl = fixQRUrl(qrLinkResponse.data);
+        console.log('QR code URL (data.data, after fix):', qrCodeUrl);
+      } else if ('qrDataURL' in qrLinkResponse && typeof qrLinkResponse.qrDataURL === 'string') {
+        qrCodeUrl = fixQRUrl(qrLinkResponse.qrDataURL);
+        console.log('QR code URL (qrDataURL, after fix):', qrCodeUrl);
+      } else if ('data' in qrLinkResponse && qrLinkResponse.data && typeof qrLinkResponse.data === 'object' && 'qrDataURL' in qrLinkResponse.data) {
+        qrCodeUrl = fixQRUrl((qrLinkResponse.data as any).qrDataURL);
+        console.log('QR code URL (data.qrDataURL, after fix):', qrCodeUrl);
+      } else {
+        // If it's an object but we can't find the URL, log and throw error
+        console.error('Unexpected QR link response format:', {
+          response: qrLinkResponse,
+          keys: Object.keys(qrLinkResponse),
+          stringified: JSON.stringify(qrLinkResponse, null, 2),
+        });
+        throw createError('Unexpected QR code response format', 500);
+      }
+    } else {
+      console.error('Invalid QR code response type:', typeof qrLinkResponse);
+      throw createError('Invalid QR code response', 500);
+    }
+
+    // Validate that we have a valid URL
+    if (!qrCodeUrl || (!qrCodeUrl.startsWith('http://') && !qrCodeUrl.startsWith('https://') && !qrCodeUrl.startsWith('data:'))) {
+      console.error('Invalid QR code URL format:', qrCodeUrl);
+      throw createError('Invalid QR code URL format', 500);
+    }
+
+    console.log('Final QR code URL:', qrCodeUrl);
+
+    res.json({
+      success: true,
+      data: qrCodeUrl,
+    });
+  } catch (error: any) {
+    console.error('Error generating QR code:', error.message);
+    next(createError('Failed to generate QR code', 500));
+  }
+};
+
 export const deleteStaff = async (
   req: Request,
   res: Response,
@@ -2386,6 +2686,12 @@ export const updateTableGuestCount = async (
       restaurantId,
       guestCount: guestCountNum,
     });
+
+    // If table is EMPTY and guest count is greater than 0, automatically change status to ORDERING
+    // This allows customers to place orders immediately after being seated
+    if (table.status === 'EMPTY' && guestCountNum > 0) {
+      await tableService.updateTableStatus(tableId, 'ORDERING');
+    }
 
     // Reload tables to get updated state (including active session with updated guestCount)
     const updatedTables = await tableService.getTablesByRestaurant(restaurantId);

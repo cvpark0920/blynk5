@@ -5,8 +5,9 @@ import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { User, Lock, Bell, Percent, Shield, Plus } from 'lucide-react';
+import { User, Lock, Bell, Percent, Shield, Plus, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { QuickChipsView } from './QuickChipsView';
 
 export function SettingsView() {
   const { t } = useTranslation();
@@ -19,10 +20,14 @@ export function SettingsView() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[500px]">
           <TabsTrigger value="general">{t('settings.tab.general')}</TabsTrigger>
           <TabsTrigger value="commission">{t('settings.tab.commission')}</TabsTrigger>
           <TabsTrigger value="admins">{t('settings.tab.admins')}</TabsTrigger>
+          <TabsTrigger value="quickchips" className="flex items-center gap-1">
+            <MessageSquare className="w-3 h-3" />
+            상용구
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="mt-6">
@@ -114,6 +119,10 @@ export function SettingsView() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="quickchips" className="mt-6">
+          <QuickChipsView />
         </TabsContent>
       </Tabs>
     </div>

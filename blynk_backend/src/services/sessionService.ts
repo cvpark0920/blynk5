@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma';
 import { createError } from '../middleware/errorHandler';
-import { SessionStatus } from '@prisma/client';
+import { SessionStatus, TableStatus } from '@prisma/client';
+import { eventEmitter } from '../sse/eventEmitter';
 
 export class SessionService {
   async createSession(data: {
@@ -31,11 +32,37 @@ export class SessionService {
       },
     });
 
-    // Update table current session
-    await prisma.table.update({
+    // Get current table status
+    const table = await prisma.table.findUnique({
       where: { id: data.tableId },
-      data: { currentSessionId: session.id },
     });
+
+    // Update table: set current session and status
+    // If table is EMPTY and guestCount > 0, automatically change status to ORDERING
+    // Note: guestCount is stored in Session, not Table
+    const updateData: any = {
+      currentSessionId: session.id,
+    };
+
+    // If table is EMPTY and guestCount > 0, change status to ORDERING
+    if (table && table.status === TableStatus.EMPTY && data.guestCount > 0) {
+      updateData.status = TableStatus.ORDERING;
+    }
+
+    const updatedTable = await prisma.table.update({
+      where: { id: data.tableId },
+      data: updateData,
+    });
+
+    // Emit SSE event for table status change if status was changed
+    if (updateData.status) {
+      await eventEmitter.publishTableStatusChanged(
+        data.restaurantId,
+        data.tableId,
+        updateData.status,
+        session.id
+      );
+    }
 
     return session;
   }
