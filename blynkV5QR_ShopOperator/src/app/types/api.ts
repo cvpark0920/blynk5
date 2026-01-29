@@ -14,6 +14,8 @@ export interface BackendTable {
   floor: number;
   capacity: number;
   qrCode: string;
+  qrCodeUrl?: string;
+  isActive?: boolean;
   status: BackendTableStatus;
   currentSessionId?: string | null;
   createdAt: string;
@@ -125,7 +127,8 @@ export interface BackendStaff {
   role: BackendStaffRole;
   status: BackendStaffStatus;
   avatarUrl?: string | null;
-  hasPin?: boolean;
+  isDevice?: boolean;
+  deviceId?: string | null;
   createdAt: string;
   joinedAt: string;
 }
@@ -246,6 +249,7 @@ export interface BackendChatMessage {
   textKo?: string | null;
   textVn?: string | null;
   textEn?: string | null;
+  detectedLanguage?: 'ko' | 'vn' | 'en' | null;
   messageType: 'TEXT' | 'ORDER' | 'REQUEST' | 'IMAGE';
   imageUrl?: string | null;
   metadata?: any;

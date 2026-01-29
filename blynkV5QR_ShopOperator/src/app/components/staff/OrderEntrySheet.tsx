@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MenuItem, MenuCategory } from '../../data';
+import { MenuItem, MenuCategory, MenuOptionGroup } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
@@ -7,11 +7,12 @@ import { mapBackendCategoryToFrontend, mapBackendMenuItemToFrontend } from '../.
 import { BackendMenuCategory, BackendMenuItem } from '../../types/api';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../ui/sheet';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '../ui/drawer';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
-import { Image as ImageIcon, Plus, Minus, X, ShoppingCart } from 'lucide-react';
+import { Image as ImageIcon, Plus, Minus, X, ShoppingCart, Check } from 'lucide-react';
 import { cn } from '../ui/utils';
 import { formatPriceVND } from '../../utils/priceFormat';
 
@@ -52,7 +53,7 @@ function MenuItemImage({ imageUrl, name }: { imageUrl: string | null | undefined
   const [imageError, setImageError] = useState(false);
   
   if (!imageUrl || imageUrl.trim() === '' || imageError) {
-    return <ImageIcon size={24} className="text-zinc-300" />;
+    return <ImageIcon size={24} className="text-muted-foreground" />;
   }
   
   return (
@@ -82,6 +83,9 @@ export function OrderEntrySheet({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [optionDialogOpen, setOptionDialogOpen] = useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Array<{ optionId: string; quantity: number }>>([]);
 
   // Load menu and categories
   useEffect(() => {
@@ -97,6 +101,13 @@ export function OrderEntrySheet({
       setSelectedCategoryId(null);
     }
   }, [isOpen]);
+
+  // selectedMenuItem이 null이 되면 optionDialogOpen도 false로 설정
+  useEffect(() => {
+    if (!selectedMenuItem && optionDialogOpen) {
+      setOptionDialogOpen(false);
+    }
+  }, [selectedMenuItem, optionDialogOpen]);
 
   const loadMenu = async () => {
     setIsLoading(true);
@@ -131,16 +142,34 @@ export function OrderEntrySheet({
     }
   };
 
-  const addToCart = (menuItem: MenuItem) => {
+  const handleMenuItemClick = (menuItem: MenuItem) => {
     if (menuItem.isSoldOut) {
       toast.error('품절된 메뉴입니다.');
       return;
     }
 
-    // For now, add without options (can be enhanced later)
+    // 옵션이 있으면 옵션 선택 다이얼로그 표시
+    if (menuItem.optionGroups && menuItem.optionGroups.length > 0) {
+      setSelectedMenuItem(menuItem);
+      setSelectedOptions([]);
+      setOptionDialogOpen(true);
+    } else {
+      // 옵션이 없으면 바로 장바구니에 추가
+      addToCart(menuItem, []);
+    }
+  };
+
+  const addToCart = (menuItem: MenuItem, options: Array<{ optionId: string; quantity: number }>) => {
+    if (menuItem.isSoldOut) {
+      toast.error('품절된 메뉴입니다.');
+      return;
+    }
+
+    // 옵션 키로 기존 아이템 찾기
+    const optionsKey = JSON.stringify(options.sort((a, b) => a.optionId.localeCompare(b.optionId)));
     const existingItemIndex = cart.findIndex(
       item => item.menuItem.id === menuItem.id &&
-      JSON.stringify(item.selectedOptions) === JSON.stringify([])
+      JSON.stringify(item.selectedOptions.sort((a, b) => a.optionId.localeCompare(b.optionId))) === optionsKey
     );
 
     if (existingItemIndex >= 0) {
@@ -155,10 +184,79 @@ export function OrderEntrySheet({
       setCart(prev => [...prev, {
         menuItem,
         quantity: 1,
-        selectedOptions: [],
+        selectedOptions: options,
         notes: [],
       }]);
     }
+  };
+
+  const handleOptionConfirm = () => {
+    if (!selectedMenuItem) return;
+
+    // 옵션 그룹별로 최소/최대 선택 개수 검증
+    let isValid = true;
+    const optionCounts: Record<string, number> = {};
+
+    selectedOptions.forEach(opt => {
+      optionCounts[opt.optionId] = (optionCounts[opt.optionId] || 0) + opt.quantity;
+    });
+
+    for (const group of selectedMenuItem.optionGroups) {
+      const groupSelectedCount = group.options.reduce((sum, opt) => {
+        return sum + (optionCounts[opt.id] || 0);
+      }, 0);
+
+      if (groupSelectedCount < group.minSelect) {
+        toast.error(`${group.name}: 최소 ${group.minSelect}개를 선택해주세요.`);
+        isValid = false;
+        break;
+      }
+      if (group.maxSelect > 0 && groupSelectedCount > group.maxSelect) {
+        toast.error(`${group.name}: 최대 ${group.maxSelect}개까지 선택 가능합니다.`);
+        isValid = false;
+        break;
+      }
+    }
+
+    if (!isValid) return;
+
+    // 장바구니에 추가
+    addToCart(selectedMenuItem, selectedOptions);
+    setOptionDialogOpen(false);
+    setSelectedMenuItem(null);
+    setSelectedOptions([]);
+  };
+
+  const toggleOption = (optionId: string) => {
+    setSelectedOptions(prev => {
+      const existing = prev.find(opt => opt.optionId === optionId);
+      if (existing) {
+        // 옵션 제거
+        return prev.filter(opt => opt.optionId !== optionId);
+      } else {
+        // 옵션 추가
+        return [...prev, { optionId, quantity: 1 }];
+      }
+    });
+  };
+
+  const updateOptionQuantity = (optionId: string, delta: number) => {
+    setSelectedOptions(prev => {
+      const existing = prev.find(opt => opt.optionId === optionId);
+      if (!existing) {
+        if (delta > 0) {
+          return [...prev, { optionId, quantity: 1 }];
+        }
+        return prev;
+      }
+      const newQuantity = existing.quantity + delta;
+      if (newQuantity <= 0) {
+        return prev.filter(opt => opt.optionId !== optionId);
+      }
+      return prev.map(opt =>
+        opt.optionId === optionId ? { ...opt, quantity: newQuantity } : opt
+      );
+    });
   };
 
   const removeFromCart = (index: number) => {
@@ -244,14 +342,170 @@ export function OrderEntrySheet({
 
   const totalAmount = calculateTotal();
 
+  // 옵션 선택 다이얼로그 렌더링
+  const renderOptionDialog = () => {
+    // selectedMenuItem이 없으면 Dialog를 렌더링하지 않음
+    // 이렇게 하면 DialogContent가 DialogTitle 없이 렌더링되는 것을 방지할 수 있습니다
+    if (!selectedMenuItem) return null;
+
+    const calculateTotalPrice = () => {
+      let total = selectedMenuItem.price;
+      selectedOptions.forEach(opt => {
+        const option = selectedMenuItem.optionGroups
+          .flatMap(og => og.options)
+          .find(o => o.id === opt.optionId);
+        if (option) {
+          total += option.price * opt.quantity;
+        }
+      });
+      return total;
+    };
+
+    const dialogTitle = selectedMenuItem.name || '옵션 선택';
+
+    return (
+      <Dialog 
+        open={optionDialogOpen && !!selectedMenuItem} 
+        onOpenChange={(open) => {
+          setOptionDialogOpen(open);
+          if (!open) {
+            setSelectedMenuItem(null);
+            setSelectedOptions([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              {dialogTitle}
+            </DialogTitle>
+            {selectedMenuItem.price > 0 && (
+              <DialogDescription>
+                {formatPriceVND(selectedMenuItem.price)}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <ScrollArea className="flex-1 px-1">
+            <div className="space-y-6 py-2">
+              {selectedMenuItem.optionGroups.map((group: MenuOptionGroup) => {
+                const groupSelectedCount = selectedOptions.reduce((sum, opt) => {
+                  const option = group.options.find(o => o.id === opt.optionId);
+                  return sum + (option ? opt.quantity : 0);
+                }, 0);
+
+                return (
+                  <div key={group.id} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm text-foreground">{group.name}</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {group.minSelect > 0 && `최소 ${group.minSelect}개`}
+                        {group.minSelect > 0 && group.maxSelect > 0 && ' / '}
+                        {group.maxSelect > 0 && `최대 ${group.maxSelect}개`}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {group.options.map((option) => {
+                        const selected = selectedOptions.find(opt => opt.optionId === option.id);
+                        const quantity = selected?.quantity || 0;
+                        const isSelected = quantity > 0;
+
+                        return (
+                          <div
+                            key={option.id}
+                            className={cn(
+                              "flex items-center justify-between p-3 rounded-lg border transition-all",
+                              isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:bg-muted"
+                            )}
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              <div
+                                onClick={() => toggleOption(option.id)}
+                                className={cn(
+                                  "w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors",
+                                  isSelected
+                                    ? "bg-primary border-primary"
+                                    : "border-border bg-card"
+                                )}
+                              >
+                                {isSelected && <Check size={14} className="text-white stroke-[3]" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={cn(
+                                  "text-sm font-medium",
+                                  isSelected ? "text-foreground" : "text-foreground/80"
+                                )}>
+                                  {option.name}
+                                </p>
+                                {option.price > 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    +{formatPriceVND(option.price)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateOptionQuantity(option.id, -1);
+                                  }}
+                                  className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <span className="text-sm font-medium w-5 text-center">{quantity}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateOptionQuantity(option.id, 1);
+                                  }}
+                                  className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className="border-t pt-4">
+            <div className="flex items-center justify-between w-full">
+              <div>
+                <p className="text-xs text-muted-foreground">총액</p>
+                <p className="text-lg font-bold text-foreground">
+                  {formatPriceVND(calculateTotalPrice())}
+                </p>
+              </div>
+              <Button onClick={handleOptionConfirm} className="gap-2">
+                <ShoppingCart size={16} />
+                추가
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const content = (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-zinc-100">
-        <h2 className="text-xl font-bold text-zinc-900">
+      <div className="px-6 py-4 border-b border-border">
+        <h2 className="text-xl font-bold text-foreground">
           {t('order.entry.title')} - {t('order.entry.table_number').replace('{number}', tableNumber.toString())}
         </h2>
-        <p className="text-sm text-zinc-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {guestCount}명
         </p>
       </div>
@@ -260,13 +514,13 @@ export function OrderEntrySheet({
       <div className="flex-1 overflow-hidden flex flex-col">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="text-zinc-400">메뉴를 불러오는 중...</div>
+            <div className="text-muted-foreground">메뉴를 불러오는 중...</div>
           </div>
         ) : (
           <>
             {/* Categories */}
             {categories.length > 0 && (
-              <div className="px-6 py-3 border-b border-zinc-100 overflow-x-auto">
+              <div className="px-6 py-3 border-b border-border overflow-x-auto">
                 <div className="flex gap-2">
                   {categories.sort((a, b) => a.order - b.order).map(cat => (
                     <button
@@ -275,8 +529,8 @@ export function OrderEntrySheet({
                       className={cn(
                         "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
                         selectedCategoryId === cat.id
-                          ? "bg-zinc-900 text-white"
-                          : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/70"
                       )}
                     >
                       {cat.name}
@@ -290,31 +544,31 @@ export function OrderEntrySheet({
             <ScrollArea className="flex-1 px-6 py-4">
               {filteredMenu.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="text-zinc-400">메뉴가 없습니다.</div>
+                  <div className="text-muted-foreground">메뉴가 없습니다.</div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {filteredMenu.map(item => (
                     <div
                       key={item.id}
-                      onClick={() => !item.isSoldOut && addToCart(item)}
+                      onClick={() => !item.isSoldOut && handleMenuItemClick(item)}
                       className={cn(
-                        "bg-white p-3 rounded-xl border border-zinc-100 cursor-pointer transition-all",
+                        "bg-card p-3 rounded-xl border border-border cursor-pointer transition-all",
                         item.isSoldOut
                           ? "opacity-50 cursor-not-allowed"
                           : "hover:shadow-md active:scale-[0.98]"
                       )}
                     >
-                      <div className="w-full aspect-square rounded-lg bg-zinc-100 flex items-center justify-center mb-2 overflow-hidden border border-zinc-200">
+                      <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center mb-2 overflow-hidden border border-border">
                         <MenuItemImage imageUrl={item.imageUrl} name={item.name} />
                       </div>
                       <h4 className={cn(
-                        "font-bold text-sm text-zinc-900 mb-1 truncate",
-                        item.isSoldOut && "line-through text-zinc-400"
+                        "font-bold text-sm text-foreground mb-1 truncate",
+                        item.isSoldOut && "line-through text-muted-foreground"
                       )}>
                         {item.name}
                       </h4>
-                      <p className="text-xs font-medium text-zinc-600 mb-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
                         {formatPriceVND(item.price)}
                       </p>
                       {item.isSoldOut && (
@@ -330,51 +584,71 @@ export function OrderEntrySheet({
 
             {/* Cart Footer */}
             {cart.length > 0 && (
-              <div className="border-t border-zinc-100 bg-white">
+              <div className="border-t border-border bg-card">
                 <div className="px-6 py-3 max-h-48 overflow-y-auto">
                   <div className="space-y-2">
-                    {cart.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-zinc-900 truncate">
-                            {item.menuItem.name}
-                          </p>
-                          <p className="text-xs text-zinc-500">
-                            {formatPriceVND(item.menuItem.price * item.quantity)}
-                          </p>
+                    {cart.map((item, index) => {
+                      const itemTotalPrice = item.menuItem.price * item.quantity +
+                        item.selectedOptions.reduce((sum, opt) => {
+                          const option = item.menuItem.optionGroups
+                            .flatMap(og => og.options)
+                            .find(o => o.id === opt.optionId);
+                          return sum + (option ? option.price * opt.quantity * item.quantity : 0);
+                        }, 0);
+
+                      return (
+                        <div key={index} className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {item.menuItem.name}
+                            </p>
+                            {item.selectedOptions.length > 0 && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {item.selectedOptions.map(opt => {
+                                  const option = item.menuItem.optionGroups
+                                    .flatMap(og => og.options)
+                                    .find(o => o.id === opt.optionId);
+                                  return option ? `${option.name} x${opt.quantity}` : '';
+                                }).filter(Boolean).join(', ')}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {formatPriceVND(itemTotalPrice)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateCartQuantity(index, -1)}
+                              className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-muted"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="text-sm font-bold text-foreground w-6 text-center">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => updateCartQuantity(index, 1)}
+                              className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-muted"
+                            >
+                              <Plus size={14} />
+                            </button>
+                            <button
+                              onClick={() => removeFromCart(index)}
+                              className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-destructive/10 hover:border-destructive/20 text-destructive"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateCartQuantity(index, -1)}
-                            className="w-7 h-7 rounded-lg border border-zinc-200 flex items-center justify-center hover:bg-zinc-50"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="text-sm font-bold text-zinc-900 w-6 text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => updateCartQuantity(index, 1)}
-                            className="w-7 h-7 rounded-lg border border-zinc-200 flex items-center justify-center hover:bg-zinc-50"
-                          >
-                            <Plus size={14} />
-                          </button>
-                          <button
-                            onClick={() => removeFromCart(index)}
-                            className="w-7 h-7 rounded-lg border border-zinc-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 text-red-600"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 <Separator />
                 <div className="px-6 py-4 flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-zinc-500">총액</p>
-                    <p className="text-xl font-bold text-zinc-900">
+                    <p className="text-xs text-muted-foreground">총액</p>
+                    <p className="text-xl font-bold text-foreground">
                       {formatPriceVND(totalAmount)}
                     </p>
                   </div>
@@ -397,19 +671,25 @@ export function OrderEntrySheet({
 
   if (isDesktop) {
     return (
-      <Sheet open={isOpen} onOpenChange={onClose}>
-        <SheetContent side="right" className="w-[600px] h-full rounded-l-[32px] rounded-bl-[32px] sm:max-w-[600px] p-0 bg-white border-none outline-none flex flex-col overflow-hidden">
-          {content}
-        </SheetContent>
-      </Sheet>
+      <>
+        <Sheet open={isOpen} onOpenChange={onClose}>
+          <SheetContent side="right" className="w-[600px] h-full rounded-l-[32px] rounded-bl-[32px] sm:max-w-[600px] p-0 bg-card border-none outline-none flex flex-col overflow-hidden">
+            {content}
+          </SheetContent>
+        </Sheet>
+        {renderOptionDialog()}
+      </>
     );
   }
 
   return (
-    <Drawer open={isOpen} onOpenChange={onClose}>
-      <DrawerContent className="h-[90vh] rounded-t-[32px] bg-white p-0">
-        {content}
-      </DrawerContent>
-    </Drawer>
+    <>
+      <Drawer open={isOpen} onOpenChange={onClose}>
+        <DrawerContent className="h-[90vh] rounded-t-[32px] bg-card p-0">
+          {content}
+        </DrawerContent>
+      </Drawer>
+      {renderOptionDialog()}
+    </>
   );
 }

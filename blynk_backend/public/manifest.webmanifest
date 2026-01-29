@@ -1,0 +1,17 @@
+{
+  "name": "Qoodle Shop Operator",
+  "short_name": "Qoodle Shop",
+  "start_url": "/shop",
+  "scope": "/shop/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/shop-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

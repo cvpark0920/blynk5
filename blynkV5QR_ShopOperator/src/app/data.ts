@@ -20,12 +20,14 @@ export interface Table {
   tableId?: string; // UUID from backend
   currentSessionId?: string | null; // 활성 세션 ID (활성 세션 필터링을 위해 추가)
   floor: number;
+  isActive: boolean;
   status: TableStatus;
   guests: number;
   capacity: number;
   totalAmount: number;
   orderTime?: Date;
   memo?: string;
+  qrCodeUrl?: string; // 서브도메인 기반 QR 코드 URL
 }
 
 export interface MenuCategory {
@@ -83,7 +85,6 @@ export interface Staff {
   email: string; // 구글 로그인 연동용
   role: UserRole;
   status: StaffStatus;
-  pinCode: string; // 간편 로그인용 (선택)
   phone?: string;
   joinedAt: Date;
   avatarUrl?: string;

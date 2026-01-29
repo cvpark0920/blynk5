@@ -4,8 +4,21 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "vite build",
-    "dev": "vite"
+    "build:local": "VITE_API_URL=https://api.localhost VITE_FRONTEND_BASE_URL=https://admin.localhost vite build",
+    "build:prod": "vite build",
+    "build:local:sync": "npm run build:local && bash blynk_backend/scripts/sync-frontend.sh",
+    "dev:setup": "bash scripts/dev.sh",
+    "test:local": "bash scripts/test-local.sh",
+    "preview": "vite preview"
+  },
+  "_scripts_comments": {
+    "dev": "프론트엔드 개발 서버 시작 (DEPLOYMENT_WORKFLOW.md 참고)",
+    "build:local": "로컬 테스트용 빌드 (로컬 환경 변수 사용)",
+    "build:prod": "프로덕션 빌드 (서버 배포용)",
+    "build:local:sync": "로컬 빌드 + 백엔드 도커 컨테이너 동기화 (자주 사용하는 원클릭 명령)",
+    "dev:setup": "로컬 개발 환경 초기 설정 (Docker Compose 시작, Prisma 설정 등)"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

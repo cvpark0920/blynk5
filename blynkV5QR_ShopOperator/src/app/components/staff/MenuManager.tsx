@@ -517,7 +517,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
         </Sheet>
       ) : (
         <Drawer open={isCategorySheetOpen} onOpenChange={setIsCategorySheetOpen}>
-          <DrawerContent className="h-[85vh] rounded-t-[32px] p-0 bg-white flex flex-col">
+          <DrawerContent className="h-[90vh] rounded-t-[32px] p-0 bg-white flex flex-col">
             <DrawerHeader className="px-6 py-5 border-b border-zinc-100 mb-0 text-left">
               <DrawerTitle>{t('dialog.cat.title')}</DrawerTitle>
               <DrawerDescription>{t('dialog.cat.desc')}</DrawerDescription>

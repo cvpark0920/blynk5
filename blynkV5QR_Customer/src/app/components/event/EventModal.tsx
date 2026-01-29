@@ -58,20 +58,20 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
                 onClose();
               }
             }}
-            className="fixed inset-x-0 bottom-0 z-50 bg-white flex flex-col h-[90%] rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] overflow-hidden"
+            className="fixed inset-x-0 bottom-0 z-50 bg-card flex flex-col h-[90%] rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] overflow-hidden text-foreground"
           >
             {/* Minimal Header - Draggable */}
             <div 
-              className="relative flex items-center justify-between px-6 py-5 z-10 bg-white/80 backdrop-blur-md sticky top-0 cursor-grab active:cursor-grabbing touch-none select-none"
+              className="relative flex items-center justify-between px-6 py-5 z-10 bg-card/80 backdrop-blur-md sticky top-0 cursor-grab active:cursor-grabbing touch-none select-none"
               onPointerDown={(e) => dragControls.start(e)}
             >
               {/* Drag Handle */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gray-200/50 rounded-full" />
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-muted/70 rounded-full" />
 
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">{UI_TEXT.title[lang]}</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-foreground">{UI_TEXT.title[lang]}</h2>
               <button 
                 onClick={onClose} 
-                className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-colors"
+                className="p-2 -mr-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X size={24} />
               </button>
@@ -89,7 +89,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-6">
-                      <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider mb-3 w-fit">
+                      <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider mb-3 w-fit">
                         PROMO
                       </div>
                       <h3 className="text-white font-bold text-3xl leading-tight mb-2 tracking-tight">{UI_TEXT.promoTitle[lang]}</h3>
@@ -101,25 +101,25 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
                 {/* New Menu - Minimal Horizontal Scroll */}
                 <div className="pl-6">
                   <div className="flex items-center justify-between pr-6 mb-5">
-                    <h3 className="text-xl font-bold tracking-tight text-slate-900">{UI_TEXT.newMenu[lang]}</h3>
-                    <ArrowRight size={20} className="text-slate-300" />
+                    <h3 className="text-xl font-bold tracking-tight text-foreground">{UI_TEXT.newMenu[lang]}</h3>
+                    <ArrowRight size={20} className="text-muted-foreground" />
                   </div>
                   <div className="flex overflow-x-auto gap-4 pr-6 pb-4 -ml-2 pl-2 no-scrollbar">
                     {newItems.map(item => (
                       <div key={item.id} className="flex-shrink-0 w-48 group cursor-pointer">
-                        <div className="w-full aspect-[4/5] rounded-2xl overflow-hidden mb-4 bg-slate-100 relative">
+                        <div className="w-full aspect-[4/5] rounded-2xl overflow-hidden mb-4 bg-muted relative">
                            <img 
                              src={item.imageQuery} 
                              alt={getLocalizedName(item)} 
                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
                            />
-                           <div className="absolute top-3 left-3 bg-white/90 backdrop-blur text-slate-900 text-[10px] font-bold px-2 py-1 rounded-full">
+                           <div className="absolute top-3 left-3 bg-card/90 backdrop-blur text-foreground text-[10px] font-bold px-2 py-1 rounded-full">
                              NEW
                            </div>
                         </div>
-                        <h4 className="font-bold text-slate-900 text-lg leading-snug mb-1">{getLocalizedName(item)}</h4>
-                        <p className="text-xs text-slate-500 line-clamp-1 mb-2 font-medium">{getLocalizedDesc(item)}</p>
-                        <CurrencyDisplay amountVND={item.priceVND} className="font-semibold text-slate-900" />
+                        <h4 className="font-bold text-foreground text-lg leading-snug mb-1">{getLocalizedName(item)}</h4>
+                        <p className="text-xs text-muted-foreground line-clamp-1 mb-2 font-medium">{getLocalizedDesc(item)}</p>
+                        <CurrencyDisplay amountVND={item.priceVND} className="font-semibold text-foreground" />
                       </div>
                     ))}
                   </div>
@@ -127,20 +127,20 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
 
                 {/* Popular Menu - Minimal List */}
                 <div className="px-6">
-                  <h3 className="text-xl font-bold tracking-tight text-slate-900 mb-5">{UI_TEXT.popularMenu[lang]}</h3>
+                  <h3 className="text-xl font-bold tracking-tight text-foreground mb-5">{UI_TEXT.popularMenu[lang]}</h3>
                   <div className="grid grid-cols-1 gap-4">
                      {popularItems.map((item, index) => (
-                       <div key={item.id} className="flex gap-4 items-center p-3 rounded-2xl hover:bg-slate-50 transition-colors group cursor-pointer">
-                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 relative">
+                       <div key={item.id} className="flex gap-4 items-center p-3 rounded-2xl hover:bg-muted/50 transition-colors group cursor-pointer">
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-muted flex-shrink-0 relative">
                              <img src={item.imageQuery} alt={getLocalizedName(item)} className="w-full h-full object-cover" />
-                             <div className="absolute top-0 left-0 bg-slate-900 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-br-lg">
+                             <div className="absolute top-0 left-0 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-br-lg">
                                {index + 1}
                              </div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-slate-900 text-base mb-1 truncate">{getLocalizedName(item)}</h4>
-                            <p className="text-xs text-slate-500 line-clamp-2 mb-2 leading-relaxed">{getLocalizedDesc(item)}</p>
-                            <CurrencyDisplay amountVND={item.priceVND} className="font-semibold text-sm text-slate-900" />
+                            <h4 className="font-bold text-foreground text-base mb-1 truncate">{getLocalizedName(item)}</h4>
+                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2 leading-relaxed">{getLocalizedDesc(item)}</p>
+                            <CurrencyDisplay amountVND={item.priceVND} className="font-semibold text-sm text-foreground" />
                           </div>
                        </div>
                      ))}
@@ -149,8 +149,8 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
 
                 {/* Brand Story - Clean Video Card */}
                 <div className="px-6 pb-6">
-                  <h3 className="text-xl font-bold tracking-tight text-slate-900 mb-5">{UI_TEXT.youtubeTitle[lang]}</h3>
-                  <div className="relative rounded-3xl overflow-hidden bg-slate-900 aspect-video group cursor-pointer">
+                  <h3 className="text-xl font-bold tracking-tight text-foreground mb-5">{UI_TEXT.youtubeTitle[lang]}</h3>
+                  <div className="relative rounded-3xl overflow-hidden bg-foreground aspect-video group cursor-pointer">
                      <img 
                        src="https://images.unsplash.com/photo-1694878982063-9c41c1d94f4c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx5b3V0dWJlJTIwdmlkZW8lMjB0aHVtYm5haWwlMjBjb29raW5nfGVufDF8fHx8MTc2NzE1NTE3M3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
                        alt="YouTube"

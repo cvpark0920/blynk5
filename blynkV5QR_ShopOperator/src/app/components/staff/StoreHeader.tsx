@@ -325,9 +325,21 @@ function NotificationList({ onRefresh, onTableOpen }: { onRefresh?: () => void; 
   );
 }
 
-export function StoreHeader({ activeOrders, onTableOpen }: { activeOrders: number; onTableOpen?: (tableNumber: number) => void }) {
+export function StoreHeader({
+  activeOrders,
+  onTableOpen,
+  isSoundEnabled,
+  onToggleSound,
+  isSoundToggling,
+}: {
+  activeOrders: number;
+  onTableOpen?: (tableNumber: number) => void;
+  isSoundEnabled: boolean;
+  onToggleSound: () => void;
+  isSoundToggling?: boolean;
+}) {
   const { language, setLanguage, t } = useLanguage();
-  const { shopUser: currentUser, logoutShop: logout, shopOwnerInfo: ownerInfo, shopUserRole: userRole } = useUnifiedAuth();
+  const { shopUser: currentUser, logoutShop: logout, shopOwnerInfo: ownerInfo, shopUserRole: userRole, isShopAuthenticated } = useUnifiedAuth();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -336,6 +348,10 @@ export function StoreHeader({ activeOrders, onTableOpen }: { activeOrders: numbe
 
   // Load unread notification count
   const loadUnreadCount = async () => {
+    if (!isShopAuthenticated) {
+      setUnreadNotificationCount(0);
+      return;
+    }
     try {
       const response = await apiClient.getUnreadNotificationCount();
       if (response.success && response.data !== undefined) {
@@ -353,11 +369,14 @@ export function StoreHeader({ activeOrders, onTableOpen }: { activeOrders: numbe
   };
 
   useEffect(() => {
+    if (!isShopAuthenticated) {
+      return;
+    }
     loadUnreadCount();
     // Refresh every 30 seconds
     const interval = setInterval(loadUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isShopAuthenticated]);
 
   // Refresh when notification modal opens
   useEffect(() => {
@@ -397,9 +416,9 @@ export function StoreHeader({ activeOrders, onTableOpen }: { activeOrders: numbe
                         displayUser?.name?.charAt(0).toUpperCase() || 'U'
                     )}
                 </div>
-                <div className="text-left hidden md:block">
-                    <p className="text-sm font-bold text-zinc-900 leading-none">{displayUser?.name || 'User'}</p>
-                    <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-wide mt-0.5">{displayUser?.role || userRole?.toLowerCase() || 'user'}</p>
+                <div className="text-left min-w-0 max-w-[140px] sm:max-w-[200px]">
+                    <p className="text-sm font-bold text-zinc-900 leading-none truncate">{displayUser?.name || 'User'}</p>
+                    <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-wide mt-0.5 truncate">{displayUser?.role || userRole?.toLowerCase() || 'user'}</p>
                 </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48 rounded-xl p-1 shadow-xl shadow-zinc-200/50 border-zinc-100">
@@ -429,6 +448,20 @@ export function StoreHeader({ activeOrders, onTableOpen }: { activeOrders: numbe
             <SelectItem value="vn" className="text-xs font-medium py-2">🇻🇳 Tiếng Việt</SelectItem>
           </SelectContent>
         </Select>
+        <button
+          type="button"
+          onClick={onToggleSound}
+          disabled={isSoundToggling}
+          className="w-auto h-8 gap-1 border-0 bg-white/50 hover:bg-white shadow-sm rounded-full px-3 text-xs font-semibold text-zinc-600 transition-all focus:ring-0 inline-flex items-center disabled:opacity-60"
+        >
+          <Bell size={12} className={isSoundEnabled ? 'text-emerald-500' : 'text-zinc-400'} />
+          <span className="hidden sm:inline">{isSoundEnabled ? '알림 ON' : '알림 OFF'}</span>
+          <span
+            className={`ml-1 inline-flex h-2 w-2 rounded-full ${
+              isSoundEnabled ? 'bg-emerald-500' : 'bg-zinc-300'
+            }`}
+          />
+        </button>
 
         {isMobile ? (
           <Drawer open={open} onOpenChange={setOpen}>
@@ -443,7 +476,7 @@ export function StoreHeader({ activeOrders, onTableOpen }: { activeOrders: numbe
                 )}
               </button>
             </DrawerTrigger>
-            <DrawerContent className="h-[85vh] rounded-t-[32px]">
+            <DrawerContent className="h-[90vh] rounded-t-[32px]">
               <DrawerHeader className="text-left pt-6 px-6">
                 <DrawerTitle className="text-xl font-bold text-zinc-900">{t('notification.title')}</DrawerTitle>
               </DrawerHeader>

@@ -1,5 +1,6 @@
 import { redisPublisher } from '../utils/redis';
 import { logger } from '../utils/logger';
+import { pushService } from '../services/pushService';
 
 export class EventEmitter {
   async publish(channel: string, event: {
@@ -62,15 +63,35 @@ export class EventEmitter {
     });
   }
 
-  async publishNewOrder(restaurantId: string, orderId: string, tableId: string, items: any[], totalAmount: number) {
+  async publishNewOrder(
+    restaurantId: string,
+    orderId: string,
+    tableId: string,
+    tableNumber: number,
+    items: any[],
+    totalAmount: number
+  ) {
     await this.publish(`sse:restaurant:${restaurantId}:staff`, {
       type: 'order:new',
       orderId,
       tableId,
+      tableNumber,
       items,
       totalAmount,
       timestamp: new Date().toISOString(),
     });
+
+    try {
+      await pushService.sendToRestaurant(restaurantId, {
+        title: '새 주문',
+        body: `테이블 ${tableNumber}에서 새 주문이 들어왔습니다.`,
+        url: '/shop',
+      });
+    } catch (error: any) {
+      logger.error('Failed to send push for new order', {
+        error: error?.message || String(error),
+      });
+    }
   }
 
   async publishOrderStatusChanged(
@@ -119,6 +140,24 @@ export class EventEmitter {
       sender,
       messageType,
     });
+
+    if (sender === 'user') {
+      const isRequest = messageType === 'REQUEST';
+      const body = isRequest
+        ? `테이블 ${tableNumber}에서 요청: ${message}`
+        : `테이블 ${tableNumber}에서 새 메시지가 도착했습니다.`;
+      try {
+        await pushService.sendToRestaurant(restaurantId, {
+          title: '새 채팅',
+          body,
+          url: '/shop',
+        });
+      } catch (error: any) {
+        logger.error('Failed to send push for chat', {
+          error: error?.message || String(error),
+        });
+      }
+    }
   }
 
   async publishSessionEnded(sessionId: string) {

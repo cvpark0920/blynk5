@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LayoutDashboard, Store, Settings, Bell, Globe, User, LogOut } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { DashboardView } from './components/views/DashboardView';
 import { RestaurantsView } from './components/views/RestaurantsView';
 import { SettingsView } from './components/views/SettingsView';
@@ -20,7 +21,15 @@ export function AdminApp() {
   const { adminUser, isAdminAuthenticated, loginAdmin, logoutAdmin } = useUnifiedAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const { t, i18n } = useTranslation();
+
+  useEffect(() => {
+    document.body.classList.add('admin-theme');
+    return () => {
+      document.body.classList.remove('admin-theme');
+    };
+  }, []);
 
   const toggleLanguage = () => {
     const newLang = i18n.language === 'ko' ? 'en' : 'ko';
@@ -48,34 +57,58 @@ export function AdminApp() {
     }
   };
 
-  const TabItem = ({ view, icon: Icon, label }: { view: string; icon: any; label: string }) => (
-    <button
-      onClick={() => setCurrentView(view)}
-      className={`flex flex-col items-center justify-center w-full py-2 transition-colors ${
-        currentView === view
-          ? 'text-primary'
-          : 'text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      <Icon className={`w-6 h-6 mb-1 ${currentView === view ? 'fill-current/10' : ''}`} />
-      <span className="text-[10px] font-medium">{label}</span>
-    </button>
-  );
+  const TabItem = ({ view, icon: Icon, label }: { view: string; icon: any; label: string }) => {
+    const isActive = currentView === view;
+
+    return (
+      <button
+        onClick={() => setCurrentView(view)}
+        className={`relative flex flex-col items-center justify-center w-full h-12 rounded-xl transition-all duration-300 ${
+          isActive ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
+        }`}
+      >
+        <div
+          className={`relative p-1.5 rounded-xl transition-all duration-300 ${
+            isActive ? 'bg-zinc-100 -translate-y-1' : ''
+          }`}
+        >
+          <Icon
+            className="h-5 w-5 transition-transform duration-300"
+          />
+        </div>
+        <span className="sr-only">{label}</span>
+        {isActive && (
+          <span className="absolute bottom-1 text-[9px] font-bold tracking-tight animate-in fade-in slide-in-from-bottom-1 duration-300">
+            {label}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+    <div className="admin-theme min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/80 flex flex-col font-sans text-slate-900">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 sticky top-0 z-20">
+      <header className="flex items-center justify-between px-4 py-3 bg-white/80 backdrop-blur-xl border-b border-slate-200/70 sticky top-0 z-20">
         <div className="flex items-center space-x-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-                <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">
-                  <User className="w-5 h-5" />
-                </div>
+              <button className="flex items-center space-x-3 rounded-full px-2 py-1 hover:bg-slate-100/70 transition-colors">
+                <Avatar className="w-9 h-9 border border-slate-200">
+                  {adminUser?.avatarUrl && !avatarError ? (
+                    <AvatarImage 
+                      src={adminUser.avatarUrl} 
+                      alt={adminUser.name || adminUser.email}
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : null}
+                  <AvatarFallback className="bg-slate-200 text-slate-700 font-semibold">
+                    {adminUser?.name?.charAt(0).toUpperCase() || adminUser?.email?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold leading-none">
-                    {adminUser?.email || 'Admin User'}
+                  <span className="text-sm font-semibold leading-none">
+                    {adminUser?.name || adminUser?.email || 'Admin User'}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {adminUser?.role === 'PLATFORM_ADMIN' ? 'Super Admin' : 'Admin'}
@@ -93,9 +126,9 @@ export function AdminApp() {
         <div className="flex items-center space-x-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-9 px-3 rounded-full gap-2">
+              <Button variant="ghost" className="h-9 px-3 rounded-full gap-2 text-slate-700 hover:bg-slate-100/70">
                 <Globe className="w-5 h-5" />
-                <span className="font-semibold text-sm">{i18n.language.toUpperCase()}</span>
+                <span className="font-medium text-sm">{i18n.language.toUpperCase()}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -113,7 +146,7 @@ export function AdminApp() {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="relative rounded-full"
+            className="relative rounded-full text-slate-700 hover:bg-slate-100/70"
             onClick={() => setIsNotificationOpen(true)}
           >
              <Bell className={`w-5 h-5 ${isNotificationOpen ? 'fill-current' : ''}`} />
@@ -123,7 +156,7 @@ export function AdminApp() {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="rounded-full"
+            className="rounded-full text-slate-700 hover:bg-slate-100/70"
             onClick={handleLogout}
             title="Logout"
           >
@@ -134,7 +167,7 @@ export function AdminApp() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-24 p-4 md:p-6 lg:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6">
           {renderView()}
         </div>
       </main>
@@ -143,13 +176,15 @@ export function AdminApp() {
       <NotificationsView open={isNotificationOpen} onOpenChange={setIsNotificationOpen} />
 
       {/* Bottom Navigation Tabs */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 pb-safe">
-        <div className="flex justify-around items-center max-w-md mx-auto h-16 px-2">
+      <div className="fixed bottom-6 left-0 right-0 px-6 z-30 pointer-events-none">
+        <nav className="mx-auto max-w-[420px] bg-white/90 backdrop-blur-xl border border-white/20 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-2xl flex justify-around items-center px-2 py-2 pointer-events-auto ring-1 ring-zinc-900/5">
           <TabItem view="dashboard" icon={LayoutDashboard} label={t('nav.dashboard')} />
           <TabItem view="restaurants" icon={Store} label={t('nav.restaurants')} />
           <TabItem view="settings" icon={Settings} label={t('nav.settings')} />
-        </div>
-      </nav>
+        </nav>
+      </div>
     </div>
   );
 }
+
+export default AdminApp;

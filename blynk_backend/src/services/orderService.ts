@@ -126,12 +126,30 @@ export class OrderService {
         session: true,
       },
     });
+    
+    // 디버깅: 주문 생성 시점의 옵션 확인
+    console.log(`[OrderService] createOrder - Order ID: ${order.id}`);
+    order.items.forEach((item: any, idx: number) => {
+      console.log(`[OrderService] createOrder - Item ${idx}:`, {
+        id: item.id,
+        menuItemId: item.menuItem.id,
+        menuItemName: item.menuItem.nameKo,
+        optionsLength: item.options?.length || 0,
+        options: item.options?.map((opt: any) => ({
+          orderItemOptionId: opt.id,
+          optionId: opt.option?.id,
+          optionName: opt.option?.nameKo,
+          price: opt.price,
+        })),
+      });
+    });
 
     // Emit SSE event for new order
     await eventEmitter.publishNewOrder(
       data.restaurantId,
       order.id,
       data.tableId,
+      order.table.tableNumber,
       order.items.map(item => ({
         id: item.id,
         menuItem: item.menuItem,
@@ -217,19 +235,34 @@ export class OrderService {
   }
 
   async updateOrderStatus(id: string, status: OrderStatus) {
-    const order = await prisma.order.update({
+    // 상태 업데이트
+    await prisma.order.update({
       where: { id },
       data: { status },
+    });
+
+    // update 후 findUnique로 다시 조회하여 중첩 관계(options.option)가 제대로 로드되도록 함
+    const order = await prisma.order.findUnique({
+      where: { id },
       include: {
         items: {
           include: {
             menuItem: true,
+            options: {
+              include: {
+                option: true,
+              },
+            },
           },
         },
         table: true,
         session: true,
       },
     });
+
+    if (!order) {
+      throw createError('Order not found', 404);
+    }
 
     // Create chat message for order status change (saved to DB)
     const statusMessages = {
@@ -263,7 +296,7 @@ export class OrderService {
     const statusMessage = statusMessages[status] || statusMessages.PENDING;
 
     // Prepare order items for SSE event
-    const orderItemsForSSE = order.items.map(item => ({
+    const orderItemsForSSE = order.items.map((item: any) => ({
       id: item.id,
       quantity: item.quantity,
       menuItem: {
@@ -278,9 +311,80 @@ export class OrderService {
     // Save order status change message to database with order items details
     // SERVED 상태는 고객에게 알릴 필요 없으므로 채팅 메시지 생성하지 않음
     if (status !== OrderStatus.SERVED) {
+      // 디버깅: order.items 구조 확인
+      console.log(`[OrderService] updateOrderStatus - Order ID: ${order.id}, Status: ${status}`);
+      console.log(`[OrderService] order.items.length: ${order.items.length}`);
+      
+      const itemsWithOptions = order.items.map((item: any) => {
+        // 디버깅: 각 item의 options 확인
+        console.log(`[OrderService] Item ${item.id}:`, {
+          menuItemId: item.menuItem.id,
+          menuItemName: item.menuItem.nameKo,
+          optionsLength: item.options?.length || 0,
+          options: item.options,
+          optionsStructure: item.options?.map((opt: any) => ({
+            orderItemOptionId: opt.id,
+            optionId: opt.option?.id,
+            optionName: opt.option?.nameKo,
+            price: opt.price,
+            hasOption: !!opt.option,
+          })) || [],
+        });
+        
+        const selectedOptions = (item.options && Array.isArray(item.options) && item.options.length > 0)
+          ? item.options.map((opt: any) => {
+              // 디버깅: opt.option 확인
+              if (!opt.option) {
+                console.error(`[OrderService] ERROR: opt.option is null/undefined for item ${item.id}, opt:`, opt);
+                return null;
+              }
+              return {
+                id: opt.option.id,
+                labelKO: opt.option.nameKo,
+                labelVN: opt.option.nameVn,
+                labelEN: opt.option.nameEn,
+                priceVND: opt.price,
+              };
+            }).filter(Boolean)
+          : [];
+        
+        // 디버깅: selectedOptions 확인
+        console.log(`[OrderService] Item ${item.id} selectedOptions:`, selectedOptions);
+        
+        if (item.options && item.options.length > 0 && selectedOptions.length === 0) {
+          console.error(`[OrderService] Warning: item ${item.id} has ${item.options.length} options but selectedOptions is empty`, {
+            itemId: item.id,
+            menuItemId: item.menuItem.id,
+            options: item.options,
+            optionsStructure: item.options.map((opt: any) => ({
+              orderItemOptionId: opt.id,
+              optionId: opt.option?.id,
+              optionName: opt.option?.nameKo,
+              hasOption: !!opt.option,
+            })),
+          });
+        }
+        
+        return {
+          id: item.id,
+          menuItemId: item.menuItem.id,
+          nameKO: item.menuItem.nameKo,
+          nameVN: item.menuItem.nameVn,
+          nameEN: item.menuItem.nameEn,
+          imageQuery: item.menuItem.imageUrl || '',
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          selectedOptions,
+        };
+      });
+      
+      // 디버깅: 최종 metadata 확인
+      console.log(`[OrderService] Final metadata items:`, JSON.stringify(itemsWithOptions, null, 2));
+      
       await chatService.createMessage({
         sessionId: order.sessionId,
-        senderType: 'SYSTEM',
+        senderType: 'STAFF',
         textKo: statusMessage.ko,
         textVn: statusMessage.vn,
         textEn: statusMessage.en,
@@ -289,17 +393,7 @@ export class OrderService {
           orderId: order.id,
           orderStatus: status,
           tableNumber: order.table.tableNumber,
-          items: order.items.map(item => ({
-            id: item.id,
-            menuItemId: item.menuItem.id,
-            nameKO: item.menuItem.nameKo,
-            nameVN: item.menuItem.nameVn,
-            nameEN: item.menuItem.nameEn,
-            imageQuery: item.menuItem.imageUrl || '',
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          })),
+          items: itemsWithOptions,
         },
       });
     }

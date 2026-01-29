@@ -19,7 +19,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ chips, onChipClick }
   };
 
   return (
-    <div className="w-full overflow-x-auto py-3 px-4 flex gap-2 no-scrollbar bg-white/50 backdrop-blur-sm">
+    <div className="w-full overflow-x-auto py-3 px-4 flex gap-2 no-scrollbar bg-card/50 backdrop-blur-sm">
       {chips.length === 0 ? (
         <div className="text-sm text-muted-foreground px-4 py-2">
           상용구가 없습니다.
@@ -31,10 +31,10 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ chips, onChipClick }
             <button
               key={chip.id}
               onClick={() => onChipClick(chip)}
-              className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200 active:scale-95 transition-all whitespace-nowrap group hover:border-blue-200 hover:bg-blue-50"
+              className="flex items-center gap-2 px-4 py-2 bg-card rounded-full shadow-sm border border-border active:scale-95 transition-all whitespace-nowrap group hover:border-primary/30 hover:bg-primary/10"
             >
-              <IconComponent size={16} className="text-gray-500 group-hover:text-blue-500 transition-colors" />
-              <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700 transition-colors">
+              <IconComponent size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
+              <span className="text-sm font-medium text-foreground/80 group-hover:text-primary transition-colors">
                 {getLabel(chip)}
               </span>
             </button>

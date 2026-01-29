@@ -2,18 +2,27 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma';
 import { createError } from '../middleware/errorHandler';
 import { QuickChipType } from '@prisma/client';
+import { quickChipService } from '../services/quickChipService';
 
 // Get restaurant public information (no authentication required)
+// 서브도메인 기반 또는 restaurantId 파라미터 사용
 export const getRestaurantPublic = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { restaurantId } = req.params;
+    // 서브도메인 리졸버에서 설정된 restaurantId 우선 사용
+    const restaurantId = req.restaurantId || req.params.restaurantId;
+    const host = req.get('host') || '';
+    const subdomain = req.subdomain;
 
     if (!restaurantId) {
-      throw createError('Restaurant ID is required', 400);
+      // 더 명확한 에러 메시지 제공
+      const errorMessage = subdomain 
+        ? `서브도메인 ${subdomain}에 해당하는 상점이 없습니다.`
+        : '서브도메인을 찾을 수 없습니다. 올바른 URL로 접속해주세요.';
+      throw createError(errorMessage, 400);
     }
 
     const restaurant = await prisma.restaurant.findUnique({
@@ -25,8 +34,9 @@ export const getRestaurantPublic = async (
         nameEn: true,
         status: true,
         qrCode: true,
+        subdomain: true,
         createdAt: true,
-        // Exclude sensitive information: ownerId, settings, posPinHash
+        // Exclude sensitive information: ownerId, settings
       },
     });
 
@@ -40,57 +50,6 @@ export const getRestaurantPublic = async (
     }
 
     res.json({ success: true, data: restaurant });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Get staff list for PIN login (no authentication required, but limited information)
-export const getStaffListPublic = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { restaurantId } = req.params;
-
-    if (!restaurantId) {
-      throw createError('Restaurant ID is required', 400);
-    }
-
-    // Verify restaurant exists and is active
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-      select: { id: true, status: true },
-    });
-
-    if (!restaurant) {
-      throw createError('Restaurant not found', 404);
-    }
-
-    if (restaurant.status !== 'active') {
-      throw createError('Restaurant is not active', 404);
-    }
-
-    // Get active staff list (without PIN hash and sensitive information)
-    const staffList = await prisma.staff.findMany({
-      where: {
-        restaurantId,
-        status: 'ACTIVE',
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-        avatarUrl: true,
-        // Exclude: email, phone, pinCodeHash, joinedAt, createdAt
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
-
-    res.json({ success: true, data: staffList });
   } catch (error) {
     next(error);
   }
@@ -136,47 +95,13 @@ export const getQuickChipsPublic = async (
 ) => {
   try {
     const { restaurantId, type } = req.query;
-    
-    const where: any = {
-      isActive: true, // Only return active chips
-    };
-    
-    if (restaurantId) {
-      // 특정 식당의 상용구 또는 플랫폼 전체 상용구
-      where.OR = [
-        { restaurantId: restaurantId as string },
-        { restaurantId: null }
-      ];
-    } else {
-      // restaurantId가 없으면 플랫폼 전체 상용구만
-      where.restaurantId = null;
-    }
-    
-    if (type && Object.values(QuickChipType).includes(type as QuickChipType)) {
-      where.type = type;
-    }
-    
-    const chips = await prisma.quickChip.findMany({
-      where,
-      orderBy: [
-        { displayOrder: 'asc' },
-        { createdAt: 'asc' }
-      ],
-      select: {
-        id: true,
-        restaurantId: true,
-        type: true,
-        icon: true,
-        labelKo: true,
-        labelVn: true,
-        labelEn: true,
-        messageKo: true,
-        messageVn: true,
-        messageEn: true,
-        displayOrder: true,
-        isActive: true,
-      },
-    });
+    const parsedType = type && Object.values(QuickChipType).includes(type as QuickChipType)
+      ? (type as QuickChipType)
+      : undefined;
+
+    const chips = restaurantId
+      ? await quickChipService.getRestaurantQuickChips(restaurantId as string, parsedType, false)
+      : await quickChipService.getQuickChips(null, parsedType, false);
     
     res.json({ success: true, data: chips });
   } catch (error) {

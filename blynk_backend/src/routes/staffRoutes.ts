@@ -21,32 +21,46 @@ import {
   addToWaitingList,
   updateWaitingListStatus,
   getStaffList,
-  setStaffPin,
-  setPosPin,
   getMyRestaurant,
   createStaff,
   updateStaff,
   deleteStaff,
+  createDeviceRegistrationCode,
+  getDeviceTokens,
+  revokeDeviceToken,
   getPaymentMethods,
   updatePaymentMethods,
   generateQRCode,
   getSalesReport,
   getSalesHistory,
+  getVapidPublicKey,
+  subscribePush,
+  unsubscribePush,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 } from '../controllers/staffController';
-import { sendMessage, getChatHistory } from '../controllers/chatController';
+import { sendMessage, getChatHistory, getChatReadStatus, markChatRead } from '../controllers/chatController';
 import {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
   getUnreadCount,
 } from '../controllers/notificationController';
+import {
+  getQuickChipTemplates,
+  getRestaurantQuickChips,
+  createRestaurantQuickChip,
+  updateRestaurantQuickChip,
+  deleteRestaurantQuickChip,
+  reorderRestaurantQuickChips,
+} from '../controllers/staffQuickChipController';
 
 const router = Router();
 
 // All staff routes require authentication
 router.use(authenticate);
 // Note: authorize middleware removed - each controller handles its own authorization
-// PIN-logged-in staff have staffId in token, so they can access endpoints
+// Staff/device tokens include staffId in token, so they can access endpoints
 // Controllers check for OWNER/MANAGER staff roles or restaurant ownership
 
 router.get('/my-restaurant', getMyRestaurant);
@@ -55,6 +69,9 @@ router.put('/payment-methods', updatePaymentMethods);
 router.post('/generate-qr', generateQRCode);
 router.get('/reports/sales', getSalesReport);
 router.get('/reports/sales-history', getSalesHistory);
+router.get('/push/vapid-public-key', getVapidPublicKey);
+router.post('/push/subscribe', subscribePush);
+router.post('/push/unsubscribe', unsubscribePush);
 router.get('/tables', getTables);
 router.post('/tables', createTable);
 router.put('/tables/:tableId', updateTableStatus);
@@ -75,7 +92,11 @@ router.get('/waiting-list', getWaitingList);
 router.post('/waiting-list', addToWaitingList);
 router.put('/waiting-list/:id', updateWaitingListStatus);
 router.post('/chat', sendMessage);
+router.get('/chat/read-status', getChatReadStatus);
+router.post('/chat/:sessionId/read', markChatRead);
 router.get('/chat/:sessionId', getChatHistory);
+router.get('/notification-preferences', getNotificationPreferences);
+router.put('/notification-preferences', updateNotificationPreferences);
 
 // Notification routes
 router.get('/notifications', getNotifications);
@@ -83,12 +104,21 @@ router.get('/notifications/unread-count', getUnreadCount); // Put before dynamic
 router.post('/notifications/:id/read', markNotificationRead);
 router.post('/notifications/mark-all-read', markAllNotificationsRead);
 
+// Quick Chip routes (OWNER/MANAGER only, checked in controller)
+router.get('/quick-chips/templates', getQuickChipTemplates);
+router.get('/quick-chips', getRestaurantQuickChips);
+router.post('/quick-chips', createRestaurantQuickChip);
+router.put('/quick-chips/:id', updateRestaurantQuickChip);
+router.delete('/quick-chips/:id', deleteRestaurantQuickChip);
+router.post('/quick-chips/reorder', reorderRestaurantQuickChips);
+
 // Staff management routes
 router.get('/restaurant/:restaurantId/staff-list', getStaffList);
 router.post('/restaurant/:restaurantId/staff', createStaff);
 router.put('/restaurant/:restaurantId/staff/:staffId', updateStaff);
 router.delete('/restaurant/:restaurantId/staff/:staffId', deleteStaff);
-router.post('/restaurant/:restaurantId/staff/:staffId/pin', setStaffPin);
-router.post('/restaurant/:restaurantId/pos-pin', setPosPin);
+router.post('/restaurant/:restaurantId/device-registration-codes', createDeviceRegistrationCode);
+router.get('/restaurant/:restaurantId/device-tokens', getDeviceTokens);
+router.post('/restaurant/:restaurantId/device-tokens/:deviceTokenId/revoke', revokeDeviceToken);
 
 export default router;

@@ -1,81 +1,81 @@
 @custom-variant dark (&:is(.dark *));
 
-:root {
+.shop-theme {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
+  --background: #f8faff;
+  --foreground: #2b2e4a;
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
+  --card-foreground: #2b2e4a;
+  --popover: #ffffff;
+  --popover-foreground: #2b2e4a;
+  --primary: #2b2e4a;
+  --primary-foreground: #eeeeee;
+  --secondary: #e84545;
+  --secondary-foreground: #ffffff;
+  --muted: #eef2fa;
+  --muted-foreground: #6b7280;
+  --accent: #903749;
+  --accent-foreground: #ffffff;
+  --destructive: #53354a;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
+  --border: rgba(43, 46, 74, 0.2);
+  --input: rgba(43, 46, 74, 0.15);
+  --input-background: #f8faff;
+  --switch-background: #e84545;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --ring: rgba(232, 69, 69, 0.35);
+  --chart-1: #2b2e4a;
+  --chart-2: #e84545;
+  --chart-3: #903749;
+  --chart-4: #eeeeee;
+  --chart-5: #53354a;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #2b2e4a;
+  --sidebar-foreground: #eeeeee;
+  --sidebar-primary: #e84545;
+  --sidebar-primary-foreground: #eeeeee;
+  --sidebar-accent: #903749;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(43, 46, 74, 0.35);
+  --sidebar-ring: rgba(232, 69, 69, 0.35);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
+.dark .shop-theme {
+  --background: #2b2e4a;
+  --foreground: #eeeeee;
+  --card: #2b2e4a;
+  --card-foreground: #eeeeee;
+  --popover: #2b2e4a;
+  --popover-foreground: #eeeeee;
+  --primary: #eeeeee;
+  --primary-foreground: #2b2e4a;
+  --secondary: #e84545;
+  --secondary-foreground: #ffffff;
+  --muted: #2b2e4a;
+  --muted-foreground: #903749;
+  --accent: #903749;
+  --accent-foreground: #ffffff;
+  --destructive: #53354a;
+  --destructive-foreground: #ffffff;
+  --border: rgba(238, 238, 238, 0.2);
+  --input: #2b2e4a;
+  --ring: rgba(232, 69, 69, 0.35);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --chart-1: #2b2e4a;
+  --chart-2: #e84545;
+  --chart-3: #903749;
+  --chart-4: #eeeeee;
+  --chart-5: #53354a;
+  --sidebar: #2b2e4a;
+  --sidebar-foreground: #eeeeee;
+  --sidebar-primary: #e84545;
+  --sidebar-primary-foreground: #eeeeee;
+  --sidebar-accent: #903749;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(238, 238, 238, 0.2);
+  --sidebar-ring: rgba(232, 69, 69, 0.35);
 }
 
 @theme inline {
@@ -117,6 +117,116 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Ensure shop theme overrides global token mapping */
+.shop-theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Shop theme utility overrides for legacy Tailwind colors */
+.shop-theme .bg-white {
+  background-color: var(--card);
+}
+
+.shop-theme .bg-zinc-50,
+.shop-theme .bg-slate-50,
+.shop-theme .bg-gray-50 {
+  background-color: var(--background);
+}
+
+.shop-theme .bg-zinc-100,
+.shop-theme .bg-gray-100 {
+  background-color: var(--muted);
+}
+
+.shop-theme .bg-zinc-900 {
+  background-color: var(--primary);
+}
+
+.shop-theme .text-zinc-900,
+.shop-theme .text-slate-900,
+.shop-theme .text-gray-900 {
+  color: var(--foreground);
+}
+
+.shop-theme .text-zinc-600,
+.shop-theme .text-zinc-500,
+.shop-theme .text-gray-600,
+.shop-theme .text-gray-500 {
+  color: var(--muted-foreground);
+}
+
+.shop-theme .border-zinc-100,
+.shop-theme .border-zinc-200,
+.shop-theme .border-gray-100,
+.shop-theme .border-gray-200 {
+  border-color: var(--border);
+}
+
+.shop-theme .hover\\:bg-zinc-50:hover,
+.shop-theme .hover\\:bg-gray-50:hover {
+  background-color: var(--muted);
+}
+
+.shop-theme .hover\\:bg-zinc-800:hover {
+  background-color: var(--primary);
+}
+
+/* Map legacy action button colors to theme palette */
+.shop-theme .bg-emerald-500,
+.shop-theme .bg-emerald-600,
+.shop-theme .bg-blue-500,
+.shop-theme .bg-blue-600,
+.shop-theme .bg-rose-500,
+.shop-theme .bg-rose-600 {
+  background-color: var(--primary);
+}
+
+.shop-theme .hover\\:bg-emerald-600:hover,
+.shop-theme .hover\\:bg-blue-600:hover,
+.shop-theme .hover\\:bg-rose-600:hover,
+.shop-theme .hover\\:bg-blue-700:hover,
+.shop-theme .hover\\:bg-emerald-700:hover,
+.shop-theme .hover\\:bg-rose-700:hover {
+  background-color: var(--primary);
 }
 
 @layer base {

@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger 
 } from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
-import { Plus, MoreHorizontal, Users, Trash2, Edit2, LayoutGrid, Layers } from 'lucide-react';
+import { Plus, MoreHorizontal, Users, Trash2, Edit2, LayoutGrid, Layers, CheckCircle2, CircleOff } from 'lucide-react';
 
 // Simple hook for responsive design
 function useIsDesktop() {
@@ -44,6 +44,7 @@ export function TableManagement({ tables, setTables, isEmbedded = false }: Table
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [togglingTableId, setTogglingTableId] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
   
   // Form State
@@ -55,6 +56,18 @@ export function TableManagement({ tables, setTables, isEmbedded = false }: Table
 
   // Note: Tables are loaded in MainApp, this component just manages them
   // No need to load here to avoid duplicate API calls
+  const reloadTables = async () => {
+    if (!restaurantId) return;
+    try {
+      const result = await apiClient.getTables(restaurantId);
+      if (result.success && result.data) {
+        const mappedTables = result.data.map((table: BackendTable) => mapBackendTableToFrontend(table));
+        setTables(mappedTables);
+      }
+    } catch (error) {
+      console.error('Error reloading tables:', error);
+    }
+  };
 
   const handleSave = async () => {
     if (!restaurantId) {
@@ -186,13 +199,52 @@ export function TableManagement({ tables, setTables, isEmbedded = false }: Table
     }
   };
 
+  const handleToggleActive = async (table: Table) => {
+    if (!restaurantId) {
+      toast.error(t('table.error.restaurant_id_required'));
+      return;
+    }
+
+    if (!table.tableId) {
+      toast.error(t('table.error.table_not_found'));
+      return;
+    }
+
+    if (table.isActive && table.status !== 'empty') {
+      toast.error(t('table.error.cannot_deactivate_active'));
+      return;
+    }
+
+    setTogglingTableId(table.tableId);
+    try {
+      const result = await apiClient.updateTable(restaurantId, table.tableId, {
+        isActive: !table.isActive,
+      });
+
+      if (result.success && result.data) {
+        const updatedTable = mapBackendTableToFrontend(result.data);
+        setTables(prev => prev.map(t => t.tableId === table.tableId ? updatedTable : t));
+        await reloadTables();
+        toast.success(table.isActive ? t('table.success.deactivated') : t('table.success.activated'));
+      } else {
+        throw new Error(result.error?.message || t('table.error.update_failed'));
+      }
+    } catch (error: unknown) {
+      console.error('Error toggling table active state:', error);
+      const errorMessage = error instanceof Error ? error.message : t('table.error.update_failed');
+      toast.error(errorMessage);
+    } finally {
+      setTogglingTableId(null);
+    }
+  };
+
   return (
     <div className={`mx-auto max-w-5xl space-y-6 pb-32 md:pb-6 ${isEmbedded ? 'px-6 pt-2' : 'p-6'}`}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {isEmbedded && (
             <div className="flex items-center gap-2">
                 <h3 className="text-lg font-bold text-zinc-900 hidden md:block">{t('table.management.title')}</h3>
-                <Badge variant="secondary" className="text-zinc-500 font-normal">
+                <Badge variant="secondary" className="text-secondary-foreground font-medium">
                     {t('table.management.total').replace('{count}', tables.length.toString())}
                 </Badge>
             </div>
@@ -242,6 +294,14 @@ export function TableManagement({ tables, setTables, isEmbedded = false }: Table
                             <DropdownMenuItem onClick={() => openEditSheet(table)} className="gap-2">
                                 <Edit2 size={14} /> {t('table.management.edit_details')}
                             </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={() => handleToggleActive(table)}
+                            className="gap-2"
+                            disabled={togglingTableId === table.tableId}
+                        >
+                            {table.isActive ? <CircleOff size={14} /> : <CheckCircle2 size={14} />}
+                            {table.isActive ? t('table.management.deactivate') : t('table.management.activate')}
+                        </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleDelete(table.id)} className="text-rose-600 gap-2">
                                 <Trash2 size={14} /> {t('table.management.delete')}
@@ -255,13 +315,17 @@ export function TableManagement({ tables, setTables, isEmbedded = false }: Table
                     {table.capacity || 4}
                 </div>
 
-                {table.status !== 'empty' && (
-                    <div className="mt-3 pt-3 border-t border-zinc-50">
-                        <span className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-600 uppercase">
-                            {t('table.management.active')}
-                        </span>
-                    </div>
-                )}
+                <div className="mt-3 pt-3 border-t border-zinc-50">
+                    <span
+                        className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${
+                          table.isActive
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : 'bg-zinc-100 text-zinc-500'
+                        }`}
+                    >
+                        {table.isActive ? t('table.management.active') : t('table.management.inactive')}
+                    </span>
+                </div>
             </div>
           ))
         )}
@@ -289,7 +353,7 @@ export function TableManagement({ tables, setTables, isEmbedded = false }: Table
         </Sheet>
       ) : (
         <Drawer open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-            <DrawerContent className="h-[auto] rounded-t-[32px] max-h-[85vh] bg-white p-0">
+            <DrawerContent className="h-[90vh] rounded-t-[32px] bg-white p-0">
                 <DrawerHeader className="px-6 py-5 border-b border-zinc-100 mb-0 text-left">
                     <DrawerTitle>{editingTable ? t('table.management.edit_table') : t('table.management.add_new_table')}</DrawerTitle>
                     <DrawerDescription>{t('table.management.configure_desc')}</DrawerDescription>
@@ -321,9 +385,11 @@ function TableFormContent({ editingTable, formData, setFormData, handleSave, onC
                         onChange={(e) => setFormData({...formData, id: e.target.value})}
                         placeholder={t('table.management.table_number_placeholder')}
                         type="number"
-                        className="font-mono text-lg"
+                        className="font-mono text-lg bg-white border border-zinc-200"
                     />
-                    <p className="text-xs text-zinc-400">{t('table.management.table_number_desc')}</p>
+                    <p className="text-xs text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-lg px-2 py-1">
+                        {t('table.management.table_number_desc')}
+                    </p>
                 </div>
 
                 <div className="grid gap-2">
@@ -335,10 +401,12 @@ function TableFormContent({ editingTable, formData, setFormData, handleSave, onC
                             onChange={(e) => setFormData({...formData, floor: e.target.value})}
                             placeholder={t('table.management.floor_placeholder')}
                             type="number"
-                            className="pl-9"
+                            className="pl-9 bg-white border border-zinc-200"
                         />
                     </div>
-                    <p className="text-xs text-zinc-400">{t('table.management.floor_desc')}</p>
+                    <p className="text-xs text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-lg px-2 py-1">
+                        {t('table.management.floor_desc')}
+                    </p>
                 </div>
 
                 <div className="grid gap-2">
@@ -350,10 +418,12 @@ function TableFormContent({ editingTable, formData, setFormData, handleSave, onC
                             onChange={(e) => setFormData({...formData, capacity: e.target.value})}
                             placeholder={t('table.management.capacity_placeholder')}
                             type="number"
-                            className="pl-9"
+                            className="pl-9 bg-white border border-zinc-200"
                         />
                     </div>
-                    <p className="text-xs text-zinc-400">{t('table.management.capacity_desc')}</p>
+                    <p className="text-xs text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-lg px-2 py-1">
+                        {t('table.management.capacity_desc')}
+                    </p>
                 </div>
             </div>
 

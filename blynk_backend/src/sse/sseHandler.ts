@@ -105,6 +105,17 @@ class SSEHandler {
     const clients = this.clients.get(channel);
     if (!clients) return;
 
+    if (data?.type === 'chat:new') {
+      logger.info('Broadcasting chat:new SSE', {
+        channel,
+        clientCount: clients.length,
+        restaurantId: data.restaurantId,
+        sessionId: data.sessionId,
+        tableNumber: data.tableNumber,
+        messageType: data.messageType,
+      });
+    }
+
     const message = `data: ${JSON.stringify(data)}\n\n`;
 
     clients.forEach((client, index) => {

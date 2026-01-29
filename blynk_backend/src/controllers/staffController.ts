@@ -8,10 +8,12 @@ import { sessionService } from '../services/sessionService';
 import { prisma } from '../utils/prisma';
 import { createError } from '../middleware/errorHandler';
 import { OrderStatus, WaitingStatus, StaffRole, StaffStatus } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { VietQR } from 'vietqr';
 import { config } from '../config';
+import { pushService } from '../services/pushService';
+
+const debugLog = (..._args: unknown[]) => {};
 
 export const getMyRestaurant = async (
   req: Request,
@@ -75,14 +77,14 @@ export const getMyRestaurant = async (
         // Check exact match
         if (userEmailNormalized === ownerEmailNormalized) {
           hasAccess = true;
-          console.log(`Access granted by email match: ${user.email} is owner of restaurant ${restaurantId}`);
+          debugLog(`Access granted by email match: ${user.email} is owner of restaurant ${restaurantId}`);
           // Auto-fix: Update restaurant ownerId to current user if emails match
           try {
             await prisma.restaurant.update({
               where: { id: restaurantId },
               data: { ownerId: userId },
             });
-            console.log(`Auto-fixed restaurant ownerId: ${restaurantId} now owned by ${userId}`);
+            debugLog(`Auto-fixed restaurant ownerId: ${restaurantId} now owned by ${userId}`);
           } catch (error) {
             console.error('Failed to auto-fix restaurant ownerId:', error);
           }
@@ -93,14 +95,14 @@ export const getMyRestaurant = async (
           const ownerEmailLocal = ownerEmailNormalized.split('@')[0];
           if (userEmailLocal === ownerEmailLocal) {
             hasAccess = true;
-            console.log(`Access granted by email local match: ${user.email} matches owner ${restaurant.owner.email} for restaurant ${restaurantId}`);
+            debugLog(`Access granted by email local match: ${user.email} matches owner ${restaurant.owner.email} for restaurant ${restaurantId}`);
             // Auto-fix: Update restaurant ownerId to current user
             try {
               await prisma.restaurant.update({
                 where: { id: restaurantId },
                 data: { ownerId: userId },
               });
-              console.log(`Auto-fixed restaurant ownerId: ${restaurantId} now owned by ${userId}`);
+              debugLog(`Auto-fixed restaurant ownerId: ${restaurantId} now owned by ${userId}`);
             } catch (error) {
               console.error('Failed to auto-fix restaurant ownerId:', error);
             }
@@ -119,7 +121,7 @@ export const getMyRestaurant = async (
       }
 
       if (!hasAccess) {
-        console.log(`Access denied: userId=${userId}, restaurant.ownerId=${restaurant.ownerId}, user.email=${user.email}, restaurant.owner.email=${restaurant.owner?.email}`);
+        debugLog(`Access denied: userId=${userId}, restaurant.ownerId=${restaurant.ownerId}, user.email=${user.email}, restaurant.owner.email=${restaurant.owner?.email}`);
         throw createError('Access denied to this restaurant', 403);
       }
 
@@ -205,6 +207,141 @@ export const getTables = async (
 
     const tables = await tableService.getTablesByRestaurant(restaurantId);
     res.json({ success: true, data: tables });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getNotificationPreferences = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+    const userId = authReq.user.userId;
+    const restaurantId =
+      (req as any).restaurantId ||
+      (typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null);
+    if (!restaurantId) {
+      throw createError('Restaurant ID is required', 400);
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+    });
+    if (!restaurant) {
+      throw createError('Restaurant not found', 404);
+    }
+
+    let hasAccess = restaurant.ownerId === userId;
+    if (!hasAccess && authReq.user.role === 'PLATFORM_ADMIN') {
+      hasAccess = true;
+    }
+    if (!hasAccess && authReq.user.staffId) {
+      const staff = await prisma.staff.findUnique({
+        where: { id: authReq.user.staffId },
+      });
+      if (staff && staff.restaurantId === restaurantId) {
+        hasAccess = true;
+      }
+    }
+    if (!hasAccess) {
+      throw createError('Access denied to this restaurant', 403);
+    }
+
+    const settings = (restaurant.settings as any) || {};
+    const notificationPreferences = settings.notificationPreferences || {};
+    const soundEnabledByUserId = notificationPreferences.soundEnabledByUserId || {};
+    const soundEnabled = soundEnabledByUserId[userId];
+
+    res.json({
+      success: true,
+      data: {
+        soundEnabled: soundEnabled !== false,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateNotificationPreferences = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+    const userId = authReq.user.userId;
+    const restaurantId =
+      (req as any).restaurantId ||
+      (typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null);
+    if (!restaurantId) {
+      throw createError('Restaurant ID is required', 400);
+    }
+    const { soundEnabled } = req.body as { soundEnabled?: boolean };
+    if (typeof soundEnabled !== 'boolean') {
+      throw createError('soundEnabled is required', 400);
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+    });
+    if (!restaurant) {
+      throw createError('Restaurant not found', 404);
+    }
+
+    let hasAccess = restaurant.ownerId === userId;
+    if (!hasAccess && authReq.user.role === 'PLATFORM_ADMIN') {
+      hasAccess = true;
+    }
+    if (!hasAccess && authReq.user.staffId) {
+      const staff = await prisma.staff.findUnique({
+        where: { id: authReq.user.staffId },
+      });
+      if (staff && staff.restaurantId === restaurantId) {
+        hasAccess = true;
+      }
+    }
+    if (!hasAccess) {
+      throw createError('Access denied to this restaurant', 403);
+    }
+
+    const settings = (restaurant.settings as any) || {};
+    const notificationPreferences = settings.notificationPreferences || {};
+    const soundEnabledByUserId = {
+      ...(notificationPreferences.soundEnabledByUserId || {}),
+      [userId]: soundEnabled,
+    };
+
+    const updatedSettings = {
+      ...settings,
+      notificationPreferences: {
+        ...notificationPreferences,
+        soundEnabledByUserId,
+      },
+    };
+
+    await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: {
+        settings: updatedSettings,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        soundEnabled,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -402,7 +539,7 @@ export const createTable = async (
       throw createError('Insufficient permissions. Only owners and managers can manage tables', 403);
     }
 
-    const { tableNumber, floor, capacity } = req.body;
+    const { tableNumber, floor, capacity, isActive } = req.body;
 
     if (!tableNumber || typeof tableNumber !== 'number') {
       throw createError('Table number is required', 400);
@@ -549,7 +686,7 @@ export const updateTable = async (
       throw createError('Table not found', 404);
     }
 
-    const { tableNumber, floor, capacity } = req.body;
+    const { tableNumber, floor, capacity, isActive } = req.body;
 
     // Check for duplicate table number if tableNumber is being updated
     if (tableNumber !== undefined && tableNumber !== existingTable.tableNumber) {
@@ -566,7 +703,7 @@ export const updateTable = async (
       }
     }
 
-    const updateData: { tableNumber?: number; floor?: number; capacity?: number } = {};
+    const updateData: { tableNumber?: number; floor?: number; capacity?: number; isActive?: boolean } = {};
     if (tableNumber !== undefined) updateData.tableNumber = tableNumber;
     if (floor !== undefined) {
       if (floor < 1) {
@@ -579,6 +716,12 @@ export const updateTable = async (
         throw createError('Capacity must be at least 1', 400);
       }
       updateData.capacity = capacity;
+    }
+    if (isActive !== undefined) {
+      if (isActive === false && existingTable.status !== 'EMPTY') {
+        throw createError('Cannot deactivate table that is not empty', 400);
+      }
+      updateData.isActive = isActive;
     }
 
     const table = await tableService.updateTable(tableId, updateData);
@@ -885,7 +1028,7 @@ export const updateMenuItem = async (
     }
 
     const userId = authReq.user.userId;
-    console.log('[updateMenuItem] Request:', { itemId, restaurantId, userId, staffId: authReq.user.staffId, email: authReq.user.email });
+    debugLog('[updateMenuItem] Request:', { itemId, restaurantId, userId, staffId: authReq.user.staffId, email: authReq.user.email });
 
     // Check if user is restaurant owner
     const user = await prisma.user.findUnique({
@@ -898,14 +1041,14 @@ export const updateMenuItem = async (
     });
 
     if (!user) {
-      console.log('[updateMenuItem] User not found:', userId);
+      debugLog('[updateMenuItem] User not found:', userId);
       throw createError('User not found', 404);
     }
 
     let restaurant = user.ownedRestaurants.find(r => r.id === restaurantId);
     let staffMember: any = null;
 
-    console.log('[updateMenuItem] Owner check:', { 
+    debugLog('[updateMenuItem] Owner check:', { 
       isOwner: !!restaurant, 
       ownedRestaurants: user.ownedRestaurants.map(r => r.id),
       requestedRestaurantId: restaurantId 
@@ -929,7 +1072,7 @@ export const updateMenuItem = async (
             restaurant: true,
           },
         });
-        console.log('[updateMenuItem] Staff check by staffId:', { 
+        debugLog('[updateMenuItem] Staff check by staffId:', { 
           staffId: authReq.user.staffId, 
           found: !!staffMember,
           role: staffMember?.role 
@@ -952,7 +1095,7 @@ export const updateMenuItem = async (
             restaurant: true,
           },
         });
-        console.log('[updateMenuItem] Staff check by email:', { 
+        debugLog('[updateMenuItem] Staff check by email:', { 
           email: user.email, 
           found: !!staffMember,
           role: staffMember?.role 
@@ -965,7 +1108,7 @@ export const updateMenuItem = async (
     }
 
     if (!restaurant) {
-      console.log('[updateMenuItem] Restaurant access denied:', { 
+      debugLog('[updateMenuItem] Restaurant access denied:', { 
         userId, 
         restaurantId, 
         staffId: authReq.user.staffId,
@@ -1623,7 +1766,7 @@ export const getStaffList = async (
       throw createError('Insufficient permissions. Only owners and managers can view staff list', 403);
     }
 
-    // Get all staff list (without PIN hash)
+    // Get all staff list
     const staffList = await prisma.staff.findMany({
       where: {
         restaurantId,
@@ -1638,142 +1781,15 @@ export const getStaffList = async (
         phone: true,
         joinedAt: true,
         createdAt: true,
-        pinCodeHash: true, // Include to check if PIN is set
-        // PIN hash value is excluded from response for security
+        isDevice: true,
+        deviceId: true,
       },
       orderBy: {
         name: 'asc',
       },
     });
 
-    // Map to include hasPin flag without exposing the hash
-    const staffListWithPinStatus = staffList.map(staff => ({
-      id: staff.id,
-      name: staff.name,
-      email: staff.email,
-      role: staff.role,
-      status: staff.status,
-      avatarUrl: staff.avatarUrl,
-      phone: staff.phone,
-      joinedAt: staff.joinedAt,
-      createdAt: staff.createdAt,
-      hasPin: !!staff.pinCodeHash, // Indicate if PIN is set without exposing the hash
-    }));
-
-    res.json({ success: true, data: staffListWithPinStatus });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Set staff PIN (OWNER/MANAGER only)
-export const setStaffPin = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const authReq = req as AuthRequest;
-    if (!authReq.user) {
-      throw createError('Authentication required', 401);
-    }
-
-    const { restaurantId, staffId } = req.params;
-    const { pinCode } = req.body;
-
-    if (!restaurantId || !staffId || !pinCode) {
-      throw createError('Restaurant ID, Staff ID, and PIN code are required', 400);
-    }
-
-    if (typeof pinCode !== 'string' || pinCode.length < 4) {
-      throw createError('PIN code must be at least 4 characters', 400);
-    }
-
-    // Check if user has access (OWNER or MANAGER)
-    const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
-    if (!access.hasAccess) {
-      throw createError('Insufficient permissions', 403);
-    }
-
-    // Verify staff belongs to restaurant
-    const staff = await prisma.staff.findFirst({
-      where: {
-        id: staffId,
-        restaurantId,
-      },
-    });
-
-    if (!staff) {
-      throw createError('Staff not found', 404);
-    }
-
-    // Hash PIN
-    const pinHash = await bcrypt.hash(pinCode, 10);
-
-    // Update staff PIN
-    const updatedStaff = await prisma.staff.update({
-      where: { id: staffId },
-      data: { pinCodeHash: pinHash },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        // PIN hash is excluded
-      },
-    });
-
-    res.json({ success: true, data: updatedStaff });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Set POS PIN (OWNER/MANAGER only)
-export const setPosPin = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const authReq = req as AuthRequest;
-    if (!authReq.user) {
-      throw createError('Authentication required', 401);
-    }
-
-    const { restaurantId } = req.params;
-    const { pinCode } = req.body;
-
-    if (!restaurantId || !pinCode) {
-      throw createError('Restaurant ID and PIN code are required', 400);
-    }
-
-    if (typeof pinCode !== 'string' || pinCode.length < 4) {
-      throw createError('PIN code must be at least 4 characters', 400);
-    }
-
-    // Check if user has access (OWNER or MANAGER)
-    const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
-    if (!access.hasAccess) {
-      throw createError('Insufficient permissions', 403);
-    }
-
-    // Hash PIN
-    const posPinHash = await bcrypt.hash(pinCode, 10);
-
-    // Update restaurant POS PIN
-    const restaurant = await prisma.restaurant.update({
-      where: { id: restaurantId },
-      data: { posPinHash },
-      select: {
-        id: true,
-        nameKo: true,
-        nameVn: true,
-        // PIN hash is excluded
-      },
-    });
-
-    res.json({ success: true, data: restaurant });
+    res.json({ success: true, data: staffList });
   } catch (error) {
     next(error);
   }
@@ -1792,7 +1808,7 @@ export const createStaff = async (
     }
 
     const { restaurantId } = req.params;
-    const { name, email, role, pinCode, phone, avatarUrl } = req.body;
+    const { name, email, role, phone, avatarUrl } = req.body;
 
     if (!restaurantId || !name) {
       throw createError('Restaurant ID and name are required', 400);
@@ -1803,9 +1819,13 @@ export const createStaff = async (
       throw createError('Invalid role. Must be MANAGER, KITCHEN, or HALL', 400);
     }
 
+    if (role === StaffRole.MANAGER && !email) {
+      throw createError('Manager email is required', 400);
+    }
+
     const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
-    if (!access.hasAccess) {
-      throw createError('Insufficient permissions', 403);
+    if (!access.isOwner && !access.isManager) {
+      throw createError('Only owners or managers can perform this action', 403);
     }
 
     // Check if email already exists for this restaurant (only if email is provided)
@@ -1819,12 +1839,8 @@ export const createStaff = async (
       }
     }
 
-    let pinCodeHash: string | undefined;
-    if (pinCode) {
-      if (typeof pinCode !== 'string' || pinCode.length < 4) {
-        throw createError('PIN code must be at least 4 characters', 400);
-      }
-      pinCodeHash = await bcrypt.hash(pinCode, 10);
+    if (access.isManager && role === StaffRole.MANAGER) {
+      throw createError('Only owners can create managers', 403);
     }
 
     const staff = await prisma.staff.create({
@@ -1835,7 +1851,6 @@ export const createStaff = async (
         role: role as StaffRole,
         phone: phone || null,
         avatarUrl: avatarUrl || null,
-        pinCodeHash,
         status: StaffStatus.ACTIVE,
       },
       select: {
@@ -1869,15 +1884,15 @@ export const updateStaff = async (
     }
 
     const { restaurantId, staffId } = req.params;
-    const { name, email, role, pinCode, phone, avatarUrl, status } = req.body;
+    const { name, email, role, phone, avatarUrl, status } = req.body;
 
     if (!restaurantId || !staffId) {
       throw createError('Restaurant ID and Staff ID are required', 400);
     }
 
     const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
-    if (!access.hasAccess) {
-      throw createError('Insufficient permissions', 403);
+    if (!access.isOwner && !access.isManager) {
+      throw createError('Only owners or managers can perform this action', 403);
     }
 
     const existingStaff = await prisma.staff.findFirst({
@@ -1888,11 +1903,32 @@ export const updateStaff = async (
       throw createError('Staff not found', 404);
     }
 
+    if (access.isManager) {
+      const isSelf =
+        (authReq.user.staffId && authReq.user.staffId === existingStaff.id) ||
+        (authReq.user.email && existingStaff.email && authReq.user.email === existingStaff.email);
+      if (isSelf) {
+        throw createError('Managers cannot modify their own account', 403);
+      }
+      if (existingStaff.role === StaffRole.OWNER || existingStaff.role === StaffRole.MANAGER) {
+        throw createError('Managers cannot modify owner or manager accounts', 403);
+      }
+      if (role === StaffRole.MANAGER) {
+        throw createError('Only owners can assign manager role', 403);
+      }
+    }
+
     if (role) {
       const validRoles = [StaffRole.MANAGER, StaffRole.KITCHEN, StaffRole.HALL];
       if (!validRoles.includes(role)) {
         throw createError('Invalid role. Must be MANAGER, KITCHEN, or HALL', 400);
       }
+    }
+
+    const finalRole = role ?? existingStaff.role;
+    const finalEmail = email ?? existingStaff.email;
+    if (finalRole === StaffRole.MANAGER && !finalEmail) {
+      throw createError('Manager email is required', 400);
     }
 
     if (email && email !== existingStaff.email) {
@@ -1912,12 +1948,6 @@ export const updateStaff = async (
     if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl || null;
     if (status !== undefined) updateData.status = status;
 
-    if (pinCode) {
-      if (typeof pinCode !== 'string' || pinCode.length < 4) {
-        throw createError('PIN code must be at least 4 characters', 400);
-      }
-      updateData.pinCodeHash = await bcrypt.hash(pinCode, 10);
-    }
 
     const updatedStaff = await prisma.staff.update({
       where: { id: staffId },
@@ -1936,6 +1966,167 @@ export const updateStaff = async (
     });
 
     res.json({ success: true, data: updatedStaff });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const requireOwner = async (authReq: AuthRequest, restaurantId: string) => {
+  const access = await checkRestaurantAccess(authReq.user!.userId, restaurantId);
+  if (!access.isOwner) {
+    throw createError('Only restaurant owners can perform this action', 403);
+  }
+};
+
+const requireOwnerOrManager = async (authReq: AuthRequest, restaurantId: string) => {
+  const access = await checkRestaurantAccess(authReq.user!.userId, restaurantId);
+  if (!access.isOwner && !access.isManager) {
+    throw createError('Only owners or managers can perform this action', 403);
+  }
+};
+
+export const createDeviceRegistrationCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { restaurantId } = req.params;
+    const { staffId, label } = req.body;
+
+    if (!restaurantId || !staffId) {
+      throw createError('Restaurant ID and staff ID are required', 400);
+    }
+
+    await requireOwnerOrManager(authReq, restaurantId);
+
+    const staff = await prisma.staff.findFirst({
+      where: {
+        id: staffId,
+        restaurantId,
+        status: 'ACTIVE',
+        isDevice: false,
+      },
+    });
+
+    if (!staff) {
+      throw createError('Staff not found or inactive', 404);
+    }
+
+    const code = nanoid(8).toUpperCase();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    const registrationCode = await prisma.deviceRegistrationCode.create({
+      data: {
+        restaurantId,
+        code,
+        role: staff.role,
+        staffId: staff.id,
+        label: label ? String(label) : null,
+        expiresAt,
+        createdByUserId: authReq.user.userId,
+      },
+    });
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { subdomain: true },
+    });
+
+    const baseUrl = config.frontend.baseUrl || 'http://localhost:5173';
+    const isLocal = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+    const protocol = baseUrl.startsWith('https://') ? 'https' : 'http';
+    const port = baseUrl.match(/:(\d+)/)?.[1];
+    const portSuffix = port ? `:${port}` : '';
+    const registrationBase = restaurant?.subdomain
+      ? isLocal
+        ? `${protocol}://${restaurant.subdomain}.localhost${portSuffix}`
+        : `https://${restaurant.subdomain}.qoodle.top`
+      : baseUrl;
+    const registrationUrl = `${registrationBase}/shop/device/register?code=${code}&restaurantId=${restaurantId}`;
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: registrationCode.id,
+        code,
+        expiresAt,
+        registrationUrl,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDeviceTokens = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { restaurantId } = req.params;
+    if (!restaurantId) {
+      throw createError('Restaurant ID is required', 400);
+    }
+
+    await requireOwnerOrManager(authReq, restaurantId);
+
+    const tokens = await prisma.deviceToken.findMany({
+      where: { restaurantId },
+      include: {
+        staff: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            isDevice: true,
+          },
+        },
+      },
+      orderBy: { issuedAt: 'desc' },
+    });
+
+    res.json({ success: true, data: tokens });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const revokeDeviceToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { restaurantId, deviceTokenId } = req.params;
+    if (!restaurantId || !deviceTokenId) {
+      throw createError('Restaurant ID and device token ID are required', 400);
+    }
+
+    await requireOwnerOrManager(authReq, restaurantId);
+
+    const token = await prisma.deviceToken.update({
+      where: { id: deviceTokenId },
+      data: { revokedAt: new Date() },
+    });
+
+    res.json({ success: true, data: token });
   } catch (error) {
     next(error);
   }
@@ -2207,7 +2398,7 @@ export const generateQRCode = async (
     // Ensure accountNumber doesn't have trailing slashes or special characters
     const cleanAccountNo = accountNo.trim().replace(/\/+/g, '');
     
-    console.log('Generating QR with params:', {
+    debugLog('Generating QR with params:', {
       bank: bankId,
       accountNumber: cleanAccountNo,
       accountName: accountName || undefined,
@@ -2228,7 +2419,7 @@ export const generateQRCode = async (
     });
 
     // Debug: Log the raw response from VietQR API
-    console.log('VietQR genQuickLink raw response:', {
+    debugLog('VietQR genQuickLink raw response:', {
       type: typeof qrLinkResponse,
       value: qrLinkResponse,
       stringified: JSON.stringify(qrLinkResponse, null, 2),
@@ -2253,7 +2444,7 @@ export const generateQRCode = async (
       if (match) {
         // Replace multiple slashes (2 or more) with single slash
         const fixed = url.replace(pattern, '$1/$3');
-        console.log('URL fix applied:', { 
+        debugLog('URL fix applied:', { 
           original: url, 
           fixed, 
           matched: match[0],
@@ -2267,28 +2458,28 @@ export const generateQRCode = async (
         const simplePattern = /(\/\d+\/\d+\/)(\/{2,})([^\/\?]+\.jpg)/;
         if (simplePattern.test(url)) {
           const fixed = url.replace(simplePattern, '$1/$3');
-          console.log('URL fix applied (simple pattern):', { original: url, fixed });
+          debugLog('URL fix applied (simple pattern):', { original: url, fixed });
           return fixed;
         }
-        console.log('URL fix: no pattern matched, returning original', { url });
+        debugLog('URL fix: no pattern matched, returning original', { url });
         return url;
       }
     };
     
     if (typeof qrLinkResponse === 'string') {
       qrCodeUrl = fixQRUrl(qrLinkResponse);
-      console.log('QR code URL (string, after fix):', qrCodeUrl);
+      debugLog('QR code URL (string, after fix):', qrCodeUrl);
     } else if (qrLinkResponse && typeof qrLinkResponse === 'object') {
       // Check for common response structures
       if ('data' in qrLinkResponse && typeof qrLinkResponse.data === 'string') {
         qrCodeUrl = fixQRUrl(qrLinkResponse.data);
-        console.log('QR code URL (data.data, after fix):', qrCodeUrl);
+        debugLog('QR code URL (data.data, after fix):', qrCodeUrl);
       } else if ('qrDataURL' in qrLinkResponse && typeof qrLinkResponse.qrDataURL === 'string') {
         qrCodeUrl = fixQRUrl(qrLinkResponse.qrDataURL);
-        console.log('QR code URL (qrDataURL, after fix):', qrCodeUrl);
+        debugLog('QR code URL (qrDataURL, after fix):', qrCodeUrl);
       } else if ('data' in qrLinkResponse && qrLinkResponse.data && typeof qrLinkResponse.data === 'object' && 'qrDataURL' in qrLinkResponse.data) {
         qrCodeUrl = fixQRUrl((qrLinkResponse.data as any).qrDataURL);
-        console.log('QR code URL (data.qrDataURL, after fix):', qrCodeUrl);
+        debugLog('QR code URL (data.qrDataURL, after fix):', qrCodeUrl);
       } else {
         // If it's an object but we can't find the URL, log and throw error
         console.error('Unexpected QR link response format:', {
@@ -2309,7 +2500,7 @@ export const generateQRCode = async (
       throw createError('Invalid QR code URL format', 500);
     }
 
-    console.log('Final QR code URL:', qrCodeUrl);
+    debugLog('Final QR code URL:', qrCodeUrl);
 
     res.json({
       success: true,
@@ -2338,8 +2529,8 @@ export const deleteStaff = async (
     }
 
     const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
-    if (!access.hasAccess) {
-      throw createError('Insufficient permissions', 403);
+    if (!access.isOwner && !access.isManager) {
+      throw createError('Only owners or managers can perform this action', 403);
     }
 
     const staff = await prisma.staff.findFirst({
@@ -2348,6 +2539,18 @@ export const deleteStaff = async (
 
     if (!staff) {
       throw createError('Staff not found', 404);
+    }
+
+    if (access.isManager) {
+      const isSelf =
+        (authReq.user.staffId && authReq.user.staffId === staff.id) ||
+        (authReq.user.email && staff.email && authReq.user.email === staff.email);
+      if (isSelf) {
+        throw createError('Managers cannot delete their own account', 403);
+      }
+      if (staff.role === StaffRole.OWNER || staff.role === StaffRole.MANAGER) {
+        throw createError('Managers cannot delete owner or manager accounts', 403);
+      }
     }
 
     if (staff.role === StaffRole.OWNER) {
@@ -2702,6 +2905,88 @@ export const updateTableGuestCount = async (
     }
 
     res.json({ success: true, data: updatedTable });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getVapidPublicKey = async (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    data: {
+      publicKey: pushService.getPublicKey(),
+    },
+  });
+};
+
+export const subscribePush = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { restaurantId, subscription } = req.body;
+    if (!restaurantId || typeof restaurantId !== 'string') {
+      throw createError('Restaurant ID is required', 400);
+    }
+
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      throw createError('Invalid push subscription payload', 400);
+    }
+
+    if (authReq.user.staffId) {
+      const staff = await prisma.staff.findUnique({
+        where: { id: authReq.user.staffId },
+      });
+      if (!staff || staff.restaurantId !== restaurantId) {
+        throw createError('No access to this restaurant', 403);
+      }
+    } else {
+      const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
+      if (!access.hasAccess) {
+        throw createError('No access to this restaurant', 403);
+      }
+    }
+
+    const userAgent = req.headers['user-agent'] || null;
+    const saved = await pushService.upsertSubscription({
+      restaurantId,
+      staffId: authReq.user.staffId || null,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      userAgent: typeof userAgent === 'string' ? userAgent : null,
+    });
+
+    res.json({ success: true, data: saved });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unsubscribePush = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { endpoint } = req.body;
+    if (!endpoint || typeof endpoint !== 'string') {
+      throw createError('Endpoint is required', 400);
+    }
+
+    await pushService.removeSubscription(endpoint);
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

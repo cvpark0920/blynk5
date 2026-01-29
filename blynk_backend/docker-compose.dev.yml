@@ -1,10 +1,27 @@
 services:
+  reverse-proxy:
+    image: nginx:alpine
+    container_name: blynk_reverse_proxy_dev
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - blynk_network
+
   backend:
     build:
       context: ..
       dockerfile: blynk_backend/Dockerfile
     container_name: blynk_backend_dev
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "3000:3000"
     environment:
@@ -15,11 +32,12 @@ services:
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3000/api/auth/google/callback}
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       VIETQR_CLIENT_ID: ${VIETQR_CLIENT_ID:-}
       VIETQR_API_KEY: ${VIETQR_API_KEY:-}
+      DEEPL_AUTH_KEY: ${DEEPL_AUTH_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:support@qoodle.top}
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,6 +45,11 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      # 프론트엔드 빌드 파일 마운트 (DEPLOYMENT_WORKFLOW.md 참고)
+      # npm run build:local:sync 실행 시 dist 파일이 blynk_backend/public에 복사되고
+      # 볼륨 마운트를 통해 컨테이너의 /app/public에 자동 반영됩니다.
+      - ../blynk_backend/public:/app/public
+      - ../blynk_backend/public/uploads:/app/public/uploads
     networks:
       - blynk_network
     healthcheck:

@@ -30,7 +30,7 @@ export const translations = {
     qrSaved: { ko: 'QR코드가 갤러리에 저장되었습니다.', vn: 'Mã QR đã được lưu vào thư viện.', en: 'QR code saved to gallery.' },
     qrDownload: { ko: 'QR코드 저장', vn: 'Tải mã QR', en: 'Download QR' },
     transferComplete: { ko: '송금 완료', vn: 'Chuyển khoản hoàn tất', en: 'Transfer Complete' },
-    accountHolder: { ko: '예금주: Blynk (더나와)', vn: 'Chủ tài khoản: Blynk (더나와)', en: 'Account Holder: Blynk (더나와)' },
+    accountHolder: { ko: '예금주: Qoodle', vn: 'Chủ tài khoản: Qoodle', en: 'Account Holder: Qoodle' },
     bankName: { ko: '신한은행', vn: 'Ngân hàng Shinhan', en: 'Shinhan Bank' },
   },
 

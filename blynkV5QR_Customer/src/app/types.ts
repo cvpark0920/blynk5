@@ -27,6 +27,7 @@ export interface ChatMessage {
   textKO: string;
   textVN: string;
   textEN?: string;
+  detectedLanguage?: 'ko' | 'vn' | 'en' | null;
   timestamp: Date;
   type: 'text' | 'order' | 'request' | 'image';
   metadata?: any; // For order details
@@ -41,6 +42,7 @@ export interface CartItem extends MenuItem {
 
 export interface QuickChip {
   id: string;
+  templateKey?: string;
   icon: string;
   labelKO: string;
   labelVN: string;

@@ -9,6 +9,18 @@ export class SessionService {
     restaurantId: string;
     guestCount: number;
   }) {
+    const table = await prisma.table.findUnique({
+      where: { id: data.tableId },
+    });
+
+    if (!table) {
+      throw createError('Table not found', 404);
+    }
+
+    if (table.isActive === false) {
+      throw createError('Table is inactive', 400);
+    }
+
     // Check if table already has an active session
     const existingSession = await prisma.session.findFirst({
       where: {
@@ -30,11 +42,6 @@ export class SessionService {
         table: true,
         restaurant: true,
       },
-    });
-
-    // Get current table status
-    const table = await prisma.table.findUnique({
-      where: { id: data.tableId },
     });
 
     // Update table: set current session and status
@@ -102,7 +109,71 @@ export class SessionService {
       throw createError('Session not found', 404);
     }
 
-    return session;
+    // 기존 메시지의 metadata에 selectedOptions가 없는 경우 주문 정보를 조회해서 보강
+    const enrichedMessages = await Promise.all(
+      session.chatMessages.map(async (message) => {
+        // metadata에 orderId가 있고 items가 있지만 selectedOptions가 없는 경우 처리
+        if (
+          message.metadata &&
+          typeof message.metadata === 'object' &&
+          'orderId' in message.metadata &&
+          'items' in message.metadata &&
+          Array.isArray(message.metadata.items)
+        ) {
+          const orderId = message.metadata.orderId as string;
+          const items = message.metadata.items as any[];
+
+          // items에 selectedOptions가 없거나 빈 배열인 경우 주문을 조회해서 보강
+          const needsEnrichment = items.some(
+            (item: any) => !item.selectedOptions || !Array.isArray(item.selectedOptions) || item.selectedOptions.length === 0
+          );
+
+          if (needsEnrichment) {
+            // session.orders에서 해당 주문 찾기
+            const order = session.orders.find((o) => o.id === orderId);
+
+            if (order) {
+              // items를 order.items와 매칭해서 selectedOptions 추가
+              const enrichedItems = items.map((item: any) => {
+                const orderItem = order.items.find((oi) => oi.id === item.id || oi.menuItemId === item.menuItemId);
+                // orderItem이 있고, orderItem에 options가 있는 경우에만 보강
+                if (orderItem && orderItem.options && orderItem.options.length > 0) {
+                  // 기존 selectedOptions가 없거나 빈 배열인 경우에만 보강
+                  if (!item.selectedOptions || !Array.isArray(item.selectedOptions) || item.selectedOptions.length === 0) {
+                    return {
+                      ...item,
+                      selectedOptions: orderItem.options.map((opt) => ({
+                        id: opt.option.id,
+                        labelKO: opt.option.nameKo,
+                        labelVN: opt.option.nameVn,
+                        labelEN: opt.option.nameEn,
+                        priceVND: opt.price,
+                      })),
+                    };
+                  }
+                }
+                return item;
+              });
+
+              return {
+                ...message,
+                metadata: {
+                  ...message.metadata,
+                  items: enrichedItems,
+                },
+              };
+            }
+          }
+        }
+
+        return message;
+      })
+    );
+
+    return {
+      ...session,
+      chatMessages: enrichedMessages,
+    };
   }
 
   async updateSessionGuestCount(sessionId: string, guestCount: number) {
@@ -123,6 +194,18 @@ export class SessionService {
     restaurantId: string;
     guestCount: number;
   }) {
+    const table = await prisma.table.findUnique({
+      where: { id: data.tableId },
+    });
+
+    if (!table) {
+      throw createError('Table not found', 404);
+    }
+
+    if (table.isActive === false) {
+      throw createError('Table is inactive', 400);
+    }
+
     // Check if table already has an active session
     const existingSession = await prisma.session.findFirst({
       where: {

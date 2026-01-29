@@ -16,6 +16,24 @@ import {
 
 type Language = 'ko' | 'en' | 'vn';
 
+const normalizeQrCodeUrl = (qrCodeUrl?: string): string | undefined => {
+  if (!qrCodeUrl || typeof window === 'undefined') {
+    return qrCodeUrl;
+  }
+  try {
+    const parsed = new URL(qrCodeUrl, window.location.origin);
+    if (window.location.protocol === 'https:') {
+      parsed.protocol = 'https:';
+      if (parsed.hostname.endsWith('.localhost') && parsed.port === '3000') {
+        parsed.port = '';
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return qrCodeUrl;
+  }
+};
+
 // Table Mappers
 export function mapBackendTableToFrontend(backendTable: BackendTable): Table {
   const activeSession = backendTable.sessions?.[0];
@@ -45,11 +63,13 @@ export function mapBackendTableToFrontend(backendTable: BackendTable): Table {
     tableId: backendTable.id, // Store actual UUID
     currentSessionId: backendTable.currentSessionId, // 활성 세션 ID 저장
     floor: backendTable.floor,
+    isActive: backendTable.isActive !== false,
     status: frontendStatus,
     guests,
     capacity: backendTable.capacity,
     totalAmount,
     orderTime,
+    qrCodeUrl: normalizeQrCodeUrl(backendTable.qrCodeUrl), // 서브도메인 기반 QR 코드 URL
   };
 }
 
@@ -255,7 +275,6 @@ export function mapBackendStaffToFrontend(backendStaff: BackendStaff): Staff {
     role: backendStaff.role.toLowerCase() as Staff['role'],
     status: backendStaff.status.toLowerCase() as Staff['status'],
     avatarUrl: backendStaff.avatarUrl || undefined,
-    pinCode: backendStaff.hasPin ? '••••' : undefined,
     joinedAt: new Date(backendStaff.joinedAt),
   };
 }

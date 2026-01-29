@@ -42,7 +42,6 @@ export class SSEClient {
 
     this.eventSource.onopen = () => {
       this.reconnectAttempts = 0;
-      console.log('SSE connection opened:', url);
       this.options.onConnect?.();
     };
 
@@ -74,7 +73,6 @@ export class SSEClient {
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
         const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
-        console.log(`Reconnecting SSE in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
         
         this.reconnectTimeoutId = setTimeout(() => {
           if (this.url) {
@@ -97,7 +95,6 @@ export class SSEClient {
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
-      console.log('SSE connection closed');
       this.options.onDisconnect?.();
     }
 

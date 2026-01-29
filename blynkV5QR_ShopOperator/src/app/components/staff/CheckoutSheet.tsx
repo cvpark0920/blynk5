@@ -90,18 +90,6 @@ export function CheckoutSheet({
     return sum + (typeof orderAmount === 'number' ? orderAmount : 0);
   }, 0);
   
-  // Debug: Log totalAmount calculation
-  useEffect(() => {
-    if (isOpen) {
-      console.log('CheckoutSheet totalAmount calculation:', {
-        servedOrdersCount: servedOrders.length,
-        servedOrders: servedOrders.map(o => ({ id: o.id, totalAmount: o.totalAmount, totalAmountType: typeof o.totalAmount })),
-        totalAmount,
-        totalAmountType: typeof totalAmount,
-      });
-    }
-  }, [isOpen, servedOrders, totalAmount]);
-
   useEffect(() => {
     if (isOpen && restaurantId) {
       loadPaymentMethods();
@@ -178,22 +166,22 @@ export function CheckoutSheet({
           <div className="space-y-6 py-6">
             {/* Orders List */}
             <div>
-              <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">
+              <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4">
                 {t('checkout.orders')}
               </h3>
               <div className="space-y-3">
                 {servedOrders.length === 0 ? (
-                  <div className="text-center py-8 text-zinc-400 text-sm">
+                  <div className="text-center py-8 text-muted-foreground text-sm">
                     {t('table.detail.no_orders')}
                   </div>
                 ) : (
                   servedOrders.map((order) => (
-                    <div key={order.id} className="bg-white border border-zinc-100 p-4 rounded-xl">
+                    <div key={order.id} className="bg-card border border-border p-4 rounded-xl">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-medium text-zinc-500">
+                        <span className="text-xs font-medium text-muted-foreground">
                           {order.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        <span className="text-sm font-bold text-zinc-900">
+                        <span className="text-sm font-bold text-foreground">
                           {formatPriceVND(order.totalAmount)}
                         </span>
                       </div>
@@ -204,8 +192,8 @@ export function CheckoutSheet({
                           const itemTotal = item.price || (item.unitPrice ? item.unitPrice * item.quantity : 0);
                           return (
                             <li key={idx} className="flex justify-between items-center text-sm">
-                              <span className="text-zinc-700">{item.name} x{item.quantity}</span>
-                              <span className="text-zinc-500">{formatPriceVND(itemTotal)}</span>
+                              <span className="text-foreground/80">{item.name} x{item.quantity}</span>
+                              <span className="text-muted-foreground">{formatPriceVND(itemTotal)}</span>
                             </li>
                           );
                         })}
@@ -219,15 +207,15 @@ export function CheckoutSheet({
             {/* Payment Method Selection */}
             {servedOrders.length > 0 && (
               <div>
-                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">
+                <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4">
                   {t('checkout.payment_method')}
                 </h3>
                 {isLoading ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="animate-spin text-zinc-400" size={24} />
+                    <Loader2 className="animate-spin text-muted-foreground" size={24} />
                   </div>
                 ) : availablePaymentMethods.length === 0 ? (
-                  <div className="text-center py-8 text-zinc-400 text-sm">
+                  <div className="text-center py-8 text-muted-foreground text-sm">
                     활성화된 결제 방법이 없습니다.
                   </div>
                 ) : (
@@ -248,21 +236,21 @@ export function CheckoutSheet({
                           className={cn(
                             "w-full p-4 rounded-xl border-2 transition-all text-left",
                             isSelected
-                              ? "border-zinc-900 bg-zinc-50"
-                              : "border-zinc-100 bg-white hover:border-zinc-200"
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-card hover:border-border/70"
                           )}
                         >
                           <div className="flex items-center gap-3">
                             <div className={cn(
                               "p-2 rounded-lg",
-                              isSelected ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"
+                              isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                             )}>
                               <Icon size={20} />
                             </div>
-                            <span className="font-medium text-zinc-900">{method.label}</span>
+                            <span className="font-medium text-foreground">{method.label}</span>
                             {isSelected && (
-                              <div className="ml-auto w-5 h-5 rounded-full bg-zinc-900 flex items-center justify-center">
-                                <div className="w-2 h-2 rounded-full bg-white" />
+                              <div className="ml-auto w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                <div className="w-2 h-2 rounded-full bg-primary-foreground" />
                               </div>
                             )}
                           </div>
@@ -278,10 +266,10 @@ export function CheckoutSheet({
 
         {/* Footer with Total and Checkout Button */}
         {servedOrders.length > 0 && (
-          <div className="border-t border-zinc-100 p-6 bg-white">
+          <div className="border-t border-border p-6 bg-card">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-zinc-500">{t('checkout.total')}</span>
-              <span className="text-2xl font-bold text-zinc-900">{formatPriceVND(totalAmount)}</span>
+              <span className="text-sm font-medium text-muted-foreground">{t('checkout.total')}</span>
+              <span className="text-2xl font-bold text-foreground">{formatPriceVND(totalAmount)}</span>
             </div>
             <div className="flex gap-3">
               <Button
@@ -295,7 +283,7 @@ export function CheckoutSheet({
               <Button
                 onClick={handleCheckout}
                 disabled={!selectedPaymentMethod || isProcessing || availablePaymentMethods.length === 0}
-                className="flex-1 bg-zinc-900 hover:bg-zinc-800"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {isProcessing ? (
                   <>
@@ -318,8 +306,8 @@ export function CheckoutSheet({
       <>
         <Sheet open={isOpen} onOpenChange={onClose}>
           <SheetContent side="right" className="w-full h-full sm:w-[540px] p-0 flex flex-col rounded-l-[32px] rounded-bl-[32px] border-none outline-none overflow-hidden">
-            <SheetHeader className="px-6 pt-6 pb-4 border-b border-zinc-100">
-              <SheetTitle className="text-xl font-bold text-zinc-900">
+            <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
+              <SheetTitle className="text-xl font-bold text-foreground">
                 {t('checkout.title')} - 테이블 {tableNumber}
               </SheetTitle>
             </SheetHeader>
@@ -349,8 +337,8 @@ export function CheckoutSheet({
   return (
     <>
       <Drawer open={isOpen} onOpenChange={onClose}>
-        <DrawerContent className="max-h-[90vh] flex flex-col">
-          <DrawerTitle className="px-6 pt-6 pb-4 border-b border-zinc-100 text-xl font-bold text-zinc-900">
+        <DrawerContent className="h-[90vh] flex flex-col">
+          <DrawerTitle className="px-6 pt-6 pb-4 border-b border-border text-xl font-bold text-foreground">
             {t('checkout.title')} - 테이블 {tableNumber}
           </DrawerTitle>
           {content}

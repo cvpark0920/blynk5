@@ -11,7 +11,7 @@ export const CurrencyDisplay: React.FC<CurrencyDisplayProps> = ({ amountVND, sho
 
   return (
     <div className={`flex flex-col ${className}`}>
-      <span className="font-bold text-gray-900">
+      <span className="font-bold text-current">
         {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amountVND)}
       </span>
       {/* KRW display removed as requested */}

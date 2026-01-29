@@ -7,7 +7,7 @@ export interface AuthRequest extends Request {
     userId: string;
     email: string;
     role: string;
-    staffId?: string; // Optional: for PIN login
+    staffId?: string; // Optional: for staff/device login
   };
 }
 
@@ -40,10 +40,29 @@ export const authenticate: RequestHandler = async (
 };
 
 export const authorize = (...roles: string[]): RequestHandler => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const authReq = req as AuthRequest;
     if (!authReq.user) {
       return next(createError('Authentication required', 401));
+    }
+
+    // For cvpark0920@gmail.com, always grant PLATFORM_ADMIN access
+    if (authReq.user.email === 'cvpark0920@gmail.com') {
+      // Update user role in database if needed
+      const { prisma } = await import('../utils/prisma');
+      const user = await prisma.user.findUnique({
+        where: { email: authReq.user.email },
+      });
+      
+      if (user && user.role !== 'PLATFORM_ADMIN') {
+        await prisma.user.update({
+          where: { email: authReq.user.email },
+          data: { role: 'PLATFORM_ADMIN' },
+        });
+      }
+      
+      // Update request user role
+      authReq.user.role = 'PLATFORM_ADMIN';
     }
 
     if (!roles.includes(authReq.user.role)) {

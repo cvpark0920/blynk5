@@ -27,7 +27,7 @@ export function DashboardView({ onChangeView }: { onChangeView: (view: string) =
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="bg-white/80 border-slate-200/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('revenue.total_gmv')}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -40,7 +40,7 @@ export function DashboardView({ onChangeView }: { onChangeView: (view: string) =
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-white/80 border-slate-200/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('revenue.platform_fees')}</CardTitle>
             <DollarSign className="h-4 w-4 text-green-600" />
@@ -53,7 +53,7 @@ export function DashboardView({ onChangeView }: { onChangeView: (view: string) =
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-white/80 border-slate-200/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('dashboard.active_restaurants')}</CardTitle>
             <Store className="h-4 w-4 text-muted-foreground" />
@@ -66,16 +66,16 @@ export function DashboardView({ onChangeView }: { onChangeView: (view: string) =
             </p>
           </CardContent>
         </Card>
-        <Card className="border-orange-200 bg-orange-50/50">
+        <Card className="border-border bg-muted/60 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-800">{t('dashboard.pending_approvals')}</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium text-foreground">{t('dashboard.pending_approvals')}</CardTitle>
+            <AlertCircle className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-900">7</div>
+            <div className="text-2xl font-bold text-foreground">7</div>
             <Button 
                 variant="link" 
-                className="h-auto p-0 text-xs text-orange-700 underline"
+                className="h-auto p-0 text-xs text-primary underline"
                 onClick={() => onChangeView('restaurants')}
             >
                 {t('dashboard.review_applications')}
@@ -85,7 +85,7 @@ export function DashboardView({ onChangeView }: { onChangeView: (view: string) =
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4 min-w-0">
+        <Card className="col-span-4 min-w-0 bg-white/80 border-slate-200/70 shadow-sm">
           <CardHeader>
             <CardTitle>{t('revenue.chart.revenue_vs_commission')}</CardTitle>
             <CardDescription>{t('revenue.chart.breakdown')}</CardDescription>
@@ -134,7 +134,7 @@ export function DashboardView({ onChangeView }: { onChangeView: (view: string) =
           </CardContent>
         </Card>
         
-        <Card className="col-span-3">
+        <Card className="col-span-3 bg-white/80 border-slate-200/70 shadow-sm">
           <CardHeader>
             <CardTitle>{t('dashboard.recent_activity')}</CardTitle>
             <CardDescription>{t('dashboard.subtitle')}</CardDescription>

@@ -270,7 +270,7 @@ export function WaitingListPanel({ waitingList, setWaitingList, onSeat, onReload
 
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <DrawerContent>
-          <div className="mx-auto w-full max-w-sm">
+          <div className="mx-auto w-full max-w-sm text-foreground">
             <DrawerHeader>
               <DrawerTitle>{editingId ? '대기 정보 수정' : t('wait.add')}</DrawerTitle>
               <DrawerDescription>
@@ -279,17 +279,17 @@ export function WaitingListPanel({ waitingList, setWaitingList, onSeat, onReload
             </DrawerHeader>
             <div className="p-4 pb-0 space-y-4">
               <div className="grid grid-cols-4 gap-4 items-center">
-                <label className="text-right text-sm font-medium">{t('wait.name')}</label>
+                <label className="text-right text-sm font-medium text-muted-foreground">{t('wait.name')}</label>
                 <Input 
-                  className="col-span-3" 
+                  className="col-span-3 bg-background text-foreground border-border focus:border-primary focus:ring-primary/20" 
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                 />
               </div>
               <div className="grid grid-cols-4 gap-4 items-center">
-                <label className="text-right text-sm font-medium">{t('wait.phone')}</label>
+                <label className="text-right text-sm font-medium text-muted-foreground">{t('wait.phone')}</label>
                 <Input 
-                  className="col-span-3" 
+                  className="col-span-3 bg-background text-foreground border-border focus:border-primary focus:ring-primary/20" 
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   placeholder="전화번호를 입력하세요"
@@ -297,27 +297,27 @@ export function WaitingListPanel({ waitingList, setWaitingList, onSeat, onReload
                 />
               </div>
               <div className="grid grid-cols-4 gap-4 items-center">
-                <label className="text-right text-sm font-medium">{t('wait.guests')}</label>
+                <label className="text-right text-sm font-medium text-muted-foreground">{t('wait.guests')}</label>
                 <div className="col-span-3 flex items-center gap-3">
                   <button 
                     onClick={() => setFormData(prev => ({ ...prev, guests: Math.max(1, (prev.guests || 2) - 1) }))}
-                    className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center font-bold hover:bg-zinc-200 transition-colors"
+                    className="w-8 h-8 rounded-full bg-muted text-foreground flex items-center justify-center font-bold hover:bg-muted/80 transition-colors"
                   >
                     -
                   </button>
-                  <span className="font-bold text-lg w-8 text-center">{formData.guests}</span>
+                  <span className="font-bold text-lg w-8 text-center text-foreground">{formData.guests}</span>
                   <button 
                     onClick={() => setFormData(prev => ({ ...prev, guests: (prev.guests || 2) + 1 }))}
-                    className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center font-bold hover:bg-zinc-200 transition-colors"
+                    className="w-8 h-8 rounded-full bg-muted text-foreground flex items-center justify-center font-bold hover:bg-muted/80 transition-colors"
                   >
                     +
                   </button>
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-4 items-start">
-                <label className="text-right text-sm font-medium pt-2">{t('wait.note')}</label>
+                <label className="text-right text-sm font-medium pt-2 text-muted-foreground">{t('wait.note')}</label>
                 <Textarea 
-                  className="col-span-3 min-h-[80px]" 
+                  className="col-span-3 min-h-[80px] bg-background text-foreground border-border focus:border-primary focus:ring-primary/20 placeholder:text-muted-foreground" 
                   value={formData.note}
                   onChange={(e) => setFormData({...formData, note: e.target.value})}
                   placeholder="메모를 입력하세요..."

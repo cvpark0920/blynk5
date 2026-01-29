@@ -47,6 +47,7 @@ export class SSEClient {
     this.eventSource.onopen = () => {
       this.reconnectAttempts = 0;
       logger.info('SSE connection opened:', url);
+      console.info('[SSE] connected', url);
       this.options.onConnect?.();
     };
 
@@ -57,36 +58,53 @@ export class SSEClient {
           return;
         }
 
+        if (event.data.includes('"type":"chat:new"') || event.data.includes('"type":"order:new"')) {
+          console.info('[SSE] message raw', event.data);
+        }
         const data = JSON.parse(event.data);
         this.options.onMessage?.(data);
       } catch (error) {
         logger.error('Error parsing SSE message:', error);
+        console.error('[SSE] parse error', error);
       }
     };
 
     this.eventSource.onerror = (error) => {
       logger.error('SSE connection error:', error);
-      this.options.onError?.(error);
-
+      console.error('[SSE] connection error', error);
+      
       // Close the connection
       if (this.eventSource) {
         this.eventSource.close();
         this.eventSource = null;
       }
 
-      // Attempt to reconnect
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
-        this.reconnectAttempts++;
-        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
-        logger.info(`Reconnecting SSE in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-        
-        this.reconnectTimeoutId = setTimeout(() => {
-          if (this.url) {
-            this.connect(this.url);
-          }
-        }, delay);
+      // Let the parent component handle reconnection with token refresh
+      // Don't auto-reconnect here to avoid using expired tokens
+      this.options.onError?.(error);
+      
+      // Only auto-reconnect if maxReconnectAttempts is greater than 0 and not Infinity
+      // (0 or Infinity means parent will handle reconnection)
+      if (this.maxReconnectAttempts > 0 && this.maxReconnectAttempts !== Number.POSITIVE_INFINITY) {
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
+          logger.info(`Reconnecting SSE in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+          console.info('[SSE] reconnecting', { delay, attempt: this.reconnectAttempts });
+          
+          this.reconnectTimeoutId = setTimeout(() => {
+            if (this.url) {
+              this.connect(this.url);
+            }
+          }, delay);
+        } else {
+          logger.error('Max reconnection attempts reached');
+          console.error('[SSE] max reconnect attempts reached');
+          this.options.onDisconnect?.();
+        }
       } else {
-        logger.error('Max reconnection attempts reached');
+        // Parent will handle reconnection (maxReconnectAttempts is 0 or Infinity)
+        // Just mark as disconnected, don't auto-reconnect
         this.options.onDisconnect?.();
       }
     };
@@ -102,6 +120,7 @@ export class SSEClient {
       this.eventSource.close();
       this.eventSource = null;
       logger.info('SSE connection closed');
+      console.info('[SSE] connection closed');
       this.options.onDisconnect?.();
     }
 

@@ -66,44 +66,37 @@ const MenuItemCard: React.FC<{
   const description = lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : (item.descriptionEN || item.descriptionKO);
 
   return (
-    <div className={`bg-white rounded-2xl overflow-hidden shadow-sm border transition-all duration-200 hover:shadow-md hover:border-gray-200 flex flex-col ${isExpanded ? 'border-blue-200 ring-1 ring-blue-50' : 'border-gray-100'}`}>
+    <div className={`bg-card rounded-2xl overflow-hidden border transition-all duration-200 hover:border-border/70 ${isExpanded ? 'border-primary/30 ring-1 ring-primary/10' : 'border-border/60'} shadow-[0_1px_4px_rgba(0,0,0,0.04)]`}>
       {/* 이미지 영역 */}
-      <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden group">
+      <div className="relative aspect-[4/3] bg-muted overflow-hidden">
         <img 
           src={item.imageQuery} 
           alt={primaryName}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-        />
-        {/* 그라데이션 오버레이 - 하단 끝부분에서만 시작 */}
-        <div 
-          className="absolute inset-0"
-          style={{
-            background: 'linear-gradient(to top, black 0%, transparent 15%)'
-          }}
+          className="w-full h-full object-cover"
         />
         
         {/* 수량 배지 */}
         {quantity > 0 && (
-          <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg backdrop-blur-sm">
+          <div className="absolute top-2 right-2 bg-primary/90 text-primary-foreground text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-sm">
             {quantity}
           </div>
         )}
       </div>
       
-      {/* 메뉴명 및 설명 영역 - 검은색 배경 */}
-      <div className="bg-black px-3 py-2.5">
-        <h3 className="font-bold text-white text-[15px] leading-tight">
+      {/* 메뉴명 및 설명 영역 */}
+      <div className="px-3 pt-3">
+        <h3 className="font-semibold text-foreground text-sm leading-snug">
           {primaryName}
         </h3>
         {description && (
-          <p className="text-xs text-white/90 mt-1 leading-relaxed line-clamp-3">
+          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">
             {description}
           </p>
         )}
       </div>
       
       {/* 금액 및 담기 버튼 영역 - 한 줄 배치 */}
-      <div className="px-3 py-2.5">
+      <div className="px-3 pb-3 pt-2">
         {hasOptions ? (
           <Button 
             onClick={() => setIsExpanded(!isExpanded)}
@@ -111,8 +104,8 @@ const MenuItemCard: React.FC<{
             size="sm"
             className={`w-full h-8 text-xs font-semibold rounded-lg transition-all ${
               isExpanded 
-                ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                ? 'bg-primary/10 text-primary border border-primary/30' 
+                : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm'
             }`}
           >
             {isExpanded ? UI_TEXT.fold[lang] : UI_TEXT.selectOption[lang]}
@@ -120,18 +113,18 @@ const MenuItemCard: React.FC<{
         ) : (
           quantity > 0 ? (
             <div className="flex items-center gap-2.5">
-              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-gray-900 flex-1" />
-              <div className="flex items-center gap-0.5 bg-gray-50 rounded-lg px-1 py-0.5 border border-gray-200/60">
+              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-foreground flex-1" />
+              <div className="flex items-center gap-0.5 bg-muted rounded-lg px-1 py-0.5 border border-border">
                 <button 
                   onClick={() => removeFromCart(item.id)}
-                  className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:scale-90 transition-all"
+                  className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 active:scale-90 transition-all"
                 >
                   <Minus size={12} strokeWidth={2.5} />
                 </button>
-                <span className="text-xs font-bold text-gray-900 min-w-[20px] text-center">{quantity}</span>
+                <span className="text-xs font-bold text-foreground min-w-[20px] text-center">{quantity}</span>
                 <button 
                   onClick={() => addToCart(item)}
-                  className="w-6 h-6 flex items-center justify-center rounded bg-blue-600 text-white hover:bg-blue-700 active:scale-90 transition-all"
+                  className="w-6 h-6 flex items-center justify-center rounded bg-primary text-primary-foreground hover:bg-primary/90 active:scale-90 transition-all"
                 >
                   <Plus size={12} strokeWidth={2.5} />
                 </button>
@@ -139,10 +132,10 @@ const MenuItemCard: React.FC<{
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-gray-900 flex-1" />
+              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-foreground flex-1" />
               <button 
                 onClick={() => addToCart(item)}
-                className="h-7 w-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm active:scale-95 transition-all"
+                className="h-7 w-7 flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm active:scale-95 transition-all"
               >
                 <Plus size={13} strokeWidth={2.5} />
               </button>
@@ -159,7 +152,7 @@ const MenuItemCard: React.FC<{
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="mt-3 pt-3 border-t border-dashed border-gray-200 space-y-3">
+            <div className="mt-3 pt-3 border-t border-dashed border-border space-y-3">
               <div className="space-y-2">
                 {item.options?.map(opt => {
                   const isSelected = selectedOptions.some(o => o.id === opt.id);
@@ -172,24 +165,24 @@ const MenuItemCard: React.FC<{
                       onClick={() => toggleOption(opt)}
                       className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer select-none transition-all active:scale-[0.99] ${
                         isSelected 
-                          ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/20' 
-                          : 'border-gray-200 hover:bg-gray-50'
+                          ? 'border-primary bg-primary/10 ring-1 ring-primary/20' 
+                          : 'border-border hover:bg-muted'
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-colors ${
-                          isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'
+                          isSelected ? 'bg-primary border-primary' : 'border-border bg-card'
                         }`}>
                           {isSelected && <Check size={10} className="text-white stroke-[4]" />}
                         </div>
                         <div className="flex flex-col">
-                          <span className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-700'}`}>
+                          <span className={`text-sm font-medium ${isSelected ? 'text-foreground' : 'text-foreground/80'}`}>
                             {optLabel}
                           </span>
-                          <span className="text-[10px] text-gray-400 leading-none">{optSub}</span>
+                          <span className="text-[10px] text-muted-foreground leading-none">{optSub}</span>
                         </div>
                       </div>
-                      <span className={`text-xs font-medium ${opt.priceVND > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                      <span className={`text-xs font-medium ${opt.priceVND > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
                         {opt.priceVND > 0 ? `+${opt.priceVND.toLocaleString()}` : UI_TEXT.free[lang]}
                       </span>
                     </div>
@@ -199,10 +192,10 @@ const MenuItemCard: React.FC<{
               
               <Button 
                 onClick={handleAddWithOptions}
-                className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md shadow-blue-200 font-medium flex items-center justify-center gap-2"
+                className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md shadow-black/10 font-medium flex items-center justify-center gap-2"
               >
                 <span>{UI_TEXT.addToCartBtn[lang]}</span>
-                <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs">
+                <span className="bg-primary-foreground/20 px-1.5 py-0.5 rounded text-xs">
                   {currentPrice.toLocaleString()} ₫
                 </span>
               </Button>
@@ -356,34 +349,34 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                 onClose();
               }
             }}
-            className="fixed inset-x-0 bottom-0 z-50 bg-white flex flex-col h-[85%] rounded-t-2xl shadow-2xl overflow-hidden"
+            className="fixed inset-x-0 bottom-0 z-50 bg-card flex flex-col h-[90%] rounded-t-2xl shadow-2xl overflow-hidden text-foreground"
           >
             {/* Header - Draggable */}
             <div 
-              className="relative flex items-center justify-between p-4 pt-5 border-b border-gray-100 bg-white cursor-grab active:cursor-grabbing touch-none select-none"
+              className="relative flex items-center justify-between p-4 pt-5 border-b border-border bg-card cursor-grab active:cursor-grabbing touch-none select-none"
               onPointerDown={(e) => dragControls.start(e)}
             >
               {/* Drag Handle */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gray-200 rounded-full" />
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-muted rounded-full" />
 
               <div className="flex items-center gap-2">
                 {showCartDetails && (
-                  <button onClick={(e) => { e.stopPropagation(); setShowCartDetails(false); }} className="p-1 -ml-1 rounded-full hover:bg-gray-100">
+                  <button onClick={(e) => { e.stopPropagation(); setShowCartDetails(false); }} className="p-1 -ml-1 rounded-full hover:bg-muted">
                     <ArrowLeft size={24} />
                   </button>
                 )}
-                <h2 className="text-xl font-bold text-gray-900">
+                <h2 className="text-xl font-bold text-foreground">
                   {showCartDetails ? UI_TEXT.cartCheck[lang] : UI_TEXT.menu[lang]}
                 </h2>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-2 rounded-full hover:bg-gray-100">
+              <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-2 rounded-full hover:bg-muted">
                 <X size={24} />
               </button>
             </div>
 
           {/* Category Tabs */}
           {!showCartDetails && categories.length > 1 && (
-            <div className="bg-gray-50 border-b border-gray-100">
+            <div className="bg-muted/50 border-b border-border">
               <div className="flex overflow-x-auto gap-2 p-2 no-scrollbar px-4">
                 {categories.map((cat) => (
                   <button
@@ -391,8 +384,8 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                     onClick={() => setActiveCategory(cat.id)}
                     className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       activeCategory === cat.id 
-                        ? 'bg-gray-900 text-white shadow-md transform scale-105' 
-                        : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-100'
+                        ? 'bg-primary text-primary-foreground shadow-md transform scale-105' 
+                        : 'bg-card text-muted-foreground border border-border hover:bg-muted'
                     }`}
                   >
                     {cat.label}
@@ -407,7 +400,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
             {showCartDetails ? (
               <div className="space-y-4">
                  {cart.length === 0 ? (
-                    <div className="text-center text-gray-500 py-10">
+                    <div className="text-center text-muted-foreground py-10">
                       {UI_TEXT.cartEmpty[lang]}
                     </div>
                  ) : (
@@ -416,23 +409,23 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                       const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : item.nameVN;
                       
                       return (
-                        <div key={index} className="bg-white p-3 rounded-xl border border-gray-100 flex gap-3 shadow-sm">
-                          <div className="w-20 h-20 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-100">
+                        <div key={index} className="bg-card p-3 rounded-xl border border-border flex gap-3 shadow-sm">
+                          <div className="w-20 h-20 rounded-lg bg-muted flex-shrink-0 overflow-hidden border border-border">
                             <img src={item.imageQuery} alt={itemName} className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-start">
                               <div>
-                                <h4 className="font-bold text-gray-900 truncate pr-2 leading-tight">{itemName}</h4>
-                                <p className="text-xs text-gray-500 truncate">{itemSub}</p>
+                                <h4 className="font-bold text-foreground truncate pr-2 leading-tight">{itemName}</h4>
+                                <p className="text-xs text-muted-foreground truncate">{itemSub}</p>
                               </div>
-                              <button onClick={() => updateQuantity(index, -item.quantity)} className="text-gray-400 hover:text-red-500 p-1 -mr-1">
+                              <button onClick={() => updateQuantity(index, -item.quantity)} className="text-muted-foreground hover:text-destructive p-1 -mr-1">
                                 <Trash2 size={18} />
                               </button>
                             </div>
                             
                             {item.selectedOptions && item.selectedOptions.length > 0 && (
-                              <div className="text-[10px] text-gray-600 mt-1 leading-tight">
+                              <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
                                 └ {item.selectedOptions.map(o => lang === 'ko' ? o.labelKO : lang === 'vn' ? o.labelVN : (o.labelEN || o.labelKO)).join(', ')}
                               </div>
                             )}
@@ -440,12 +433,12 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                             <div className="flex justify-between items-end mt-2">
                               <CurrencyDisplay amountVND={(item.priceVND + (item.selectedOptions?.reduce((s,o)=>s+o.priceVND,0)||0)) * item.quantity} />
                               
-                              <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1 border border-gray-100">
-                                <button onClick={() => updateQuantity(index, -1)} className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm border border-gray-100 text-gray-600 active:bg-gray-100">
+                              <div className="flex items-center gap-3 bg-muted rounded-lg p-1 border border-border">
+                                <button onClick={() => updateQuantity(index, -1)} className="w-6 h-6 flex items-center justify-center bg-card rounded shadow-sm border border-border text-muted-foreground active:bg-muted">
                                   <Minus size={14} />
                                 </button>
                                 <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
-                                <button onClick={() => updateQuantity(index, 1)} className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm border border-gray-100 text-blue-600 active:bg-blue-50">
+                                <button onClick={() => updateQuantity(index, 1)} className="w-6 h-6 flex items-center justify-center bg-card rounded shadow-sm border border-border text-primary active:bg-primary/10">
                                   <Plus size={14} />
                                 </button>
                               </div>
@@ -459,13 +452,13 @@ export const MenuModal: React.FC<MenuModalProps> = ({
             ) : (
               isLoadingMenu ? (
                 <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-gray-500 text-sm">{UI_TEXT.loadingMenu[lang]}</p>
+                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-muted-foreground text-sm">{UI_TEXT.loadingMenu[lang]}</p>
                 </div>
               ) : filteredItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                  <UtensilsCrossed size={48} className="text-gray-300" />
-                  <p className="text-gray-500 text-base font-medium">{UI_TEXT.menuEmpty[lang]}</p>
+                  <UtensilsCrossed size={48} className="text-muted-foreground/60" />
+                  <p className="text-muted-foreground text-base font-medium">{UI_TEXT.menuEmpty[lang]}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -486,14 +479,14 @@ export const MenuModal: React.FC<MenuModalProps> = ({
 
           {/* Cart Bar */}
           {cart.length > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-gray-100/50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-safe z-50">
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-card/90 backdrop-blur-md border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-safe z-50">
               {!showCartDetails ? (
                   <div 
-                    className="group flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all duration-200 bg-[#1a1a1a] text-white p-4 rounded-2xl shadow-xl shadow-gray-200 hover:shadow-2xl hover:bg-black"
+                    className="group flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all duration-200 bg-primary text-primary-foreground p-4 rounded-2xl shadow-xl shadow-black/10 hover:shadow-2xl hover:bg-primary/90"
                     onClick={() => setShowCartDetails(true)}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="bg-white text-gray-900 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-sm group-hover:scale-110 transition-transform">
+                      <div className="bg-primary-foreground text-primary w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-sm group-hover:scale-110 transition-transform">
                         {cart.reduce((a, b) => a + b.quantity, 0)}
                       </div>
                       <span className="font-semibold text-[15px]">
@@ -501,20 +494,20 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <CurrencyDisplay amountVND={cartTotal} className="text-white font-bold text-lg" />
-                      <ChevronUp size={20} className="text-gray-400 group-hover:text-white transition-colors" />
+                      <CurrencyDisplay amountVND={cartTotal} className="text-primary-foreground font-bold text-lg" />
+                      <ChevronUp size={20} className="text-primary-foreground/70 group-hover:text-primary-foreground transition-colors" />
                     </div>
                   </div>
               ) : (
                 <div className="animate-in slide-in-from-bottom-2 duration-300 space-y-4">
                    <div className="flex items-center justify-between px-1">
-                     <span className="text-gray-500 font-medium">{UI_TEXT.total[lang]}</span>
-                     <CurrencyDisplay amountVND={cartTotal} className="text-2xl font-bold text-gray-900" />
+                     <span className="text-muted-foreground font-medium">{UI_TEXT.total[lang]}</span>
+                     <CurrencyDisplay amountVND={cartTotal} className="text-2xl font-bold text-foreground" />
                    </div>
                    <div className="flex gap-3 h-14">
                       <Button 
                         variant="outline" 
-                        className="flex-1 h-full text-gray-600 border-gray-200 hover:bg-gray-50 text-base font-medium rounded-xl hover:text-gray-900 gap-2"
+                        className="flex-1 h-full text-muted-foreground border-border hover:bg-muted text-base font-medium rounded-xl hover:text-foreground gap-2"
                         onClick={() => setShowCartDetails(false)}
                       >
                         <Plus size={18} />
@@ -522,7 +515,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                       </Button>
                       <Button 
                         onClick={handleOrder}
-                        className="flex-[2] h-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold rounded-xl shadow-lg shadow-blue-200 gap-2"
+                        className="flex-[2] h-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-bold rounded-xl shadow-lg shadow-black/10 gap-2"
                       >
                         {UI_TEXT.order[lang]}
                         <Check size={20} />

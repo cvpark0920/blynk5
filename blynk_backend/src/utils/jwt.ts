@@ -5,7 +5,7 @@ export interface TokenPayload {
   userId: string;
   email: string;
   role: string;
-  staffId?: string; // Optional: for PIN login
+  staffId?: string; // Optional: for staff/device login
 }
 
 export const generateAccessToken = (payload: TokenPayload): string => {

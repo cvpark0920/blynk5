@@ -1,4 +1,47 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// 서브도메인 기반일 때는 상대 경로 사용, 그렇지 않으면 절대 URL 사용
+const getApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    const normalized = envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+    if (typeof window !== 'undefined') {
+      const hostWithoutPort = window.location.host.split(':')[0];
+      const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+      const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+      const isEnvLocalhost = normalized.includes('localhost') || normalized.includes('127.0.0.1');
+      const envHost = (() => {
+        try {
+          return new URL(normalized).host;
+        } catch {
+          return normalized.replace(/^https?:\/\//, '').split('/')[0];
+        }
+      })();
+      const currentHost = window.location.host;
+      if (isLocalSubdomain && envHost !== currentHost) {
+        return normalized;
+      }
+      if (!isLocalhost && !isLocalSubdomain && isEnvLocalhost) {
+        return '';
+      }
+    }
+    return normalized;
+  }
+  
+  if (typeof window !== 'undefined') {
+    const host = window.location.host;
+    const hostWithoutPort = host.split(':')[0];
+    const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+    const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+
+    // 로컬 서브도메인이거나 운영 도메인이면 같은 origin 사용
+    if (!isLocalhost || isLocalSubdomain) {
+      return '';
+    }
+  }
+
+  return 'http://localhost:3000';
+};
+
+export const API_URL = getApiBaseUrl();
 
 interface ApiResponse<T> {
   success: boolean;
@@ -10,6 +53,33 @@ interface ApiResponse<T> {
 }
 
 class ApiClient {
+  // 서브도메인 추출 함수
+  private getSubdomainFromHost(): string | null {
+    if (typeof window === 'undefined') return null;
+    
+    const host = window.location.host;
+    const hostWithoutPort = host.split(':')[0];
+    
+    if (hostWithoutPort.includes('localhost')) {
+      const parts = hostWithoutPort.split('.');
+      if (parts.length >= 2 && parts[0] !== 'localhost') {
+        return parts[0]; // admin.localhost → admin
+      }
+    } else {
+      const parts = hostWithoutPort.split('.');
+      if (parts.length >= 3) {
+        return parts[0]; // admin.qoodle.top → admin
+      }
+    }
+    return null;
+  }
+
+  // Base64 인코딩 (브라우저 환경)
+  private encodeBase64(data: object): string {
+    const json = JSON.stringify(data);
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+
   private getAuthToken(): string | null {
     return localStorage.getItem('unified_accessToken');
   }
@@ -50,7 +120,7 @@ class ApiClient {
 
       const result: ApiResponse<{ accessToken: string }> = await response.json();
       if (result.success && result.data?.accessToken) {
-        localStorage.setItem('accessToken', result.data.accessToken);
+        localStorage.setItem('unified_accessToken', result.data.accessToken);
         return result.data.accessToken;
       }
 
@@ -130,7 +200,12 @@ class ApiClient {
   // Google OAuth redirect
   googleAuth() {
     const appType = 'admin';
-    window.location.href = `${API_URL}/api/auth/google?appType=${appType}`;
+    const subdomain = this.getSubdomainFromHost();
+    const state = this.encodeBase64({ 
+      appType, 
+      subdomain: subdomain || 'admin' // admin 앱은 기본값 'admin'
+    });
+    window.location.href = `${API_URL}/api/auth/google?appType=${appType}&state=${state}`;
   }
 
   // Set tokens from callback
@@ -170,6 +245,21 @@ class ApiClient {
     return this.request(`/api/admin/restaurants/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async uploadNotificationSound(restaurantId: string, file: File) {
+    const token = this.getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_URL}/api/admin/restaurants/${restaurantId}/notification-sound`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+
+    const result: ApiResponse<{ notificationSoundUrl: string }> = await response.json();
+    return result;
   }
 
   async getTablesByRestaurant(restaurantId: string) {
@@ -246,6 +336,7 @@ class ApiClient {
   async createQuickChip(data: {
     restaurantId?: string | null;
     type: 'CUSTOMER_REQUEST' | 'STAFF_RESPONSE';
+    templateKey?: string;
     icon: string;
     labelKo: string;
     labelVn: string;
@@ -263,6 +354,7 @@ class ApiClient {
   }
 
   async updateQuickChip(id: string, data: {
+    templateKey?: string;
     icon?: string;
     labelKo?: string;
     labelVn?: string;

@@ -47,14 +47,14 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onComplete, 
           transition={{ duration: 0.8 }}
         >
            <motion.div 
-             className="w-24 h-24 bg-black/30 backdrop-blur-md border border-white/20 rounded-3xl flex items-center justify-center text-white text-5xl font-bold shadow-2xl mb-6 ring-1 ring-white/30"
+             className="px-6 py-3 bg-black/30 backdrop-blur-md border border-white/20 rounded-3xl flex items-center justify-center text-white text-xl font-bold shadow-2xl mb-6 ring-1 ring-white/30"
              animate={{ rotate: [0, -5, 5, 0] }}
              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
            >
-             B
+             QOODLE
            </motion.div>
            <h1 className="text-4xl font-bold text-white mb-2 tracking-tight drop-shadow-lg">
-             {restaurantName || 'BLYNK'}
+             {restaurantName || 'QOODLE'}
            </h1>
         </motion.div>
       </div>

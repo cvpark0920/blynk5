@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Key, Plus, MoreHorizontal, Check, X, Trash2, Search, Briefcase, Mail, Lock, Upload, Phone } from 'lucide-react';
+import { User, Plus, MoreHorizontal, Check, X, Trash2, Search, Briefcase, Upload, Phone, QrCode, Loader2 } from 'lucide-react';
 import { Staff, UserRole, StaffStatus } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger 
 } from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
+import { QRCodeSVG } from 'qrcode.react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 // Simple hook for responsive design
@@ -43,18 +44,34 @@ interface StaffManagementProps {
 
 export function StaffManagement({ staffList, setStaffList, isEmbedded = false }: StaffManagementProps) {
   const { t } = useLanguage();
-  const { shopRestaurantId: restaurantId } = useUnifiedAuth();
+  const { shopRestaurantId: restaurantId, shopUserRole, shopUser, shopOwnerInfo } = useUnifiedAuth();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [pinDialogOpen, setPinDialogOpen] = useState(false);
-  const [selectedStaffForPin, setSelectedStaffForPin] = useState<Staff | null>(null);
-  const [pinCode, setPinCode] = useState('');
   const [isLoadingList, setIsLoadingList] = useState(false);
   const isDesktop = useIsDesktop();
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
+
+  const isOwner =
+    shopUserRole === 'OWNER' ||
+    shopOwnerInfo !== null ||
+    (shopUser?.role && shopUser.role.toLowerCase() === 'owner');
+  const isManager =
+    shopUserRole === 'MANAGER' || (shopUser?.role && shopUser.role.toLowerCase() === 'manager');
+  const canManageDevices = isOwner || isManager;
+  const canManageStaffActions = isOwner || isManager;
+
+  const [deviceTokens, setDeviceTokens] = useState<any[]>([]);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [deviceLabel, setDeviceLabel] = useState('');
+  const [deviceRegistration, setDeviceRegistration] = useState<{
+    code: string;
+    registrationUrl: string;
+    expiresAt: string;
+    staffId: string;
+  } | null>(null);
 
   // Fetch staff list from API on mount and when restaurantId changes
   useEffect(() => {
@@ -65,17 +82,18 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
       try {
         const result = await apiClient.getStaffList(restaurantId);
         if (result.success && result.data) {
-          const transformedStaff: Staff[] = result.data.map((s: any) => ({
-            id: s.id,
-            name: s.name || '',
-            email: s.email || '',
-            role: (s.role?.toLowerCase() || 'kitchen') as UserRole,
-            pinCode: s.hasPin ? '••••' : '', // PIN이 설정되어 있으면 표시 (실제 값은 보안상 전달되지 않음)
-            phone: s.phone || '',
-            status: (s.status?.toLowerCase() || 'active') as StaffStatus,
-            joinedAt: s.joinedAt ? new Date(s.joinedAt) : new Date(),
-            avatarUrl: s.avatarUrl || undefined,
-          }));
+          const transformedStaff: Staff[] = result.data
+            .filter((s: any) => !s.isDevice)
+            .map((s: any) => ({
+              id: s.id,
+              name: s.name || '',
+              email: s.email || '',
+              role: (s.role?.toLowerCase() || 'kitchen') as UserRole,
+              phone: s.phone || '',
+              status: (s.status?.toLowerCase() || 'active') as StaffStatus,
+              joinedAt: s.joinedAt ? new Date(s.joinedAt) : new Date(),
+              avatarUrl: s.avatarUrl || undefined,
+            }));
           setStaffList(transformedStaff);
         } else {
           console.error('Failed to fetch staff list:', result.error);
@@ -91,19 +109,70 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
     fetchStaffList();
   }, [restaurantId]); // setStaffList는 함수이므로 dependency에서 제거
 
+  const loadDeviceTokens = async () => {
+    if (!restaurantId || !canManageDevices) return;
+    setIsLoadingDevices(true);
+    try {
+      const result = await apiClient.getDeviceTokens(restaurantId);
+      if (result.success && result.data) {
+        setDeviceTokens(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load device tokens:', error);
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    if (canManageDevices) {
+      loadDeviceTokens();
+    }
+  }, [restaurantId, isOwner, canManageDevices]);
+
   // Form State
   const [formData, setFormData] = useState<Partial<Staff>>({
     name: '',
     email: '',
     role: 'kitchen',
-    pinCode: '',
     phone: '',
     status: 'active',
     avatarUrl: ''
   });
 
+  useEffect(() => {
+    if (!isSheetOpen) {
+      setDeviceRegistration(null);
+      setDeviceLabel('');
+      return;
+    }
+    setDeviceRegistration(null);
+    setDeviceLabel('');
+  }, [isSheetOpen, editingStaff?.id]);
+
   const activeStaff = staffList.filter(s => s.status !== 'pending');
   const pendingStaff = staffList.filter(s => s.status === 'pending');
+
+  const currentStaffId = shopUser?.id
+    ? staffList.find(s => s.id === shopUser.id)?.id
+    : staffList.find(s => s.email && shopUser?.email && s.email.toLowerCase() === shopUser.email.toLowerCase())?.id;
+
+  const isSelfStaff = (staff: Staff) => {
+    if (currentStaffId && staff.id === currentStaffId) return true;
+    if (staff.email && shopUser?.email) {
+      return staff.email.toLowerCase() === shopUser.email.toLowerCase();
+    }
+    return false;
+  };
+
+  const canManageTargetStaff = (staff: Staff) => {
+    if (isOwner) return true;
+    if (!isManager) return false;
+    if (isSelfStaff(staff)) return false;
+    if (staff.role === 'owner' || staff.role === 'manager') return false;
+    return true;
+  };
 
   const getFilteredList = (list: Staff[]) => list.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -198,6 +267,26 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
       return;
     }
 
+    if (formData.role === 'manager' && !formData.email) {
+      toast.error('매니저는 구글 로그인 이메일이 필요합니다.');
+      return;
+    }
+
+    if (editingStaff && !canManageTargetStaff(editingStaff)) {
+      toast.error('해당 직원은 수정할 수 없습니다.');
+      return;
+    }
+
+    if (!editingStaff && !canManageStaffActions) {
+      toast.error('직원을 등록할 권한이 없습니다.');
+      return;
+    }
+
+    if (!isOwner && formData.role === 'manager') {
+      toast.error('매니저 등록은 대표자만 가능합니다.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const staffData: any = {
@@ -207,10 +296,6 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
         phone: formData.phone || undefined,
         avatarUrl: formData.avatarUrl || undefined,
       };
-
-      if (formData.pinCode) {
-        staffData.pinCode = formData.pinCode;
-      }
 
       if (editingStaff) {
         // Always include status to preserve existing status if not changed
@@ -245,7 +330,6 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
             name: result.data.name,
             email: result.data.email,
             role: result.data.role.toLowerCase() as UserRole,
-            pinCode: '',
             phone: result.data.phone,
             status: result.data.status.toLowerCase() as StaffStatus,
             joinedAt: new Date(result.data.joinedAt),
@@ -260,7 +344,9 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
       
       setIsSheetOpen(false);
       setEditingStaff(null);
-      setFormData({ name: '', email: '', role: 'kitchen', pinCode: '', phone: '', status: 'active', avatarUrl: '' });
+      setFormData({ name: '', email: '', role: 'kitchen', phone: '', status: 'active', avatarUrl: '' });
+      setDeviceRegistration(null);
+      setDeviceLabel('');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save staff';
       toast.error(errorMessage);
@@ -269,57 +355,34 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
     }
   };
 
-  const handleSetPin = async () => {
-    if (!selectedStaffForPin || !restaurantId || !pinCode || pinCode.length < 4) {
-      toast.error('Please enter a valid PIN (at least 4 digits)');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await apiClient.setStaffPin(restaurantId, selectedStaffForPin.id, pinCode);
-      if (result.success) {
-        toast.success(`PIN set for ${selectedStaffForPin.name}`);
-        setPinCode('');
-        setPinDialogOpen(false);
-        setSelectedStaffForPin(null);
-      } else {
-        throw new Error(result.error?.message || 'Failed to set PIN');
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to set PIN';
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const openAddSheet = () => {
     setEditingStaff(null);
-    setFormData({ name: '', email: '', role: 'kitchen', pinCode: '', phone: '', status: 'active', avatarUrl: '' });
+    setFormData({ name: '', email: '', role: 'kitchen', phone: '', status: 'active', avatarUrl: '' });
     setIsSheetOpen(true);
   };
 
   const openEditSheet = (staff: Staff) => {
+    if (!canManageTargetStaff(staff)) {
+      toast.error('해당 직원은 수정할 수 없습니다.');
+      return;
+    }
     setEditingStaff(staff);
     setFormData({ 
       ...staff, 
       email: staff.email || '',
       phone: staff.phone || '',
-      pinCode: staff.pinCode || '',
       avatarUrl: staff.avatarUrl || '',
       status: staff.status || 'active' // Ensure status is set
     });
     setIsSheetOpen(true);
   };
 
-  const openPinDialog = (staff: Staff) => {
-    setSelectedStaffForPin(staff);
-    setPinCode('');
-    setPinDialogOpen(true);
-  };
-
   const handleDelete = async (id: string) => {
+    const target = staffList.find(s => s.id === id);
+    if (!target || !canManageTargetStaff(target)) {
+      toast.error('해당 직원은 삭제할 수 없습니다.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this staff member?')) {
       return;
     }
@@ -346,7 +409,58 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
     }
   };
 
+  const handleCreateDeviceCode = async (staffId: string) => {
+    if (!restaurantId) return;
+    if (!staffId) {
+      toast.error('직원을 선택하세요.');
+      return;
+    }
+    setIsLoadingDevices(true);
+    try {
+      const result = await apiClient.createDeviceRegistrationCode(
+        restaurantId,
+        staffId,
+        deviceLabel.trim() || undefined
+      );
+      if (result.success && result.data) {
+        setDeviceRegistration({
+          code: result.data.code,
+          registrationUrl: result.data.registrationUrl,
+          expiresAt: result.data.expiresAt,
+          staffId,
+        });
+        toast.success('디바이스 등록 코드가 발급되었습니다.');
+        loadDeviceTokens();
+      } else {
+        throw new Error(result.error?.message || 'Failed to create registration code');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create registration code';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  const handleRevokeDevice = async (deviceTokenId: string) => {
+    if (!restaurantId) return;
+    try {
+      const result = await apiClient.revokeDeviceToken(restaurantId, deviceTokenId);
+      if (result.success) {
+        setDeviceTokens(prev => prev.map(token => token.id === deviceTokenId ? { ...token, revokedAt: new Date().toISOString() } : token));
+        toast.success('디바이스 접근을 해제했습니다.');
+      }
+    } catch (error) {
+      console.error('Failed to revoke device token:', error);
+    }
+  };
+
   const toggleStatus = (id: string) => {
+      const target = staffList.find(s => s.id === id);
+      if (!target || !canManageTargetStaff(target)) {
+        toast.error('해당 직원의 상태를 변경할 수 없습니다.');
+        return;
+      }
       setStaffList(prev => prev.map(s => {
           if (s.id !== id) return s;
           const newStatus = s.status === 'active' ? 'inactive' : 'active';
@@ -356,11 +470,21 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
   };
 
   const approveStaff = (id: string) => {
+      const target = staffList.find(s => s.id === id);
+      if (!target || !canManageTargetStaff(target)) {
+        toast.error('해당 직원은 승인할 수 없습니다.');
+        return;
+      }
       setStaffList(prev => prev.map(s => s.id === id ? { ...s, status: 'active' } : s));
       toast.success(t('msg.staff_approved'));
   };
 
   const rejectStaff = (id: string) => {
+      const target = staffList.find(s => s.id === id);
+      if (!target || !canManageTargetStaff(target)) {
+        toast.error('해당 직원은 거절할 수 없습니다.');
+        return;
+      }
       if(confirm('Reject this request? This will remove the user.')) {
         setStaffList(prev => prev.filter(s => s.id !== id));
         toast.success(t('msg.staff_rejected'));
@@ -406,27 +530,29 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
             </div>
           </div>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger className="p-1 hover:bg-zinc-100 rounded-lg outline-none">
-              <MoreHorizontal size={18} className="text-zinc-400" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => openEditSheet(staff)} className="gap-2">
-                <Briefcase size={14} /> Edit Details
-              </DropdownMenuItem>
-              {!isPending && (
-                <DropdownMenuItem onClick={() => toggleStatus(staff.id)} className="gap-2">
-                    {staff.status === 'active' ? <X size={14} /> : <Check size={14} />}
-                    {staff.status === 'active' ? 'Mark Inactive' : 'Mark Active'}
+          {canManageTargetStaff(staff) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="p-1 hover:bg-zinc-100 rounded-lg outline-none">
+                <MoreHorizontal size={18} className="text-zinc-400" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => openEditSheet(staff)} className="gap-2">
+                  <Briefcase size={14} /> Edit Details
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleDelete(staff.id)} className="text-rose-600 gap-2">
-                <Trash2 size={14} /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {!isPending && (
+                  <DropdownMenuItem onClick={() => toggleStatus(staff.id)} className="gap-2">
+                      {staff.status === 'active' ? <X size={14} /> : <Check size={14} />}
+                      {staff.status === 'active' ? 'Mark Inactive' : 'Mark Active'}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleDelete(staff.id)} className="text-rose-600 gap-2">
+                  <Trash2 size={14} /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -440,19 +566,9 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
                 </span>
               </div>
             )}
-            {staff.pinCode && (
-               <div className="flex items-center justify-between text-sm p-2 bg-white/50 border border-zinc-100/50 rounded-lg">
-                  <span className="text-zinc-500 flex items-center gap-2" title="Used for quick login on POS devices">
-                    <Key size={14} /> POS PIN
-                  </span>
-                  <span className="font-mono font-bold text-zinc-900 tracking-widest">
-                    {staff.role === 'owner' ? '••••' : staff.pinCode}
-                  </span>
-               </div>
-            )}
         </div>
         
-        {isPending && (
+        {isPending && canManageTargetStaff(staff) && (
             <div className="mt-4 flex gap-2">
                 <button 
                     onClick={() => approveStaff(staff.id)}
@@ -478,7 +594,7 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
             <div>
             <h2 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
                 {t('settings.staff_title')}
-                <Badge variant="outline" className="text-zinc-500 font-normal">
+                <Badge variant="outline" className="text-muted-foreground font-medium border-border bg-muted/40">
                 {staffList.length}
                 </Badge>
             </h2>
@@ -488,7 +604,7 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
         {isEmbedded && (
             <div className="flex items-center gap-2">
                 <h3 className="text-lg font-bold text-zinc-900 hidden md:block">{t('settings.tab_staff')}</h3>
-                <Badge variant="secondary" className="text-zinc-500 font-normal">
+                <Badge variant="secondary" className="text-secondary-foreground font-medium">
                     Total {staffList.length}
                 </Badge>
             </div>
@@ -504,13 +620,15 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button 
-            onClick={openAddSheet}
-            className="bg-zinc-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200 active:scale-95 whitespace-nowrap"
-          >
-            <Plus size={16} />
-            {t('staff.add')}
-          </button>
+          {canManageStaffActions && (
+            <button 
+              onClick={openAddSheet}
+              className="bg-zinc-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200 active:scale-95 whitespace-nowrap"
+            >
+              <Plus size={16} />
+              {t('staff.add')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -520,7 +638,7 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
         </div>
       ) : (
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="bg-white border p-1 mb-6">
+          <TabsList className="bg-zinc-100 p-1 w-full md:w-auto">
               <TabsTrigger value="active" className="gap-2">
                   {t('staff.tab_active')}
               </TabsTrigger>
@@ -534,7 +652,7 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
               </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="active" className="mt-0">
+          <TabsContent value="active" className="mt-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {getFilteredList(activeStaff).map((staff) => (
                       <StaffCard key={staff.id} staff={staff} />
@@ -547,7 +665,7 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
               </div>
           </TabsContent>
 
-          <TabsContent value="pending" className="mt-0">
+          <TabsContent value="pending" className="mt-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {getFilteredList(pendingStaff).map((staff) => (
                       <StaffCard key={staff.id} staff={staff} isPending={true} />
@@ -579,6 +697,16 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
                 handleSave={handleSave}
                 handleImageUpload={handleImageUpload}
                 isLoading={isLoading}
+                canEdit={editingStaff ? canManageTargetStaff(editingStaff) : canManageStaffActions}
+                isOwner={isOwner}
+                canManageDevices={canManageDevices}
+                deviceLabel={deviceLabel}
+                setDeviceLabel={setDeviceLabel}
+                deviceRegistration={deviceRegistration}
+                deviceTokens={editingStaff ? deviceTokens.filter((token) => !token.revokedAt && token.staff?.id === editingStaff.id) : []}
+                onCreateDeviceCode={handleCreateDeviceCode}
+                onRevokeDevice={handleRevokeDevice}
+                isLoadingDevices={isLoadingDevices}
                 t={t}
                 onCancel={() => setIsSheetOpen(false)}
             />
@@ -586,7 +714,7 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
         </Sheet>
       ) : (
         <Drawer open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-            <DrawerContent className="h-[85vh] rounded-t-[32px] p-0 bg-white">
+            <DrawerContent className="h-[90vh] rounded-t-[32px] p-0 bg-white">
                 <DrawerHeader className="px-6 py-5 border-b border-zinc-100 mb-0 text-left">
                     <DrawerTitle>{editingStaff ? 'Edit Staff' : t('staff.add')}</DrawerTitle>
                     <DrawerDescription>{t('settings.staff_desc')}</DrawerDescription>
@@ -598,6 +726,16 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
                     handleSave={handleSave}
                     handleImageUpload={handleImageUpload}
                     isLoading={isLoading}
+                    canEdit={editingStaff ? canManageTargetStaff(editingStaff) : canManageStaffActions}
+                    isOwner={isOwner}
+                    canManageDevices={canManageDevices}
+                    deviceLabel={deviceLabel}
+                    setDeviceLabel={setDeviceLabel}
+                    deviceRegistration={deviceRegistration}
+                    deviceTokens={editingStaff ? deviceTokens.filter((token) => !token.revokedAt && token.staff?.id === editingStaff.id) : []}
+                    onCreateDeviceCode={handleCreateDeviceCode}
+                    onRevokeDevice={handleRevokeDevice}
+                    isLoadingDevices={isLoadingDevices}
                     t={t}
                     onCancel={() => setIsSheetOpen(false)}
                 />
@@ -608,11 +746,41 @@ export function StaffManagement({ staffList, setStaffList, isEmbedded = false }:
   );
 }
 
-function StaffFormContent({ editingStaff, formData, setFormData, handleSave, handleImageUpload, isLoading, t, onCancel }: any) {
+function StaffFormContent({
+  editingStaff,
+  formData,
+  setFormData,
+  handleSave,
+  handleImageUpload,
+  isLoading,
+  canEdit,
+  isOwner,
+  canManageDevices,
+  deviceLabel,
+  setDeviceLabel,
+  deviceRegistration,
+  deviceTokens,
+  onCreateDeviceCode,
+  onRevokeDevice,
+  isLoadingDevices,
+  t,
+  onCancel,
+}: any) {
+    const canEditRole = isOwner;
+    const showDeviceSection = Boolean(editingStaff && canManageDevices);
+    const registrationMatchesStaff =
+      editingStaff && deviceRegistration?.staffId === editingStaff.id ? deviceRegistration : null;
+    const canEditEmail = canEdit && (!editingStaff || isOwner);
+
     return (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
+                    {!canEdit && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                            이 직원은 수정할 수 없습니다.
+                        </div>
+                    )}
                     {/* Avatar Upload */}
                     <div className="grid gap-2">
                         <label className="text-sm font-medium text-zinc-900">Profile Image</label>
@@ -631,6 +799,7 @@ function StaffFormContent({ editingStaff, formData, setFormData, handleSave, han
                                         accept="image/*"
                                         onChange={handleImageUpload}
                                         className="hidden"
+                                        disabled={!canEdit}
                                     />
                                     <Button type="button" variant="outline" size="sm" className="w-full cursor-pointer" asChild>
                                         <span className="flex items-center gap-2">
@@ -650,17 +819,20 @@ function StaffFormContent({ editingStaff, formData, setFormData, handleSave, han
                         value={formData.name || ''}
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
                         placeholder="Full Name"
+                        disabled={!canEdit}
+                        className="bg-white border border-zinc-200"
                     />
                     </div>
 
                     <div className="grid gap-2">
-                    <label className="text-sm font-medium text-zinc-900">Email (Google Login) <span className="text-xs text-zinc-400 font-normal">(Optional)</span></label>
+                    <label className="text-sm font-medium text-zinc-900">Email (Google Login)</label>
                     <Input
                         value={formData.email || ''}
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
                         placeholder="이메일 주소를 입력하세요"
                         type="email"
-                        disabled={!!editingStaff}
+                        disabled={!canEditEmail}
+                        className="bg-white border border-zinc-200"
                     />
                     </div>
                     
@@ -669,35 +841,17 @@ function StaffFormContent({ editingStaff, formData, setFormData, handleSave, han
                     <Select 
                         value={formData.role} 
                         onValueChange={(val: UserRole) => setFormData({...formData, role: val})}
+                        disabled={!canEdit}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className="bg-white border border-zinc-200">
                         <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                        <SelectItem value="manager">{t('role.manager')}</SelectItem>
+                        {canEditRole && <SelectItem value="manager">{t('role.manager')}</SelectItem>}
                         <SelectItem value="kitchen">{t('role.kitchen')}</SelectItem>
                         <SelectItem value="hall">{t('role.hall')}</SelectItem>
                         </SelectContent>
                     </Select>
-                    </div>
-
-                    <div className="grid gap-2">
-                    <label className="text-sm font-medium text-zinc-900 flex items-center gap-2">
-                        {t('staff.pin')} <span className="text-xs text-zinc-400 font-normal">(Optional)</span>
-                    </label>
-                    <Input 
-                        type="password"
-                        value={formData.pinCode || ''}
-                        onChange={(e) => setFormData({...formData, pinCode: e.target.value.replace(/\D/g, '')})}
-                        placeholder={editingStaff && editingStaff.pinCode === '••••' ? "PIN이 설정되어 있습니다. 변경하려면 새로 입력하세요" : "PIN 번호를 입력하세요"}
-                        maxLength={10}
-                        className="font-mono tracking-widest"
-                    />
-                    <p className="text-xs text-zinc-400">
-                      {editingStaff && editingStaff.pinCode === '••••' 
-                        ? "PIN이 설정되어 있습니다. 변경하려면 새 PIN을 입력하세요." 
-                        : "4자리 이상의 숫자로 입력하세요"}
-                    </p>
                     </div>
 
                     <div className="grid gap-2">
@@ -706,12 +860,74 @@ function StaffFormContent({ editingStaff, formData, setFormData, handleSave, han
                         value={formData.phone || ''}
                         onChange={(e) => setFormData({...formData, phone: e.target.value})}
                         placeholder="전화번호를 입력하세요"
+                        disabled={!canEdit}
+                        className="bg-white border border-zinc-200"
                     />
                     </div>
+
+                    {showDeviceSection && (
+                        <div className="space-y-3 rounded-2xl border border-zinc-100 bg-zinc-50/60 p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <div className="text-sm font-bold text-zinc-900">디바이스 등록</div>
+                                    <div className="text-xs text-zinc-500">선택한 직원에 연결된 디바이스를 관리합니다.</div>
+                                </div>
+                                {isLoadingDevices && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                                <Input
+                                    placeholder="디바이스 이름 (선택)"
+                                    value={deviceLabel}
+                                    onChange={(e) => setDeviceLabel(e.target.value)}
+                                    disabled={!canEdit}
+                                    className="bg-white border border-zinc-200"
+                                />
+                                <button
+                                    onClick={() => onCreateDeviceCode(editingStaff.id)}
+                                    disabled={!canEdit}
+                                    className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-bold hover:bg-zinc-800 flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    <QrCode size={14} /> 코드 발급
+                                </button>
+                            </div>
+
+                            {registrationMatchesStaff && (
+                                <div className="flex flex-col gap-3 items-center p-4 border border-zinc-100 rounded-xl bg-white">
+                                    <QRCodeSVG value={registrationMatchesStaff.registrationUrl} size={140} />
+                                    <div className="space-y-1 text-xs text-center">
+                                        <div className="font-medium text-zinc-900">등록 코드</div>
+                                        <div className="font-mono text-base tracking-widest">{registrationMatchesStaff.code}</div>
+                                        <div className="text-zinc-500 break-all">{registrationMatchesStaff.registrationUrl}</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                {deviceTokens.length === 0 && (
+                                    <div className="text-xs text-zinc-400">연결된 디바이스가 없습니다.</div>
+                                )}
+                                {deviceTokens.map((token: any) => (
+                                    <div key={token.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-zinc-100">
+                                        <div>
+                                            <div className="text-sm font-medium text-zinc-900">{token.label || '디바이스'}</div>
+                                            <div className="text-xs text-zinc-400">{token.deviceId?.slice(0, 8)}</div>
+                                        </div>
+                                        <button
+                                            onClick={() => onRevokeDevice(token.id)}
+                                            className="text-xs px-2 py-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50"
+                                        >
+                                            해제
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                 </div>
             </div>
 
-            <div className="p-4 bg-white border-t border-zinc-100 grid grid-cols-2 gap-3 shrink-0 pb-4">
+            <div className="p-4 bg-white border-t border-zinc-100 grid grid-cols-2 gap-3 shrink-0 pb-4 rounded-bl-2xl">
                 <button 
                 onClick={onCancel}
                 disabled={isLoading}
@@ -721,7 +937,7 @@ function StaffFormContent({ editingStaff, formData, setFormData, handleSave, han
                 </button>
                 <button 
                 onClick={handleSave}
-                disabled={isLoading || !formData.name}
+                disabled={isLoading || !formData.name || !canEdit}
                 className="h-12 rounded-xl bg-zinc-900 text-white font-bold text-sm hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200 disabled:opacity-50"
                 >
                 {isLoading ? 'Saving...' : (editingStaff ? 'Save Changes' : 'Create Account')}

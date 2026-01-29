@@ -47,7 +47,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { ScrollArea } from '../ui/scroll-area';
-import { apiClient } from '../../../lib/api';
+import { apiClient, API_URL } from '../../../lib/api';
 
 // Define types
 type RestaurantStatus = 'active' | 'pending' | 'inactive';
@@ -66,6 +66,8 @@ interface Restaurant {
   revenue: string;
   date: string;
   shopManagerUrl?: string; // Shop manager URL from backend
+  subdomain?: string | null; // 서브도메인
+  notificationSoundUrl?: string | null; // 알림음 URL
 }
 
 // API Response type
@@ -80,6 +82,7 @@ interface ApiRestaurant {
   };
   status: string;
   qrCode: string;
+  subdomain?: string | null; // 서브도메인
   createdAt: string;
   updatedAt: string;
   settings?: any;
@@ -97,6 +100,7 @@ interface BackendTable {
   floor: number;
   capacity: number;
   qrCode: string;
+  qrCodeUrl?: string; // 서브도메인 기반 QR 코드 URL
   status: string;
   currentSessionId?: string | null;
   createdAt: string;
@@ -121,6 +125,79 @@ function useMediaQuery(query: string) {
   return value;
 }
 
+// Helper function to generate subdomain-based URL
+// 환경에 따라 동적으로 URL 생성 (로컬: localhost:3000, 프로덕션: qoodle.top)
+const generateSubdomainUrl = (subdomain: string | null | undefined, path: string = ''): string => {
+  if (!subdomain) return '';
+  
+  // Frontend base URL에서 환경 감지
+  const envBaseUrl = import.meta.env.VITE_FRONTEND_BASE_URL;
+  const hostWithoutPort = window.location.host.split(':')[0];
+  const isLocalhostHost =
+    hostWithoutPort === 'localhost' ||
+    hostWithoutPort === '127.0.0.1' ||
+    hostWithoutPort.endsWith('.localhost');
+  const isQoodleHost =
+    hostWithoutPort === 'qoodle.top' ||
+    hostWithoutPort.endsWith('.qoodle.top');
+
+  // 프로덕션 도메인에서는 항상 qoodle.top 사용
+  if (isQoodleHost) {
+    return `https://${subdomain}.qoodle.top${path}`;
+  }
+
+  const isEnvLocalhost =
+    !!envBaseUrl &&
+    (envBaseUrl.includes('localhost') || envBaseUrl.includes('127.0.0.1'));
+  const frontendBaseUrl =
+    isEnvLocalhost && !isLocalhostHost
+      ? window.location.origin
+      : envBaseUrl || window.location.origin;
+  
+  // localhost 또는 127.0.0.1인 경우 로컬 환경
+  if (frontendBaseUrl.includes('localhost') || frontendBaseUrl.includes('127.0.0.1')) {
+    const protocol = frontendBaseUrl.startsWith('https://') ? 'https' : 'http';
+    const port = window.location.port || (frontendBaseUrl.match(/:(\d+)/)?.[1] || '');
+    const portSuffix = port ? `:${port}` : '';
+    return `${protocol}://${subdomain}.localhost${portSuffix}${path}`;
+  }
+  
+  // 프로덕션 환경
+  return `https://${subdomain}.qoodle.top${path}`;
+};
+
+// Normalize localhost subdomain URLs on production host
+const normalizeShopUrl = (url: string): string => {
+  if (!url) return url;
+  const hostWithoutPort = window.location.host.split(':')[0];
+  const isQoodleHost =
+    hostWithoutPort === 'qoodle.top' || hostWithoutPort.endsWith('.qoodle.top');
+  if (!isQoodleHost) return url;
+  return url.replace(
+    /^http:\/\/([^./]+)\.localhost(?::\d+)?\//,
+    'https://$1.qoodle.top/',
+  );
+};
+
+const resolveNotificationSoundUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+  const host = typeof window !== 'undefined' ? window.location.host.split(':')[0] : '';
+  const derivedApiBase = host.endsWith('.qoodle.top')
+    ? 'https://api.qoodle.top'
+    : host.endsWith('.localhost')
+      ? 'https://api.localhost'
+      : host === 'localhost' || host === '127.0.0.1'
+        ? 'http://localhost:3000'
+        : '';
+  const base = API_URL || derivedApiBase;
+  if (!base) return url;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
+
 // Helper function to transform API data to component format
 const transformRestaurant = (apiRestaurant: ApiRestaurant): Restaurant => {
   const settings = apiRestaurant.settings || {};
@@ -138,6 +215,8 @@ const transformRestaurant = (apiRestaurant: ApiRestaurant): Restaurant => {
     revenue: settings.revenue || '0 VND',
     date: new Date(apiRestaurant.createdAt).toISOString().split('T')[0],
     shopManagerUrl: apiRestaurant.shopManagerUrl, // Include shop manager URL from backend
+    subdomain: apiRestaurant.subdomain || null, // 서브도메인
+    notificationSoundUrl: settings.notificationSoundUrl || null,
   };
 };
 
@@ -148,7 +227,19 @@ export function RestaurantsView() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   
   // Frontend base URL from environment variable or fallback to current origin
-  const frontendBaseUrl = import.meta.env.VITE_FRONTEND_BASE_URL || window.location.origin;
+  const envBaseUrl = import.meta.env.VITE_FRONTEND_BASE_URL;
+  const hostWithoutPort = window.location.host.split(':')[0];
+  const isLocalhostHost =
+    hostWithoutPort === 'localhost' ||
+    hostWithoutPort === '127.0.0.1' ||
+    hostWithoutPort.endsWith('.localhost');
+  const isEnvLocalhost =
+    !!envBaseUrl &&
+    (envBaseUrl.includes('localhost') || envBaseUrl.includes('127.0.0.1'));
+  const frontendBaseUrl =
+    isEnvLocalhost && !isLocalhostHost
+      ? window.location.origin
+      : envBaseUrl || window.location.origin;
   
   // Data state
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -169,6 +260,7 @@ export function RestaurantsView() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [isRegionDialogOpen, setIsRegionDialogOpen] = useState(false);
+  const [subdomainWarning, setSubdomainWarning] = useState('');
   
   // Restaurant Form state
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
@@ -180,8 +272,13 @@ export function RestaurantsView() {
     email: '',
     address: '',
     region: '',
-    tables: 0
+    tables: 0,
+    subdomain: '', // 서브도메인
+    notificationSoundUrl: '' // 알림음 URL
   });
+  const resolvedNotificationSoundUrl = resolveNotificationSoundUrl(formData.notificationSoundUrl);
+  const [notificationSoundFile, setNotificationSoundFile] = useState<File | null>(null);
+  const [isUploadingSound, setIsUploadingSound] = useState(false);
 
   // Category Management state
   const [newCategory, setNewCategory] = useState('');
@@ -338,8 +435,11 @@ export function RestaurantsView() {
       email: '', 
       address: '', 
       region: '',
-      tables: 0 
+      tables: 0,
+      subdomain: '', // 서브도메인
+      notificationSoundUrl: ''
     });
+    setNotificationSoundFile(null);
     setIsDialogOpen(true);
   };
 
@@ -353,8 +453,11 @@ export function RestaurantsView() {
       email: restaurant.email,
       address: restaurant.address,
       region: restaurant.region,
-      tables: restaurant.tables
+      tables: restaurant.tables,
+      subdomain: restaurant.subdomain || '', // 서브도메인
+      notificationSoundUrl: restaurant.notificationSoundUrl || ''
     });
+    setNotificationSoundFile(null);
     setIsDialogOpen(true);
   };
 
@@ -367,12 +470,14 @@ export function RestaurantsView() {
     try {
     if (editingRestaurant) {
         // Update existing restaurant
+        const subdomainValue = formData.subdomain?.trim() || null;
         const updateData = {
           nameKo: formData.name,
           nameVn: formData.name,
           nameEn: formData.name,
           status: editingRestaurant.status,
           ownerEmail: formData.email, // Include email to update owner
+          subdomain: subdomainValue, // 서브도메인 (빈 문자열이면 null)
           settings: {
             category: formData.category,
             ownerName: formData.owner,
@@ -380,6 +485,7 @@ export function RestaurantsView() {
             address: formData.address,
             region: formData.region,
             tables: formData.tables,
+            notificationSoundUrl: formData.notificationSoundUrl || null,
           },
         };
         const result = await apiClient.updateRestaurant(editingRestaurant.id, updateData);
@@ -391,16 +497,19 @@ export function RestaurantsView() {
           setEditingRestaurant(updatedRestaurant);
       toast.success('식당 정보가 수정되었습니다.');
     } else {
+          console.error('❌ [handleSaveRestaurant] API 응답 실패:', result.error);
           throw new Error(result.error?.message || '식당 정보 수정에 실패했습니다.');
         }
       } else {
         // Create new restaurant
+        const subdomainValue = formData.subdomain?.trim() || undefined;
         const createData = {
           nameKo: formData.name,
           nameVn: formData.name,
           nameEn: formData.name,
           ownerEmail: formData.email,
           status: 'pending',
+          subdomain: subdomainValue, // 서브도메인 (빈 문자열이면 undefined로 보내서 백엔드에서 자동 생성)
           settings: {
             category: formData.category,
             ownerName: formData.owner,
@@ -408,6 +517,7 @@ export function RestaurantsView() {
             address: formData.address,
             region: formData.region,
             tables: formData.tables,
+            notificationSoundUrl: formData.notificationSoundUrl || null,
           },
         };
         const result = await apiClient.createRestaurant(createData);
@@ -417,13 +527,71 @@ export function RestaurantsView() {
           setRestaurants(prev => [newRestaurant, ...prev]);
           toast.success('식당이 등록되었습니다.');
         } else {
+          console.error('❌ [handleSaveRestaurant] API 응답 실패:', result.error);
           throw new Error(result.error?.message || '식당 등록에 실패했습니다.');
         }
     }
     setIsDialogOpen(false);
     } catch (err: any) {
-      console.error('Failed to save restaurant:', err);
+      console.error('❌ [handleSaveRestaurant] 식당 저장 실패:', err);
       toast.error(err.message || '식당 정보 저장에 실패했습니다.');
+    }
+  };
+
+  const handleUploadNotificationSound = async () => {
+    if (!editingRestaurant) {
+      toast.error('식당을 먼저 선택해주세요.');
+      return;
+    }
+    if (!notificationSoundFile) {
+      toast.error('업로드할 알림음 파일을 선택해주세요.');
+      return;
+    }
+    setIsUploadingSound(true);
+    try {
+      const result = await apiClient.uploadNotificationSound(
+        editingRestaurant.id,
+        notificationSoundFile
+      );
+      if (result.success && result.data?.notificationSoundUrl) {
+        const nextUrl = result.data.notificationSoundUrl;
+        setFormData((prev) => ({
+          ...prev,
+          notificationSoundUrl: nextUrl,
+        }));
+        setEditingRestaurant((prev) =>
+          prev ? { ...prev, notificationSoundUrl: nextUrl } : prev
+        );
+        // Ensure list reflects persisted settings
+        const restaurantsResult = await apiClient.getRestaurants();
+        if (restaurantsResult.success && restaurantsResult.data) {
+          const transformed = restaurantsResult.data.map(transformRestaurant);
+          setRestaurants(transformed);
+          const updated = transformed.find((r) => r.id === editingRestaurant.id);
+          if (updated) {
+            setEditingRestaurant(updated);
+            setFormData((prev) => ({
+              ...prev,
+              notificationSoundUrl: updated.notificationSoundUrl || nextUrl,
+            }));
+          }
+        } else {
+          setRestaurants((prev) =>
+            prev.map((r) =>
+              r.id === editingRestaurant.id ? { ...r, notificationSoundUrl: nextUrl } : r
+            )
+          );
+        }
+        toast.success('알림음이 업로드되었습니다.');
+      } else {
+        throw new Error(result.error?.message || '알림음 업로드에 실패했습니다.');
+      }
+    } catch (error: any) {
+      console.error('알림음 업로드 실패:', error);
+      toast.error(error.message || '알림음 업로드에 실패했습니다.');
+    } finally {
+      setIsUploadingSound(false);
+      setNotificationSoundFile(null);
     }
   };
 
@@ -701,24 +869,24 @@ export function RestaurantsView() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="relative flex-1 max-w-sm w-full">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder={t('restaurants.search_placeholder')} 
-            className="pl-8" 
+            className="pl-9 bg-white border-zinc-100 focus-visible:ring-zinc-400/40" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setIsRegionDialogOpen(true)}>
+            <Button variant="outline" className="flex-1 sm:flex-none bg-white border-zinc-100 shadow-sm" onClick={() => setIsRegionDialogOpen(true)}>
                 <MapPin className="w-4 h-4 mr-2" />
                 지역 관리
             </Button>
-            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setIsCategoryDialogOpen(true)}>
+            <Button variant="outline" className="flex-1 sm:flex-none bg-white border-zinc-100 shadow-sm" onClick={() => setIsCategoryDialogOpen(true)}>
                 <List className="w-4 h-4 mr-2" />
                 카테고리 관리
             </Button>
-            <Button className="flex-1 sm:flex-none w-full sm:w-auto" onClick={handleOpenAddDialog}>
+            <Button className="flex-1 sm:flex-none w-full sm:w-auto shadow-sm" onClick={handleOpenAddDialog}>
                 <Plus className="w-4 h-4 mr-2" />
                 {t('restaurants.add')}
             </Button>
@@ -747,10 +915,10 @@ export function RestaurantsView() {
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
-              <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+              <ScrollArea className="h-[300px] w-full rounded-xl border border-slate-200/70 bg-white/80 p-4">
               <div className="space-y-2">
                 {categories.map((category) => (
-                  <div key={category.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 group">
+                  <div key={category.id} className="flex items-center justify-between p-2 border-b border-border/60 last:border-b-0 rounded-lg hover:bg-muted/50 group">
                     {editingCategory?.id === category.id ? (
                       <div className="flex flex-1 gap-2 items-center">
                         <Input 
@@ -802,14 +970,14 @@ export function RestaurantsView() {
                   onChange={(e) => setNewCategory(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
                 />
-                <Button onClick={handleAddCategory} size="icon">
+                <Button onClick={handleAddCategory} size="icon" className="shadow-sm">
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
-              <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+              <ScrollArea className="h-[300px] w-full rounded-xl border border-slate-200/70 bg-white/80 p-4">
                 <div className="space-y-2">
                   {categories.map((category) => (
-                    <div key={category.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 group">
+                    <div key={category.id} className="flex items-center justify-between p-2 border-b border-border/60 last:border-b-0 rounded-lg hover:bg-muted/50 group">
                       {editingCategory?.id === category.id ? (
                         <div className="flex flex-1 gap-2 items-center">
                           <Input 
@@ -864,14 +1032,14 @@ export function RestaurantsView() {
                   onChange={(e) => setNewRegion(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddRegion()}
                 />
-                <Button onClick={handleAddRegion} size="icon">
+                <Button onClick={handleAddRegion} size="icon" className="shadow-sm">
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
-              <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+              <ScrollArea className="h-[300px] w-full rounded-xl border border-slate-200/70 bg-white/80 p-4">
                 <div className="space-y-2">
                   {regions.map((region) => (
-                    <div key={region.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 group">
+                    <div key={region.id} className="flex items-center justify-between p-2 border-b border-border/60 last:border-b-0 rounded-lg hover:bg-muted/50 group">
                       {editingRegion?.id === region.id ? (
                         <div className="flex flex-1 gap-2 items-center">
                           <Input 
@@ -923,14 +1091,14 @@ export function RestaurantsView() {
                   onChange={(e) => setNewRegion(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddRegion()}
                 />
-                <Button onClick={handleAddRegion} size="icon">
+                <Button onClick={handleAddRegion} size="icon" className="shadow-sm">
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
-              <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+              <ScrollArea className="h-[300px] w-full rounded-xl border border-slate-200/70 bg-white/80 p-4">
                 <div className="space-y-2">
                   {regions.map((region) => (
-                    <div key={region.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 group">
+                    <div key={region.id} className="flex items-center justify-between p-2 border-b border-border/60 last:border-b-0 rounded-lg hover:bg-muted/50 group">
                       {editingRegion?.id === region.id ? (
                         <div className="flex flex-1 gap-2 items-center">
                           <Input 
@@ -979,7 +1147,7 @@ export function RestaurantsView() {
                 {editingRestaurant ? '식당 정보를 수정합니다.' : t('restaurants.dialog.desc')}
               </SheetDescription>
             </SheetHeader>
-            <div className="grid gap-4 py-4 px-4">
+            <div className="grid gap-4 py-4 px-4 text-foreground [&_label]:text-muted-foreground">
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="name">식당 이름</Label>
@@ -1079,9 +1247,97 @@ export function RestaurantsView() {
               />
             </div>
 
+            {/* Subdomain Setting - Only show when editing existing restaurant */}
+            {editingRestaurant && (
+              <div className="grid gap-2 pt-4 border-t border-slate-200/70">
+                <Label htmlFor="subdomain" className="flex items-center gap-2">
+                  <span>서브도메인</span>
+                  <span className="text-xs text-muted-foreground font-normal">(예: shop_1)</span>
+                </Label>
+                <Input 
+                  id="subdomain" 
+                  placeholder="shop_1" 
+                  value={formData.subdomain}
+                  onChange={(e) => {
+                    const value = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                    setFormData({...formData, subdomain: value});
+                    setSubdomainWarning('');
+                  }}
+                  onBeforeInput={(e) => {
+                    const inputEvent = e.nativeEvent as InputEvent;
+                    const data = inputEvent.data || '';
+                    if (data && /[^a-zA-Z0-9_-]/.test(data)) {
+                      e.preventDefault();
+                      setSubdomainWarning('영문 소문자/숫자만 입력 가능합니다. 한글 입력은 전환해 주세요.');
+                    }
+                  }}
+                  inputMode="text"
+                />
+                <p className="text-xs text-muted-foreground">
+                  영문 소문자, 숫자, 하이픈(-), 언더스코어(_)만 입력 가능합니다.
+                  서브도메인을 설정하면 <code className="px-1 py-0.5 bg-muted rounded">{normalizeShopUrl(generateSubdomainUrl(formData.subdomain || 'shop_1', '/shop')).replace(/^https?:\/\//, '') || 'shop_1.qoodle.top/shop'}</code> 형식으로 접근할 수 있습니다.
+                  {formData.subdomain && (
+                    <span className="block mt-1 text-green-600">
+                      현재 URL: <code className="px-1 py-0.5 bg-green-50 rounded">{normalizeShopUrl(generateSubdomainUrl(formData.subdomain, '/shop')).replace(/^https?:\/\//, '')}</code>
+                    </span>
+                  )}
+                </p>
+                {subdomainWarning && (
+                  <p className="text-xs text-amber-600">{subdomainWarning}</p>
+                )}
+              </div>
+            )}
+
+            {/* Notification Sound - Only show when editing existing restaurant */}
+            {editingRestaurant && (
+              <div className="grid gap-2 pt-4 border-t border-slate-200/70">
+                <Label className="flex items-center gap-2">
+                  알림음
+                  <span className="text-xs text-muted-foreground font-normal">(요청/채팅/주문)</span>
+                </Label>
+                <div className="flex flex-col gap-2">
+                  {resolvedNotificationSoundUrl && (
+                    <audio controls src={resolvedNotificationSoundUrl} className="w-full" />
+                  )}
+                  <Input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setNotificationSoundFile(file);
+                    }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleUploadNotificationSound}
+                      disabled={isUploadingSound || !notificationSoundFile}
+                    >
+                      {isUploadingSound ? '업로드 중...' : '업로드'}
+                    </Button>
+                    {resolvedNotificationSoundUrl && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(resolvedNotificationSoundUrl);
+                          toast.success('알림음 URL이 복사되었습니다.');
+                        }}
+                      >
+                        URL 복사
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    iOS 백그라운드 푸시에서는 시스템 기본 알림음이 사용됩니다.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Shop Manager Endpoint - Only show when editing existing restaurant */}
             {editingRestaurant && (
-              <div className="grid gap-2 pt-4 border-t">
+              <div className="grid gap-2 pt-4 border-t border-slate-200/70">
                 <Label className="flex items-center gap-2">
                   <Link className="w-4 h-4" />
                   상점 관리자 사이트
@@ -1089,14 +1345,22 @@ export function RestaurantsView() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 px-3 py-2 bg-muted rounded-md text-sm font-mono break-all">
-                      {`${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`}
+                      {normalizeShopUrl(
+                        editingRestaurant.subdomain 
+                          ? generateSubdomainUrl(editingRestaurant.subdomain, '/shop')
+                          : `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`,
+                      )}
                     </div>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
+                        const url = normalizeShopUrl(
+                          editingRestaurant.subdomain 
+                            ? generateSubdomainUrl(editingRestaurant.subdomain, '/shop')
+                            : `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`,
+                        );
                         navigator.clipboard.writeText(url);
                         toast.success('URL이 클립보드에 복사되었습니다.');
                       }}
@@ -1110,7 +1374,11 @@ export function RestaurantsView() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
+                        const url = normalizeShopUrl(
+                          editingRestaurant.subdomain 
+                            ? generateSubdomainUrl(editingRestaurant.subdomain, '/shop')
+                            : `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`,
+                        );
                         window.open(url, '_blank');
                       }}
                       className="shrink-0"
@@ -1120,7 +1388,11 @@ export function RestaurantsView() {
                     </Button>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    경로: <code className="px-1 py-0.5 bg-muted rounded">/shop/restaurant/{editingRestaurant.id}/login</code>
+                    {editingRestaurant.subdomain ? (
+                      <>서브도메인 기반 URL: <code className="px-1 py-0.5 bg-muted rounded">{normalizeShopUrl(generateSubdomainUrl(editingRestaurant.subdomain, '/shop')).replace(/^https?:\/\//, '')}</code></>
+                    ) : (
+                      <>레거시 경로: <code className="px-1 py-0.5 bg-muted rounded">/shop/restaurant/{editingRestaurant.id}/login</code> (서브도메인 설정 권장)</>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1247,9 +1519,97 @@ export function RestaurantsView() {
                   />
                 </div>
 
+                {/* Subdomain Setting - Only show when editing existing restaurant */}
+                {editingRestaurant && (
+                  <div className="grid gap-2 pt-4 border-t border-slate-200/70">
+                    <Label htmlFor="subdomain-mobile" className="flex items-center gap-2">
+                      <span>서브도메인</span>
+                      <span className="text-xs text-muted-foreground font-normal">(예: shop_1)</span>
+                    </Label>
+                    <Input 
+                      id="subdomain-mobile" 
+                      placeholder="shop_1" 
+                      value={formData.subdomain}
+                      onChange={(e) => {
+                        const value = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                        setFormData({...formData, subdomain: value});
+                        setSubdomainWarning('');
+                      }}
+                      onBeforeInput={(e) => {
+                        const inputEvent = e.nativeEvent as InputEvent;
+                        const data = inputEvent.data || '';
+                        if (data && /[^a-zA-Z0-9_-]/.test(data)) {
+                          e.preventDefault();
+                          setSubdomainWarning('영문 소문자/숫자만 입력 가능합니다. 한글 입력은 전환해 주세요.');
+                        }
+                      }}
+                      inputMode="text"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      영문 소문자, 숫자, 하이픈(-), 언더스코어(_)만 입력 가능합니다.
+                      서브도메인을 설정하면 <code className="px-1 py-0.5 bg-muted rounded">{normalizeShopUrl(generateSubdomainUrl(formData.subdomain || 'shop_1', '/shop')).replace(/^https?:\/\//, '') || 'shop_1.qoodle.top/shop'}</code> 형식으로 접근할 수 있습니다.
+                      {formData.subdomain && (
+                        <span className="block mt-1 text-green-600">
+                          현재 URL: <code className="px-1 py-0.5 bg-green-50 rounded">{normalizeShopUrl(generateSubdomainUrl(formData.subdomain, '/shop')).replace(/^https?:\/\//, '')}</code>
+                        </span>
+                      )}
+                    </p>
+                    {subdomainWarning && (
+                      <p className="text-xs text-amber-600">{subdomainWarning}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Notification Sound - Only show when editing existing restaurant */}
+                {editingRestaurant && (
+                  <div className="grid gap-2 pt-4 border-t border-slate-200/70">
+                    <Label className="flex items-center gap-2">
+                      알림음
+                      <span className="text-xs text-muted-foreground font-normal">(요청/채팅/주문)</span>
+                    </Label>
+                    <div className="flex flex-col gap-2">
+                      {resolvedNotificationSoundUrl && (
+                        <audio controls src={resolvedNotificationSoundUrl} className="w-full" />
+                      )}
+                      <Input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setNotificationSoundFile(file);
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          onClick={handleUploadNotificationSound}
+                          disabled={isUploadingSound || !notificationSoundFile}
+                        >
+                          {isUploadingSound ? '업로드 중...' : '업로드'}
+                        </Button>
+                        {resolvedNotificationSoundUrl && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(resolvedNotificationSoundUrl);
+                              toast.success('알림음 URL이 복사되었습니다.');
+                            }}
+                          >
+                            URL 복사
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        iOS 백그라운드 푸시에서는 시스템 기본 알림음이 사용됩니다.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Shop Manager Endpoint - Only show when editing existing restaurant */}
                 {editingRestaurant && (
-                  <div className="grid gap-2 pt-4 border-t">
+                  <div className="grid gap-2 pt-4 border-t border-slate-200/70">
                     <Label className="flex items-center gap-2">
                       <Link className="w-4 h-4" />
                       상점 관리자 사이트
@@ -1257,14 +1617,18 @@ export function RestaurantsView() {
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 px-3 py-2 bg-muted rounded-md text-sm font-mono break-all">
-                          {`${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`}
+                          {editingRestaurant.subdomain 
+                            ? generateSubdomainUrl(editingRestaurant.subdomain, '/shop')
+                            : `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`}
                         </div>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
+                            const url = editingRestaurant.subdomain 
+                              ? generateSubdomainUrl(editingRestaurant.subdomain, '/shop')
+                              : `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
                             navigator.clipboard.writeText(url);
                             toast.success('URL이 클립보드에 복사되었습니다.');
                           }}
@@ -1278,7 +1642,9 @@ export function RestaurantsView() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
+                            const url = editingRestaurant.subdomain 
+                              ? generateSubdomainUrl(editingRestaurant.subdomain, '/shop')
+                              : `${frontendBaseUrl}/shop/restaurant/${editingRestaurant.id}/login`;
                             window.open(url, '_blank');
                           }}
                           className="shrink-0"
@@ -1288,7 +1654,11 @@ export function RestaurantsView() {
                         </Button>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        경로: <code className="px-1 py-0.5 bg-muted rounded">/shop/restaurant/{editingRestaurant.id}/login</code>
+                        {editingRestaurant.subdomain ? (
+                          <>서브도메인 기반 URL: <code className="px-1 py-0.5 bg-muted rounded">{normalizeShopUrl(generateSubdomainUrl(editingRestaurant.subdomain, '/shop')).replace(/^https?:\/\//, '')}</code></>
+                        ) : (
+                          <>레거시 경로: <code className="px-1 py-0.5 bg-muted rounded">/shop/restaurant/{editingRestaurant.id}/login</code> (서브도메인 설정 권장)</>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1335,7 +1705,18 @@ export function RestaurantsView() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-8 pt-4">
                   {tables.map((table) => {
-                    const customerUrl = `${frontendBaseUrl}/customer/r/${selectedRestaurantForQr?.id}/t/${table.tableNumber}`;
+                    // 백엔드에서 받은 qrCodeUrl 사용, 없으면 서브도메인 기반으로 생성 시도
+                    let customerUrl: string;
+                    if (table.qrCodeUrl) {
+                      customerUrl = table.qrCodeUrl;
+                    } else if (selectedRestaurantForQr?.subdomain) {
+                      // 서브도메인이 설정되어 있으면 직접 URL 생성
+                      customerUrl = generateSubdomainUrl(selectedRestaurantForQr.subdomain, `/customer/table/${table.tableNumber}`);
+                    } else {
+                      // 서브도메인이 없는 경우 에러 표시
+                      customerUrl = '#';
+                      console.warn(`Table ${table.tableNumber} does not have qrCodeUrl. Restaurant may not have subdomain configured.`);
+                    }
                     return (
                       <div key={table.id} className="group flex flex-col items-center p-6 rounded-3xl bg-secondary/20 hover:bg-secondary/40 transition-colors duration-300">
                         <div className="flex flex-col items-center mb-5">
@@ -1348,29 +1729,43 @@ export function RestaurantsView() {
                         </div>
                         
                         <div className="p-4 bg-white rounded-2xl shadow-sm mb-6 transition-transform duration-300 group-hover:scale-105">
-                          <QRCodeSVG
-                            id={`restaurant-qr-code-${table.id}`}
-                            value={customerUrl}
-                            size={130}
-                            level={"H"}
-                            includeMargin={false}
-                          />
+                          {customerUrl === '#' ? (
+                            <div className="w-[130px] h-[130px] flex items-center justify-center bg-red-50 rounded-lg border border-red-200">
+                              <div className="text-center p-2">
+                                <p className="text-[10px] font-semibold text-red-600 mb-1">서브도메인</p>
+                                <p className="text-[10px] text-red-500">미설정</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <QRCodeSVG
+                              id={`restaurant-qr-code-${table.id}`}
+                              value={customerUrl}
+                              size={130}
+                              level={"H"}
+                              includeMargin={false}
+                            />
+                          )}
                         </div>
                         
                         <div className="w-full mt-auto space-y-3">
                           <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2 px-2 py-1.5 bg-background rounded-md border border-border/50">
                               <div className="flex-1 text-[10px] font-mono text-muted-foreground truncate">
-                                {customerUrl}
+                                {customerUrl === '#' ? '서브도메인 미설정' : customerUrl}
                               </div>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 w-6 p-0 shrink-0"
                                 onClick={() => {
-                                  navigator.clipboard.writeText(customerUrl);
-                                  toast.success('URL이 클립보드에 복사되었습니다.');
+                                  if (customerUrl !== '#') {
+                                    navigator.clipboard.writeText(customerUrl);
+                                    toast.success('URL이 클립보드에 복사되었습니다.');
+                                  } else {
+                                    toast.error('QR 코드 URL을 생성할 수 없습니다. 서브도메인을 설정해주세요.');
+                                  }
                                 }}
+                                disabled={customerUrl === '#'}
                               >
                                 <Copy className="h-3 w-3" />
                               </Button>
@@ -1379,8 +1774,13 @@ export function RestaurantsView() {
                                 size="sm"
                                 className="h-6 w-6 p-0 shrink-0"
                                 onClick={() => {
-                                  window.open(customerUrl, '_blank');
+                                  if (customerUrl !== '#') {
+                                    window.open(customerUrl, '_blank');
+                                  } else {
+                                    toast.error('QR 코드 URL을 생성할 수 없습니다. 서브도메인을 설정해주세요.');
+                                  }
                                 }}
+                                disabled={customerUrl === '#'}
                               >
                                 <ExternalLink className="h-3 w-3" />
                               </Button>
@@ -1396,6 +1796,7 @@ export function RestaurantsView() {
                             variant="outline" 
                             className="w-full h-10 rounded-xl bg-background border-transparent shadow-sm hover:border-primary/20 hover:text-primary hover:bg-background transition-all"
                             onClick={() => handleDownloadQrCode(table.id, table.tableNumber)}
+                            disabled={customerUrl === '#'}
                           >
                             <Download className="mr-2 h-3.5 w-3.5" />
                             Save Image
@@ -1420,7 +1821,7 @@ export function RestaurantsView() {
         </Sheet>
       ) : (
         <Drawer open={isQrDialogOpen} onOpenChange={setIsQrDialogOpen}>
-          <DrawerContent className="max-h-[90vh] flex flex-col bg-background">
+          <DrawerContent className="h-[85vh] max-h-[85vh] flex flex-col bg-background">
             <DrawerHeader className="px-6 py-4 text-left">
               <DrawerTitle className="text-xl font-bold">{selectedRestaurantForQr?.name}</DrawerTitle>
               <DrawerDescription>
@@ -1445,7 +1846,18 @@ export function RestaurantsView() {
               ) : (
                 <div className="grid grid-cols-1 gap-6 p-6 pt-2">
                   {tables.map((table) => {
-                    const customerUrl = `${frontendBaseUrl}/customer/r/${selectedRestaurantForQr?.id}/t/${table.tableNumber}`;
+                    // 백엔드에서 받은 qrCodeUrl 사용, 없으면 서브도메인 기반으로 생성 시도
+                    let customerUrl: string;
+                    if (table.qrCodeUrl) {
+                      customerUrl = table.qrCodeUrl;
+                    } else if (selectedRestaurantForQr?.subdomain) {
+                      // 서브도메인이 설정되어 있으면 직접 URL 생성
+                      customerUrl = generateSubdomainUrl(selectedRestaurantForQr.subdomain, `/customer/table/${table.tableNumber}`);
+                    } else {
+                      // 서브도메인이 없는 경우 에러 표시
+                      customerUrl = '#';
+                      console.warn(`Table ${table.tableNumber} does not have qrCodeUrl. Restaurant may not have subdomain configured.`);
+                    }
                     return (
                       <div key={table.id} className="group flex flex-col items-center p-6 rounded-3xl bg-secondary/20 hover:bg-secondary/40 transition-colors duration-300">
                         <div className="flex flex-col items-center mb-5">
@@ -1458,29 +1870,43 @@ export function RestaurantsView() {
                         </div>
                         
                         <div className="p-4 bg-white rounded-2xl shadow-sm mb-6 transition-transform duration-300 group-hover:scale-105">
-                          <QRCodeSVG
-                            id={`restaurant-qr-code-mobile-${table.id}`}
-                            value={customerUrl}
-                            size={130}
-                            level={"H"}
-                            includeMargin={false}
-                          />
+                          {customerUrl === '#' ? (
+                            <div className="w-[130px] h-[130px] flex items-center justify-center bg-red-50 rounded-lg border border-red-200">
+                              <div className="text-center p-2">
+                                <p className="text-[10px] font-semibold text-red-600 mb-1">서브도메인</p>
+                                <p className="text-[10px] text-red-500">미설정</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <QRCodeSVG
+                              id={`restaurant-qr-code-mobile-${table.id}`}
+                              value={customerUrl}
+                              size={130}
+                              level={"H"}
+                              includeMargin={false}
+                            />
+                          )}
                         </div>
                         
                         <div className="w-full mt-auto space-y-3">
                           <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2 px-2 py-1.5 bg-background rounded-md border border-border/50">
                               <div className="flex-1 text-[10px] font-mono text-muted-foreground truncate">
-                                {customerUrl}
+                                {customerUrl === '#' ? '서브도메인 미설정' : customerUrl}
                               </div>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 w-6 p-0 shrink-0"
                                 onClick={() => {
-                                  navigator.clipboard.writeText(customerUrl);
-                                  toast.success('URL이 클립보드에 복사되었습니다.');
+                                  if (customerUrl !== '#') {
+                                    navigator.clipboard.writeText(customerUrl);
+                                    toast.success('URL이 클립보드에 복사되었습니다.');
+                                  } else {
+                                    toast.error('QR 코드 URL을 생성할 수 없습니다. 서브도메인을 설정해주세요.');
+                                  }
                                 }}
+                                disabled={customerUrl === '#'}
                               >
                                 <Copy className="h-3 w-3" />
                               </Button>
@@ -1489,8 +1915,13 @@ export function RestaurantsView() {
                                 size="sm"
                                 className="h-6 w-6 p-0 shrink-0"
                                 onClick={() => {
-                                  window.open(customerUrl, '_blank');
+                                  if (customerUrl !== '#') {
+                                    window.open(customerUrl, '_blank');
+                                  } else {
+                                    toast.error('QR 코드 URL을 생성할 수 없습니다. 서브도메인을 설정해주세요.');
+                                  }
                                 }}
+                                disabled={customerUrl === '#'}
                               >
                                 <ExternalLink className="h-3 w-3" />
                               </Button>
@@ -1506,6 +1937,7 @@ export function RestaurantsView() {
                             variant="outline" 
                             className="w-full h-10 rounded-xl bg-background border-transparent shadow-sm hover:border-primary/20 hover:text-primary hover:bg-background transition-all"
                             onClick={() => handleDownloadQrCode(table.id, table.tableNumber)}
+                            disabled={customerUrl === '#'}
                           >
                             <Download className="mr-2 h-3.5 w-3.5" />
                             Save Image
@@ -1530,18 +1962,22 @@ export function RestaurantsView() {
       {/* Mobile View - Cards (Applied Pagination) */}
       <div className="grid gap-4 md:hidden">
         {paginatedRestaurants.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground bg-white rounded-xl border border-dashed">
+          <div className="text-center py-12 text-muted-foreground bg-white rounded-2xl border border-dashed border-zinc-100 shadow-sm">
             검색 결과가 없습니다.
           </div>
         ) : (
           paginatedRestaurants.map((restaurant, index) => (
-            <div key={restaurant.id} className="bg-white p-5 rounded-xl border shadow-sm space-y-4 transition-all active:scale-[0.99]">
+            <div key={restaurant.id} className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm space-y-4 transition-all active:scale-[0.99]">
               <div className="flex justify-between items-start">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
                      <span className="text-xs font-mono text-muted-foreground">#{(currentPage - 1) * itemsPerPage + index + 1}</span>
-                     <a
-                       href={`${frontendBaseUrl}/shop/restaurant/${restaurant.id}/login`}
+                      <a
+                       href={normalizeShopUrl(
+                         restaurant.subdomain 
+                           ? generateSubdomainUrl(restaurant.subdomain, '/shop')
+                           : `${frontendBaseUrl}/shop/restaurant/${restaurant.id}/login`,
+                       )}
                        target="_blank"
                        rel="noopener noreferrer"
                        className="font-bold text-lg text-foreground hover:text-primary hover:underline cursor-pointer transition-colors"
@@ -1553,14 +1989,13 @@ export function RestaurantsView() {
                      </a>
                      <Badge variant="outline" className="text-[10px] h-5 px-1.5">{restaurant.category}</Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{restaurant.owner}</p>
                 </div>
-                {restaurant.status === 'active' && <Badge className="bg-green-500/10 text-green-700 hover:bg-green-500/20 border-green-200">{t('restaurants.status.active')}</Badge>}
+                {restaurant.status === 'active' && <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20">{t('restaurants.status.active')}</Badge>}
                 {restaurant.status === 'pending' && <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-200">{t('restaurants.status.pending')}</Badge>}
                 {restaurant.status === 'inactive' && <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">{t('restaurants.status.inactive')}</Badge>}
               </div>
               
-              <div className="grid grid-cols-2 gap-3 p-3 bg-muted/20 rounded-lg">
+              <div className="grid grid-cols-2 gap-3 p-3 bg-white rounded-xl border border-zinc-100 shadow-sm">
                 <div className="flex flex-col">
                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Tables</span>
                    <span className="font-semibold text-sm">{restaurant.tables}개</span>
@@ -1569,6 +2004,14 @@ export function RestaurantsView() {
                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Region</span>
                    <span className="font-semibold text-sm">{restaurant.region}</span>
                 </div>
+                <div className="flex flex-col col-span-2">
+                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Category</span>
+                   <span className="font-semibold text-sm">{restaurant.category}</span>
+                </div>
+                <div className="flex flex-col col-span-2">
+                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Subdomain</span>
+                   <span className="font-semibold text-sm">{restaurant.subdomain || '-'}</span>
+                </div>
                 <div className="flex flex-col col-span-2 pt-1 border-t border-dashed border-muted-foreground/20">
                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Joined</span>
                    <span className="font-medium text-sm">{restaurant.date}</span>
@@ -1576,13 +2019,13 @@ export function RestaurantsView() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="flex-1 bg-white" onClick={() => handleOpenQrDialog(restaurant)}>
+                <Button variant="outline" size="sm" className="flex-1 bg-white border-zinc-100 shadow-sm" onClick={() => handleOpenQrDialog(restaurant)}>
                   <QrCode className="w-4 h-4 mr-2" />
                   QR 관리
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-9 w-9 bg-white">
+                    <Button variant="outline" size="icon" className="h-9 w-9 bg-white border-zinc-100 shadow-sm">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -1634,7 +2077,7 @@ export function RestaurantsView() {
       </div>
 
       {/* Desktop View - Table */}
-      <div className="hidden md:block rounded-md border bg-white overflow-hidden">
+      <div className="hidden md:block rounded-2xl border border-zinc-100 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -1655,6 +2098,24 @@ export function RestaurantsView() {
                     <div className="flex items-center">
                         {t('restaurants.table.restaurant')}
                         {renderSortIcon('name')}
+                    </div>
+                </TableHead>
+                <TableHead 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => requestSort('category')}
+                >
+                    <div className="flex items-center">
+                        카테고리
+                        {renderSortIcon('category')}
+                    </div>
+                </TableHead>
+                <TableHead 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => requestSort('subdomain')}
+                >
+                    <div className="flex items-center">
+                        서브도메인
+                        {renderSortIcon('subdomain')}
                     </div>
                 </TableHead>
                 <TableHead 
@@ -1699,7 +2160,7 @@ export function RestaurantsView() {
             <TableBody>
               {paginatedRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={9} className="h-24 text-center">
                     검색 결과가 없습니다.
                   </TableCell>
                 </TableRow>
@@ -1713,33 +2174,53 @@ export function RestaurantsView() {
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2">
                             <a
-                              href={`${frontendBaseUrl}/shop/restaurant/${restaurant.id}/login`}
+                              href={normalizeShopUrl(
+                                restaurant.subdomain 
+                                  ? generateSubdomainUrl(restaurant.subdomain, '/shop')
+                                  : `${frontendBaseUrl}/shop/restaurant/${restaurant.id}/login`,
+                              )}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-medium text-base hover:text-primary hover:underline cursor-pointer transition-colors"
+                              className="font-semibold text-base tracking-tight hover:text-primary hover:underline cursor-pointer transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
                               }}
                             >
                               {restaurant.name}
                             </a>
-                            <Badge variant="outline" className="text-[10px] h-5 px-1.5">{restaurant.category}</Badge>
                         </div>
-                        <span className="text-xs text-muted-foreground">{restaurant.owner}</span>
-                        <span className="text-xs text-muted-foreground lg:hidden">{restaurant.email}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px] h-5 px-2 font-semibold tracking-wide text-primary border-primary/30 bg-primary/5">
+                        {restaurant.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {restaurant.subdomain || '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{restaurant.date}</TableCell>
                     <TableCell>
-                      {restaurant.status === 'active' && <Badge className="bg-green-500 hover:bg-green-600">{t('restaurants.status.active')}</Badge>}
-                      {restaurant.status === 'pending' && <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-200">{t('restaurants.status.pending')}</Badge>}
-                      {restaurant.status === 'inactive' && <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">{t('restaurants.status.inactive')}</Badge>}
+                      {restaurant.status === 'active' && (
+                        <Badge className="bg-primary text-primary-foreground hover:bg-primary/90">
+                          {t('restaurants.status.active')}
+                        </Badge>
+                      )}
+                      {restaurant.status === 'pending' && (
+                        <Badge variant="secondary" className="bg-secondary text-secondary-foreground hover:bg-secondary/80">
+                          {t('restaurants.status.pending')}
+                        </Badge>
+                      )}
+                      {restaurant.status === 'inactive' && (
+                        <Badge variant="secondary" className="bg-muted text-muted-foreground hover:bg-muted/80">
+                          {t('restaurants.status.inactive')}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>{restaurant.tables}개</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col gap-1">
                         <span className="font-medium">{restaurant.region}</span>
-                        <span className="text-xs text-muted-foreground truncate max-w-[150px]">{restaurant.address}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -1800,14 +2281,14 @@ export function RestaurantsView() {
           </Table>
           
           {/* Pagination */}
-          <div className="flex items-center justify-between px-4 py-4 border-t">
+          <div className="flex items-center justify-between px-4 py-4 border-t border-slate-200/70 bg-white/60">
             <div className="flex-1 text-sm text-muted-foreground">
                 총 {filteredRestaurants.length}개 중 {paginatedRestaurants.length}개 표시
             </div>
             <div className="flex items-center space-x-2">
                 <Button
                   variant="outline"
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 bg-white/80 border-slate-200/70"
                   onClick={() => handlePageChange(1)}
                   disabled={currentPage === 1}
                 >
@@ -1816,7 +2297,7 @@ export function RestaurantsView() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 bg-white/80 border-slate-200/70"
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
                 >
@@ -1829,7 +2310,7 @@ export function RestaurantsView() {
                 </div>
                 <Button
                   variant="outline"
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 bg-white/80 border-slate-200/70"
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages || totalPages === 0}
                 >
@@ -1838,7 +2319,7 @@ export function RestaurantsView() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 bg-white/80 border-slate-200/70"
                   onClick={() => handlePageChange(totalPages)}
                   disabled={currentPage === totalPages || totalPages === 0}
                 >

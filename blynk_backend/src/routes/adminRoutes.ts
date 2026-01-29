@@ -10,8 +10,15 @@ import {
   deleteQuickChip,
   reorderQuickChips,
 } from '../controllers/quickChipController';
+import { uploadNotificationSound } from '../controllers/adminUploadController';
+import multer from 'multer';
+import { config } from '../config';
 
 const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: config.upload.maxSize },
+});
 
 // All admin routes require authentication and platform admin role
 router.use(authenticate);
@@ -80,6 +87,12 @@ router.put('/restaurants/:id', async (req, res, next) => {
     next(error);
   }
 });
+
+router.post(
+  '/restaurants/:id/notification-sound',
+  upload.single('file'),
+  uploadNotificationSound
+);
 
 router.delete('/restaurants/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {

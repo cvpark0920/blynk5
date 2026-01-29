@@ -19,14 +19,14 @@ export function LoginView({ onLogin }: LoginViewProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-slate-100/80 p-4">
+      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm overflow-hidden border border-slate-200/70">
         <div className="p-8 space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg mx-auto mb-4">
-              <span className="text-white font-bold text-2xl">P</span>
+            <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center shadow-sm mx-auto mb-4">
+              <span className="text-white font-semibold text-2xl">P</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
             <p className="text-sm text-slate-500">
               Enter your credentials to access the admin panel
             </p>
@@ -35,7 +35,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
           <div className="space-y-4">
             <Button 
               variant="outline" 
-              className="w-full h-11 relative font-medium border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+              className="w-full h-11 relative font-medium border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 rounded-full"
               onClick={handleGoogleLogin}
               disabled={isLoading}
             >

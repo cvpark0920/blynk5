@@ -4,6 +4,15 @@ import * as path from 'path';
 
 const prisma = new PrismaClient();
 
+const buildTemplateKey = (icon: string, labelKo: string): string => {
+  const base = `${icon}-${labelKo}`
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9가-힣\-_.]/g, '');
+  return base || `chip-${Date.now()}`;
+};
+
 async function main() {
   console.log('🌱 Starting seed...');
 
@@ -465,13 +474,20 @@ async function main() {
   // Upsert customer request chips
   let customerChipCount = 0;
   for (const chip of defaultCustomerRequestChips) {
+    const templateKey = buildTemplateKey(chip.icon, chip.labelKo);
     // Check if chip already exists by icon and labelKo
     const existing = await prisma.quickChip.findFirst({
       where: {
         restaurantId: null,
         type: QuickChipType.CUSTOMER_REQUEST,
-        icon: chip.icon,
-        labelKo: chip.labelKo,
+        OR: [
+          { templateKey },
+          {
+            templateKey: null,
+            icon: chip.icon,
+            labelKo: chip.labelKo,
+          },
+        ],
       },
     });
 
@@ -480,6 +496,7 @@ async function main() {
         data: {
           restaurantId: null, // 플랫폼 전체
           type: QuickChipType.CUSTOMER_REQUEST,
+          templateKey,
           icon: chip.icon,
           labelKo: chip.labelKo,
           labelVn: chip.labelVn,
@@ -499,13 +516,20 @@ async function main() {
   // Upsert staff response chips
   let staffChipCount = 0;
   for (const chip of defaultStaffResponseChips) {
+    const templateKey = buildTemplateKey(chip.icon, chip.labelKo);
     // Check if chip already exists by icon and labelKo
     const existing = await prisma.quickChip.findFirst({
       where: {
         restaurantId: null,
         type: QuickChipType.STAFF_RESPONSE,
-        icon: chip.icon,
-        labelKo: chip.labelKo,
+        OR: [
+          { templateKey },
+          {
+            templateKey: null,
+            icon: chip.icon,
+            labelKo: chip.labelKo,
+          },
+        ],
       },
     });
 
@@ -514,6 +538,7 @@ async function main() {
         data: {
           restaurantId: null, // 플랫폼 전체
           type: QuickChipType.STAFF_RESPONSE,
+          templateKey,
           icon: chip.icon,
           labelKo: chip.labelKo,
           labelVn: chip.labelVn,

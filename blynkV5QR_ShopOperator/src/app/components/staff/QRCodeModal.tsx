@@ -55,6 +55,7 @@ export function QRCodeModal({
   totalAmount,
   bankInfo,
 }: QRCodeModalProps) {
+  const debugLog = (..._args: unknown[]) => {};
   const { t, language } = useLanguage();
   const isDesktop = useIsDesktop();
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
@@ -69,7 +70,7 @@ export function QRCodeModal({
   
   useEffect(() => {
     if (isOpen) {
-      console.log('QRCodeModal props:', {
+      debugLog('QRCodeModal props:', {
         totalAmount,
         validAmount,
         totalAmountType: typeof totalAmount,
@@ -119,7 +120,7 @@ export function QRCodeModal({
 
       // Generate QR code
       // Note: memo is temporarily excluded due to VietQR URL formatting issues
-      console.log('Generating QR code with params:', {
+      debugLog('Generating QR code with params:', {
         bankId: bank.bin,
         accountNo: bankInfo.accountNumber,
         accountName: bankInfo.accountHolder,
@@ -139,7 +140,7 @@ export function QRCodeModal({
         memo: language === 'ko' ? `테이블 ${tableNumber}` : language === 'vn' ? `Bàn ${tableNumber}` : `Table ${tableNumber}`,
       });
 
-      console.log('QR API Response:', {
+      debugLog('QR API Response:', {
         success: qrResponse.success,
         data: qrResponse.data,
         error: qrResponse.error,
@@ -155,16 +156,16 @@ export function QRCodeModal({
       let qrUrl: string;
       if (typeof qrResponse.data === 'string') {
         qrUrl = qrResponse.data;
-        console.log('QR URL extracted (string):', qrUrl);
+        debugLog('QR URL extracted (string):', qrUrl);
       } else if (qrResponse.data && typeof qrResponse.data === 'object') {
         // 백엔드에서 처리하지 못한 경우를 대비한 폴백
-        console.log('QR response is object, keys:', Object.keys(qrResponse.data));
+        debugLog('QR response is object, keys:', Object.keys(qrResponse.data));
         if ('data' in qrResponse.data && typeof qrResponse.data.data === 'string') {
           qrUrl = qrResponse.data.data;
-          console.log('QR URL extracted (data.data):', qrUrl);
+          debugLog('QR URL extracted (data.data):', qrUrl);
         } else if ('qrDataURL' in qrResponse.data && typeof qrResponse.data.qrDataURL === 'string') {
           qrUrl = qrResponse.data.qrDataURL;
-          console.log('QR URL extracted (qrDataURL):', qrUrl);
+          debugLog('QR URL extracted (qrDataURL):', qrUrl);
         } else {
           console.error('Unexpected QR response format:', qrResponse.data);
           throw new Error('QR 코드 응답 형식이 올바르지 않습니다.');
@@ -180,7 +181,7 @@ export function QRCodeModal({
         throw new Error('유효하지 않은 QR 코드 URL 형식입니다.');
       }
 
-      console.log('Final QR URL to display:', qrUrl);
+      debugLog('Final QR URL to display:', qrUrl);
       setQrCodeUrl(qrUrl);
     } catch (error: any) {
       console.error('Failed to generate QR code:', error);
@@ -243,7 +244,7 @@ export function QRCodeModal({
                 alt="QR Code" 
                 className="w-full h-full object-contain"
                 onLoad={() => {
-                  console.log('QR code image loaded successfully:', qrCodeUrl);
+                  debugLog('QR code image loaded successfully:', qrCodeUrl);
                 }}
                 onError={(e) => {
                   console.error('QR code image failed to load:', qrCodeUrl);
@@ -394,7 +395,7 @@ export function QRCodeModal({
 
   return (
     <Drawer open={isOpen} onOpenChange={onClose}>
-      <DrawerContent className="max-h-[90vh] flex flex-col">
+      <DrawerContent className="h-[90vh] flex flex-col">
         <DrawerTitle className="px-6 pt-6 pb-4 border-b border-zinc-100 text-xl font-bold text-zinc-900 shrink-0">
           {language === 'ko' ? '계좌이체 QR 코드' : language === 'vn' ? 'Mã QR chuyển khoản' : 'Bank Transfer QR Code'}
         </DrawerTitle>

@@ -1,5 +1,4 @@
 import { UserRole } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 import { generateAccessToken, generateRefreshToken, TokenPayload } from '../utils/jwt';
 import { prisma } from '../utils/prisma';
 
@@ -11,7 +10,7 @@ export interface AuthResult {
   };
   accessToken: string;
   refreshToken: string;
-  restaurantId?: string; // Optional: included for PIN login
+  restaurantId?: string; // Optional: included for shop staff/device login
 }
 
 export class AuthService {
@@ -125,74 +124,156 @@ export class AuthService {
       };
     }
 
-    // 3. 일반 사용자 처리
-    // shop 앱 로그인인 경우, 식당 owner나 staff가 아니면 에러 반환
-    if (appType === 'shop') {
-      // Check if user is staff member of the restaurant
-      if (restaurantId) {
-        const staff = await prisma.staff.findFirst({
-          where: {
-            email: email,
-            restaurantId: restaurantId,
-            status: 'ACTIVE',
-          },
-        });
-        
-        if (staff) {
-          // Staff member - create user with ADMIN role and include staffId in token
-          let user = await prisma.user.findUnique({
-            where: { email },
-          });
+    // 3. 관리자 앱 로그인 처리
+    if (appType === 'admin') {
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+      const isAdminUser =
+        existingUser?.role === UserRole.ADMIN || existingUser?.role === UserRole.PLATFORM_ADMIN;
 
-          if (!user) {
-            user = await prisma.user.create({
-              data: {
-                email,
-                name,
-                avatarUrl,
-                role: UserRole.ADMIN,
-              },
-            });
-          } else {
-            // Staff member always has ADMIN role
-            user = await prisma.user.update({
-              where: { email },
-              data: {
-                name: name || user.name,
-                avatarUrl: avatarUrl !== undefined ? avatarUrl : user.avatarUrl,
-                role: UserRole.ADMIN,
-              },
-            });
-          }
+      const ownedRestaurant = await prisma.restaurant.findFirst({
+        where: {
+          status: 'active',
+          OR: [
+            { owner: { email } },
+            ...(existingUser ? [{ ownerId: existingUser.id }] : []),
+          ],
+        },
+        select: { id: true },
+      });
 
-          const payload: TokenPayload = {
-            userId: user.id,
-            email: user.email,
-            role: user.role,
-            staffId: staff.id, // Include staffId for staff login
-          };
+      const staff = await prisma.staff.findFirst({
+        where: {
+          email,
+          role: { in: ['OWNER', 'MANAGER'] },
+          status: 'ACTIVE',
+          isDevice: false,
+        },
+      });
 
-          const accessToken = generateAccessToken(payload);
-          const refreshToken = generateRefreshToken(payload);
-
-          return {
-            user: {
-              id: user.id,
-              email: user.email,
-              role: user.role,
-            },
-            accessToken,
-            refreshToken,
-            restaurantId: staff.restaurantId,
-          };
-        }
+      if (!isAdminUser && !staff && !ownedRestaurant) {
+        throw new Error('관리자 권한이 없습니다.');
       }
-      
-      // If shop app login but not owner or staff, reject
-      throw new Error('식당 주인이나 직원만 로그인할 수 있습니다. 일반 고객은 고객 앱을 사용해주세요.');
+
+      const nextRole = existingUser?.role === UserRole.PLATFORM_ADMIN
+        ? UserRole.PLATFORM_ADMIN
+        : UserRole.ADMIN;
+
+      const user = await prisma.user.upsert({
+        where: { email },
+        update: {
+          name: name || undefined,
+          avatarUrl: avatarUrl !== undefined ? avatarUrl : undefined,
+          role: nextRole,
+        },
+        create: {
+          email,
+          name,
+          avatarUrl,
+          role: nextRole,
+        },
+      });
+
+      const payload: TokenPayload = {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        staffId: staff?.id,
+      };
+
+      const accessToken = generateAccessToken(payload);
+      const refreshToken = generateRefreshToken(payload);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+        accessToken,
+        refreshToken,
+        restaurantId: staff?.restaurantId ?? ownedRestaurant?.id ?? undefined,
+      };
     }
 
-    // For admin app or customer app (not shop app), create CUSTOMER role user
+    // 4. 일반 사용자 처리
+    // shop 앱 로그인인 경우, 등록된 매니저 직원만 허용
+    if (appType === 'shop') {
+      if (!restaurantId) {
+        throw new Error('식당 정보를 확인할 수 없습니다. 다시 시도해주세요.');
+      }
+
+      const staff = await prisma.staff.findFirst({
+        where: {
+          restaurantId,
+          email,
+          role: 'MANAGER',
+          status: 'ACTIVE',
+          isDevice: false,
+        },
+      });
+
+      if (!staff) {
+        throw new Error('등록된 매니저 계정이 아닙니다. 대표에게 문의해주세요.');
+      }
+
+      const staffRecord = await prisma.staff.update({
+        where: { id: staff.id },
+        data: {
+          name: name || staff.name,
+          avatarUrl: avatarUrl !== undefined ? avatarUrl : staff.avatarUrl,
+          status: 'ACTIVE',
+        },
+      });
+
+      let user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            email,
+            name,
+            avatarUrl,
+            role: UserRole.ADMIN,
+          },
+        });
+      } else {
+        user = await prisma.user.update({
+          where: { email },
+          data: {
+            name: name || user.name,
+            avatarUrl: avatarUrl !== undefined ? avatarUrl : user.avatarUrl,
+            role: UserRole.ADMIN,
+          },
+        });
+      }
+
+      const payload: TokenPayload = {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        staffId: staffRecord.id,
+      };
+
+      const accessToken = generateAccessToken(payload);
+      const refreshToken = generateRefreshToken(payload);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+        accessToken,
+        refreshToken,
+        restaurantId: staffRecord.restaurantId,
+      };
+    }
+
+    // For customer app (not shop/admin), create CUSTOMER role user
     let user = await prisma.user.findUnique({
       where: { email },
     });
@@ -237,65 +318,6 @@ export class AuthService {
     };
   }
 
-  async loginWithPin(staffId: string, pinCode: string): Promise<AuthResult> {
-    const staff = await prisma.staff.findUnique({
-      where: { id: staffId },
-      include: { restaurant: true },
-    });
-
-    if (!staff || staff.status !== 'ACTIVE') {
-      throw new Error('Invalid staff or inactive');
-    }
-
-    if (!staff.pinCodeHash) {
-      throw new Error('PIN code not set');
-    }
-
-    const isValid = await bcrypt.compare(pinCode, staff.pinCodeHash);
-    if (!isValid) {
-      throw new Error('Invalid PIN code');
-    }
-
-    // Create or get user for staff (only if email exists)
-    // For staff without email, create a temporary user with staff ID as email
-    let user = null;
-    const emailForUser = staff.email || `staff_${staff.id}@temp.local`;
-    
-    user = await prisma.user.findUnique({
-      where: { email: emailForUser },
-    });
-
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: emailForUser,
-          role: UserRole.ADMIN,
-        },
-      });
-    }
-
-    const payload: TokenPayload = {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      staffId: staff.id, // Include staffId in token for PIN login
-    };
-
-    const accessToken = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken(payload);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      accessToken,
-      refreshToken,
-      restaurantId: staff.restaurantId, // Include restaurantId for PIN login
-    };
-  }
-
   async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
     const { verifyToken } = await import('../utils/jwt');
     const payload = verifyToken(refreshToken);
@@ -304,7 +326,7 @@ export class AuthService {
       userId: payload.userId,
       email: payload.email,
       role: payload.role,
-      staffId: payload.staffId, // Include staffId if present (for PIN login)
+      staffId: payload.staffId,
     });
 
     return { accessToken: newAccessToken };

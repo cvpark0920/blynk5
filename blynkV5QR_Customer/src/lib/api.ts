@@ -1,4 +1,44 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const getApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    const normalized = envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+    if (typeof window !== 'undefined') {
+      const hostWithoutPort = window.location.host.split(':')[0];
+      const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+      const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+      const isEnvLocalhost = normalized.includes('localhost') || normalized.includes('127.0.0.1');
+      const envHost = (() => {
+        try {
+          return new URL(normalized).host;
+        } catch {
+          return normalized.replace(/^https?:\/\//, '').split('/')[0];
+        }
+      })();
+      const currentHost = window.location.host;
+      if (isLocalSubdomain && envHost !== currentHost) {
+        return normalized;
+      }
+      if (!isLocalhost && !isLocalSubdomain && isEnvLocalhost) {
+        return '';
+      }
+    }
+    return normalized;
+  }
+
+  if (typeof window !== 'undefined') {
+    const hostWithoutPort = window.location.host.split(':')[0];
+    const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+    const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+
+    if (!isLocalhost || isLocalSubdomain) {
+      return '';
+    }
+  }
+
+  return 'http://localhost:3000';
+};
+
+const API_URL = getApiBaseUrl();
 
 interface ApiResponse<T> {
   success: boolean;
@@ -133,6 +173,7 @@ export interface ChatMessage {
   textKo: string;
   textVn: string;
   textEn?: string;
+  detectedLanguage?: 'ko' | 'vn' | 'en' | null;
   messageType: 'TEXT' | 'IMAGE' | 'ORDER' | 'REQUEST';
   imageUrl?: string;
   metadata?: any;
@@ -295,6 +336,7 @@ class ApiClient {
     id: string;
     restaurantId: string | null;
     type: 'CUSTOMER_REQUEST' | 'STAFF_RESPONSE';
+    templateKey?: string | null;
     icon: string;
     labelKo: string;
     labelVn: string;

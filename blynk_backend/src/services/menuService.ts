@@ -145,6 +145,17 @@ export class MenuService {
     
     // If optionGroups is provided, delete existing ones and create new ones
     if (optionGroups !== undefined) {
+      // Clear order item option references first to avoid FK violations
+      await prisma.orderItemOption.deleteMany({
+        where: {
+          option: {
+            optionGroup: {
+              menuItemId: id,
+            },
+          },
+        },
+      });
+
       // Delete existing option groups (cascade will delete options)
       await prisma.menuOptionGroup.deleteMany({
         where: { menuItemId: id },

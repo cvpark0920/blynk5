@@ -27,6 +27,35 @@ import { getTranslation } from '../i18n/translations';
 
 type LangType = 'ko' | 'vn' | 'en';
 
+const getApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    const normalized = envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+    if (typeof window !== 'undefined') {
+      const hostWithoutPort = window.location.host.split(':')[0];
+      const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+      const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+      const isEnvLocalhost = normalized.includes('localhost') || normalized.includes('127.0.0.1');
+      if (!isLocalhost && !isLocalSubdomain && isEnvLocalhost) {
+        return '';
+      }
+    }
+    return normalized;
+  }
+
+  if (typeof window !== 'undefined') {
+    const hostWithoutPort = window.location.host.split(':')[0];
+    const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+    const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+
+    if (!isLocalhost || isLocalSubdomain) {
+      return '';
+    }
+  }
+
+  return 'http://localhost:3000';
+};
+
 // 백엔드 ChatMessage를 프론트엔드 ChatMessage로 변환
 const convertBackendMessage = (msg: BackendChatMessage): ChatMessage => {
   return {
@@ -35,6 +64,7 @@ const convertBackendMessage = (msg: BackendChatMessage): ChatMessage => {
     textKO: msg.textKo || '',
     textVN: msg.textVn || '',
     textEN: msg.textEn,
+    detectedLanguage: msg.detectedLanguage ?? null,
     timestamp: new Date(msg.createdAt),
     type: msg.messageType === 'TEXT' ? 'text' : msg.messageType === 'IMAGE' ? 'image' : msg.messageType === 'ORDER' ? 'order' : 'request',
     metadata: msg.metadata,
@@ -76,6 +106,11 @@ const convertBackendMenuItem = (item: BackendMenuItem, category: string, categor
 };
 
 export const BlynkApp: React.FC = () => {
+  const debugLog = (...args: unknown[]) => {
+    if (import.meta.env.DEV || localStorage.getItem('customer_debug') === '1') {
+      console.log('[BlynkApp]', ...args);
+    }
+  };
   const { lang: userLang, setLang: setUserLang } = useLanguage();
   const { sessionId, restaurantId, tableId, tableNumber, isLoading: sessionLoading, error: sessionError, refreshSession, session } = useSession();
   const [showIntro, setShowIntro] = useState(true);
@@ -121,11 +156,11 @@ export const BlynkApp: React.FC = () => {
 
     const loadRestaurant = async () => {
       try {
-        console.log('Loading restaurant for ID:', restaurantId); // 디버깅용
+        debugLog('Loading restaurant for ID:', restaurantId); // 디버깅용
         const response = await apiClient.getRestaurant(restaurantId);
-        console.log('Restaurant API Response:', response); // 디버깅용
+        debugLog('Restaurant API Response:', response); // 디버깅용
         if (response.success && response.data) {
-          console.log('Restaurant data loaded:', response.data); // 디버깅용
+          debugLog('Restaurant data loaded:', response.data); // 디버깅용
           setRestaurant(response.data);
         } else {
           console.error('Failed to load restaurant - API error:', response.error);
@@ -148,7 +183,7 @@ export const BlynkApp: React.FC = () => {
       setIsLoadingMenu(true);
       try {
         const response = await apiClient.getMenu(restaurantId);
-        console.log('Menu API Response:', response); // 디버깅용
+        debugLog('Menu API Response:', response); // 디버깅용
         if (response.success && response.data) {
           // 백엔드가 categories 배열을 직접 반환하는지 확인
           // response.data가 배열인 경우와 객체인 경우 모두 처리
@@ -156,8 +191,8 @@ export const BlynkApp: React.FC = () => {
             ? response.data 
             : (response.data as Menu).categories || [];
           
-          console.log('Categories:', categories); // 디버깅용
-          console.log('Categories length:', categories.length); // 디버깅용
+          debugLog('Categories:', categories); // 디버깅용
+          debugLog('Categories length:', categories.length); // 디버깅용
           
           // 카테고리별로 메뉴 아이템 변환 및 평탄화
           const allItems: FrontendMenuItem[] = [];
@@ -165,8 +200,8 @@ export const BlynkApp: React.FC = () => {
           // categories가 존재하고 배열인지 확인
           if (categories && Array.isArray(categories) && categories.length > 0) {
             categories.forEach((category, index) => {
-              console.log(`Category ${index}:`, category); // 디버깅용
-              console.log(`Category ${index} menuItems:`, category.menuItems); // 디버깅용
+              debugLog(`Category ${index}:`, category); // 디버깅용
+              debugLog(`Category ${index} menuItems:`, category.menuItems); // 디버깅용
               const categoryName = category.nameKo.toLowerCase().includes('음식') || category.nameKo.toLowerCase().includes('food') 
                 ? 'food' 
                 : category.nameKo.toLowerCase().includes('음료') || category.nameKo.toLowerCase().includes('drink')
@@ -184,8 +219,8 @@ export const BlynkApp: React.FC = () => {
             });
           }
           
-          console.log('All menu items:', allItems); // 디버깅용
-          console.log('Menu items count:', allItems.length); // 디버깅용
+          debugLog('All menu items:', allItems); // 디버깅용
+          debugLog('Menu items count:', allItems.length); // 디버깅용
           
           // API에서 받은 카테고리 데이터 저장
           setMenuCategories(categories);
@@ -193,14 +228,15 @@ export const BlynkApp: React.FC = () => {
 
           // Load quick chips from API
           try {
-            console.log('Loading quick chips for restaurant:', restaurantId);
+            console.log('🔄 [QuickChips] Loading quick chips for restaurant:', restaurantId);
             const quickChipsResponse = await apiClient.getQuickChips(restaurantId, 'CUSTOMER_REQUEST');
-            console.log('Quick chips response:', quickChipsResponse);
+            console.log('🔄 [QuickChips] API response:', quickChipsResponse);
             
             if (quickChipsResponse.success && quickChipsResponse.data) {
               // Convert backend format to frontend format
               const convertedChips: QuickChip[] = quickChipsResponse.data.map((chip) => ({
                 id: chip.id,
+                templateKey: chip.templateKey || undefined,
                 icon: chip.icon,
                 labelKO: chip.labelKo,
                 labelVN: chip.labelVn,
@@ -210,15 +246,15 @@ export const BlynkApp: React.FC = () => {
                 messageVN: chip.messageVn,
                 messageEN: chip.messageEn,
               }));
-              console.log('Converted chips:', convertedChips);
+              console.log('✅ [QuickChips] Converted chips:', convertedChips.length, 'chips');
               setQuickChips(convertedChips);
             } else {
-              console.error('Failed to load quick chips:', quickChipsResponse.error);
+              console.error('❌ [QuickChips] Failed to load quick chips:', quickChipsResponse.error);
               // Fallback to empty array if API fails
               setQuickChips([]);
             }
           } catch (error) {
-            console.error('Failed to load quick chips:', error);
+            console.error('❌ [QuickChips] Exception loading quick chips:', error);
             // Fallback to empty array on error
             setQuickChips([]);
           }
@@ -275,12 +311,12 @@ export const BlynkApp: React.FC = () => {
       sseClientRef.current = null;
     }
     
-    console.log('All data reset completed');
+    debugLog('All data reset completed');
   };
 
   // 세션 종료 처리 함수
   const handleSessionEnded = async () => {
-    console.log('Session ended event received');
+    debugLog('Session ended event received');
     
     // 모든 데이터 초기화
     resetAllData();
@@ -296,7 +332,7 @@ export const BlynkApp: React.FC = () => {
 
   // SSE 이벤트 핸들러
   const handleSSEEvent = (event: SSEEvent) => {
-    console.log('SSE Event received:', event);
+    debugLog('SSE Event received:', event);
     
     switch (event.type) {
       case 'order:status':
@@ -315,11 +351,11 @@ export const BlynkApp: React.FC = () => {
         break;
       
       case 'connected':
-        console.log('SSE connected at:', event.timestamp);
+        debugLog('SSE connected at:', event.timestamp);
         break;
       
       default:
-        console.log('Unknown SSE event type:', event.type);
+        debugLog('Unknown SSE event type:', event.type);
     }
   };
 
@@ -393,7 +429,7 @@ export const BlynkApp: React.FC = () => {
     
     // Prevent duplicate reloads if already reloading
     if (reloadingChatRef.current) {
-      console.log('Chat history reload already in progress, skipping duplicate SSE event');
+      debugLog('Chat history reload already in progress, skipping duplicate SSE event');
       return;
     }
 
@@ -431,7 +467,7 @@ export const BlynkApp: React.FC = () => {
 
     try {
       const response = await apiClient.getBill(sessionId);
-      console.log('Bill API Response:', response); // 디버깅용
+      debugLog('Bill API Response:', response); // 디버깅용
       
       if (response.success && response.data) {
         const { session } = response.data;
@@ -538,7 +574,7 @@ export const BlynkApp: React.FC = () => {
           console.warn('Session orders not found or not an array:', session);
         }
         
-        console.log('Parsed orders:', orders); // 디버깅용
+        debugLog('Parsed orders:', orders); // 디버깅용
         setSessionOrders(orders);
         setConfirmedOrders(orders);
       } else {
@@ -559,7 +595,7 @@ export const BlynkApp: React.FC = () => {
 
     // 세션 상태가 ENDED이면 데이터 초기화
     if (session.status === 'ENDED') {
-      console.log('Session ended detected, resetting data');
+      debugLog('Session ended detected, resetting data');
       resetAllData();
     }
   }, [session?.status, sessionLoading]);
@@ -611,7 +647,7 @@ export const BlynkApp: React.FC = () => {
   useEffect(() => {
     if (!sessionId || sessionLoading || showIntro) return;
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const API_URL = getApiBaseUrl();
     // SSE 클라이언트 생성 및 연결
     const sseUrl = `${API_URL}/api/sse/session/${sessionId}`;
     const sseClient = new SSEClient({
@@ -622,10 +658,10 @@ export const BlynkApp: React.FC = () => {
         console.error('SSE connection error:', error);
       },
       onConnect: () => {
-        console.log('SSE connected for session:', sessionId);
+        debugLog('SSE connected for session:', sessionId);
       },
       onDisconnect: () => {
-        console.log('SSE disconnected for session:', sessionId);
+        debugLog('SSE disconnected for session:', sessionId);
       },
       maxReconnectAttempts: 5,
       reconnectDelay: 3000,
@@ -647,6 +683,9 @@ export const BlynkApp: React.FC = () => {
   // Initial Welcome Message & Coach Mark Check & Auto-open menu for tables without orders
   useEffect(() => {
     if (!showIntro && !isLoadingChat && !sessionLoading) {
+      let autoOpenTimer: ReturnType<typeof setTimeout> | null = null;
+      let coachMarkTimer: ReturnType<typeof setTimeout> | null = null;
+
       // Check if table has no orders (no session orders, no confirmed orders, no cart)
       const hasNoOrders = sessionOrders.length === 0 && confirmedOrders.length === 0 && cart.length === 0;
       
@@ -654,7 +693,7 @@ export const BlynkApp: React.FC = () => {
       // Don't auto-open after placing an order
       if (hasNoOrders && !hasAutoOpenedMenuRef.current) {
         // Small delay to ensure UI is ready, then open menu
-        setTimeout(() => {
+        autoOpenTimer = setTimeout(() => {
           setIsMenuOpen(true);
           setActiveTab('menu');
           hasAutoOpenedMenuRef.current = true; // Mark as opened
@@ -665,8 +704,17 @@ export const BlynkApp: React.FC = () => {
       const hasSeen = localStorage.getItem('hasSeenCoachMark');
       if (!hasSeen) {
         // Small delay to ensure UI is ready
-        setTimeout(() => setShowCoachMark(true), 500);
+        coachMarkTimer = setTimeout(() => setShowCoachMark(true), 500);
       }
+
+      return () => {
+        if (autoOpenTimer) {
+          clearTimeout(autoOpenTimer);
+        }
+        if (coachMarkTimer) {
+          clearTimeout(coachMarkTimer);
+        }
+      };
     }
   }, [showIntro, isLoadingChat, sessionLoading, sessionOrders, confirmedOrders, cart]);
 
@@ -694,13 +742,18 @@ export const BlynkApp: React.FC = () => {
   const handleQuickAction = async (chip: QuickChip) => {
     if (!sessionId || chip.action !== 'message' || !chip.messageKO || !chip.messageVN) return;
 
+    // "요청" 접두사 제거 (메시지 시작 부분의 "요청" 제거)
+    const removeRequestPrefix = (text: string): string => {
+      return text.replace(/^요청\s+/, '').trim();
+    };
+
     try {
       const response = await apiClient.sendMessage({
         sessionId,
         senderType: 'USER',
-        textKo: chip.messageKO,
-        textVn: chip.messageVN,
-        textEn: chip.messageEN,
+        textKo: removeRequestPrefix(chip.messageKO),
+        textVn: removeRequestPrefix(chip.messageVN),
+        textEn: chip.messageEN ? removeRequestPrefix(chip.messageEN) : undefined,
         messageType: 'REQUEST',
       });
 
@@ -974,7 +1027,7 @@ export const BlynkApp: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      <div className="flex flex-col h-[100dvh] w-full bg-slate-50 fixed inset-0 overflow-hidden font-sans">
+      <div className="flex flex-col h-[100dvh] w-full bg-background fixed inset-0 overflow-hidden font-sans text-foreground">
       <input 
         type="file" 
         accept="image/*" 
@@ -989,27 +1042,27 @@ export const BlynkApp: React.FC = () => {
           className="fixed inset-0 bg-black/70 z-50 flex flex-col items-center justify-end pb-[90px] animate-in fade-in duration-500"
           onClick={dismissCoachMark}
         >
-          <div className="bg-white px-5 py-3 rounded-2xl relative shadow-xl mb-4 text-center max-w-[250px] animate-bounce cursor-pointer">
-            <p className="font-bold text-slate-900 text-sm">여기서 주문을 시작하세요!</p>
-            <p className="text-xs text-gray-500 mt-0.5">터치하면 메뉴가 열립니다</p>
+          <div className="bg-card px-5 py-3 rounded-2xl relative shadow-xl mb-4 text-center max-w-[250px] animate-bounce cursor-pointer">
+            <p className="font-bold text-foreground text-sm">여기서 주문을 시작하세요!</p>
+            <p className="text-xs text-muted-foreground mt-0.5">터치하면 메뉴가 열립니다</p>
             {/* Arrow */}
-            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45 transform border-r border-b border-gray-100"></div>
+            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-card rotate-45 transform border-r border-b border-border"></div>
           </div>
         </div>
       )}
 
       {/* Header - Fixed Height, No Sticky needed in Flex Col */}
-      <header className="flex-none flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100 z-20 shadow-sm h-14">
+      <header className="flex-none flex items-center justify-between px-5 py-3 bg-card border-b border-border z-20 shadow-sm h-14">
         <div className="flex items-center gap-3">
           {/* 식당 상호 및 테이블 번호 */}
           <div className="flex items-center gap-2">
-            <h1 className="font-bold text-base tracking-tight text-slate-900 leading-tight">
+            <h1 className="font-bold text-base tracking-tight text-foreground leading-tight">
               {restaurant 
                 ? (userLang === 'ko' ? restaurant.nameKo : userLang === 'vn' ? restaurant.nameVn : restaurant.nameEn || restaurant.nameKo)
-                : 'BLYNK'}
+                : 'QOODLE'}
             </h1>
             {tableNumber && (
-              <div className="w-5 h-5 rounded-md bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center">
+              <div className="w-5 h-5 rounded-md bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                 {tableNumber}
               </div>
             )}
@@ -1020,7 +1073,7 @@ export const BlynkApp: React.FC = () => {
           {/* Language Selector */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-9 px-2.5 rounded-full text-gray-600 hover:bg-gray-100 font-bold text-xs gap-1.5 border border-gray-100">
+              <Button variant="ghost" size="sm" className="h-9 px-2.5 rounded-full text-muted-foreground hover:bg-muted font-bold text-xs gap-1.5 border border-border">
                 <Globe size={14} />
                 {userLang.toUpperCase()}
               </Button>
@@ -1045,11 +1098,11 @@ export const BlynkApp: React.FC = () => {
                setMenuStartCart(true);
                setIsMenuOpen(true);
              }}
-             className="relative p-2 text-gray-500 hover:text-blue-600 transition-colors"
+             className="relative p-2 text-muted-foreground hover:text-primary transition-colors"
           >
              <ShoppingBag size={24} />
              {cartItemCount > 0 && (
-               <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-white animate-in zoom-in duration-200">
+               <span className="absolute top-0 right-0 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center rounded-full border border-background animate-in zoom-in duration-200">
                  {cartItemCount}
                </span>
              )}
@@ -1061,9 +1114,10 @@ export const BlynkApp: React.FC = () => {
       <div 
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-4 space-y-6 pb-40 overscroll-contain" 
+        style={{ backgroundColor: '#5C7285' }}
       >
         <div className="text-center py-4">
-           <span className="text-xs font-medium text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+           <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
              {new Date().toLocaleDateString(
                userLang === 'ko' ? 'ko-KR' : userLang === 'vn' ? 'vi-VN' : 'en-US'
              )}
@@ -1075,7 +1129,7 @@ export const BlynkApp: React.FC = () => {
       </div>
 
       {/* Floating Input Area (Above Tabs) */}
-      <div className="absolute bottom-[60px] left-0 right-0 z-30 bg-gradient-to-t from-white via-white to-white/0 pt-4 pb-2">
+      <div className="absolute bottom-[60px] left-0 right-0 z-30 bg-gradient-to-t from-background via-background to-background/0 pt-4 pb-2">
          {/* Quick Chips Row */}
          <div className="mb-2">
             <QuickActions chips={quickChips} onChipClick={handleQuickAction} />
@@ -1085,24 +1139,24 @@ export const BlynkApp: React.FC = () => {
          <div className="px-4 pb-2">
             {previewImage && (
               <div className="relative inline-block mb-2 animate-in slide-in-from-bottom-2 fade-in duration-300">
-                <div className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+                <div className="w-20 h-20 rounded-xl overflow-hidden border border-border shadow-sm">
                   <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
                 </div>
                 <button 
                   onClick={() => setPreviewImage(null)}
-                  className="absolute -top-1.5 -right-1.5 bg-gray-800 text-white rounded-full p-1 shadow-sm hover:bg-gray-700"
+                  className="absolute -top-1.5 -right-1.5 bg-foreground text-background rounded-full p-1 shadow-sm hover:bg-foreground/80"
                 >
                   <X size={12} />
                 </button>
               </div>
             )}
             
-            <div className="flex gap-2 items-end bg-white p-2 rounded-3xl border border-gray-200 shadow-lg shadow-gray-200/50">
+            <div className="flex gap-2 items-end bg-card p-2 rounded-3xl border border-border shadow-lg shadow-black/10">
                <Button 
                  onClick={() => fileInputRef.current?.click()}
                  variant="ghost"
                  size="icon"
-                 className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full h-10 w-10 shrink-0 transition-colors"
+                 className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full h-10 w-10 shrink-0 transition-colors"
                >
                  <Camera size={20} />
                </Button>
@@ -1111,15 +1165,15 @@ export const BlynkApp: React.FC = () => {
                  onChange={(e) => setInputText(e.target.value)}
                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                  placeholder={getTranslation('input.placeholder', userLang)}
-                 className="flex-1 border-none focus-visible:ring-0 bg-transparent h-10 px-0 text-base placeholder:text-gray-400"
+                 className="flex-1 border-none focus-visible:ring-0 bg-transparent h-10 px-0 text-base placeholder:text-muted-foreground/70"
                />
                <Button 
                  onClick={handleSendMessage}
                  size="icon"
                  className={`rounded-full h-10 w-10 shrink-0 transition-all ${
                    inputText.trim() || previewImage 
-                     ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
-                     : 'bg-gray-100 text-gray-400'
+                     ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90' 
+                     : 'bg-muted text-muted-foreground'
                  }`}
                  disabled={!inputText.trim() && !previewImage}
                >
@@ -1130,16 +1184,29 @@ export const BlynkApp: React.FC = () => {
       </div>
 
       {/* Bottom Tab Bar (Fixed) */}
-      <div className={`h-[60px] bg-white border-t border-gray-100 flex justify-around items-center pb-safe shadow-[0_-1px_3px_rgba(0,0,0,0.02)] transition-all flex-none z-40 relative`}>
+      <div className={`h-[60px] bg-card border-t border-border flex justify-around items-center pb-safe shadow-[0_-1px_3px_rgba(0,0,0,0.02)] transition-all flex-none z-40 relative`}>
          <button 
            onClick={() => {
              setActiveTab('event');
              setIsEventOpen(true);
              if (showCoachMark) dismissCoachMark();
            }}
-           className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'event' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'} ${showCoachMark ? 'opacity-30' : ''}`}
+          className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'event' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'} ${showCoachMark ? 'opacity-30' : ''}`}
          >
-           <PartyPopper size={22} strokeWidth={activeTab === 'event' ? 2.5 : 2} />
+           <motion.div
+             animate={{
+               opacity: [0.3, 1, 0.3],
+               scale: [1, 1.2, 1],
+               rotate: [0, 5, -5, 0],
+             }}
+             transition={{
+               duration: 1.5,
+               repeat: Infinity,
+               ease: "easeInOut",
+             }}
+           >
+             <PartyPopper size={22} strokeWidth={activeTab === 'event' ? 2.5 : 2} />
+           </motion.div>
            <span className="text-[10px] font-medium">{getTranslation('tabs.event', userLang)}</span>
          </button>
          
@@ -1152,14 +1219,14 @@ export const BlynkApp: React.FC = () => {
            }}
            className="group relative flex flex-col items-center justify-end w-full h-full pb-1"
          >
-           <div className={`absolute -top-6 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-blue-900/10 transition-all duration-300 ${
+          <div className={`absolute -top-6 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-black/10 transition-all duration-300 ${
              activeTab === 'menu' 
-             ? 'bg-slate-900 text-white scale-110 ring-4 ring-white' 
-             : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 ring-4 ring-white'
+            ? 'bg-primary text-primary-foreground scale-110 ring-4 ring-background' 
+            : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 ring-4 ring-background'
            }`}>
              <UtensilsCrossed size={24} strokeWidth={2.5} />
            </div>
-           <span className={`text-[10px] font-bold mt-8 transition-colors ${activeTab === 'menu' ? 'text-slate-900' : 'text-gray-400 group-hover:text-gray-600'}`}>
+          <span className={`text-[10px] font-bold mt-8 transition-colors ${activeTab === 'menu' ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
              {getTranslation('tabs.menu', userLang)}
            </span>
          </button>
@@ -1170,7 +1237,7 @@ export const BlynkApp: React.FC = () => {
              setIsBillOpen(true);
              if (showCoachMark) dismissCoachMark();
            }}
-           className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'bill' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'} ${showCoachMark ? 'opacity-30' : ''}`}
+          className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'bill' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'} ${showCoachMark ? 'opacity-30' : ''}`}
          >
            <Receipt size={22} strokeWidth={activeTab === 'bill' ? 2.5 : 2} />
            <span className="text-[10px] font-medium">{getTranslation('tabs.bill', userLang)}</span>

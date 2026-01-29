@@ -4,6 +4,7 @@ import { QuickChipType } from '@prisma/client';
 export interface CreateQuickChipData {
   restaurantId?: string | null;
   type: QuickChipType;
+  templateKey?: string | null;
   icon: string;
   labelKo: string;
   labelVn: string;
@@ -16,6 +17,7 @@ export interface CreateQuickChipData {
 }
 
 export interface UpdateQuickChipData {
+  templateKey?: string | null;
   icon?: string;
   labelKo?: string;
   labelVn?: string;
@@ -28,6 +30,26 @@ export interface UpdateQuickChipData {
 }
 
 export class QuickChipService {
+  private buildTemplateKey(
+    templateKey: string | null | undefined,
+    icon?: string,
+    labelKo?: string
+  ): string | null {
+    const raw = templateKey?.trim();
+    const base = raw && raw.length > 0 ? raw : `${icon || ''}-${labelKo || ''}`.trim();
+    if (!base) {
+      return null;
+    }
+    return base
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9가-힣\-_.]/g, '');
+  }
+
+  private resolveTemplateKey(chip: { templateKey?: string | null; icon: string; labelKo: string }): string | null {
+    return this.buildTemplateKey(chip.templateKey ?? null, chip.icon, chip.labelKo);
+  }
+
   async getQuickChips(restaurantId?: string | null, type?: QuickChipType, includeInactive: boolean = false) {
     const where: any = {};
     
@@ -63,6 +85,68 @@ export class QuickChipService {
     return chips;
   }
 
+  async getMergedQuickChips(
+    restaurantId: string,
+    type?: QuickChipType,
+    includeInactive: boolean = false
+  ) {
+    const baseWhere = (restaurantIdValue: string | null) => ({
+      restaurantId: restaurantIdValue,
+      ...(type ? { type } : {}),
+      ...(includeInactive ? {} : { isActive: true }),
+    });
+
+    const [platformChips, restaurantChips] = await Promise.all([
+      prisma.quickChip.findMany({
+        where: baseWhere(null),
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      }),
+      prisma.quickChip.findMany({
+        where: baseWhere(restaurantId),
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      }),
+    ]);
+
+    const mergedMap = new Map<string, typeof platformChips[number]>();
+
+    for (const chip of platformChips) {
+      const key = this.resolveTemplateKey(chip);
+      if (!key) continue;
+      mergedMap.set(key, chip);
+    }
+
+    for (const chip of restaurantChips) {
+      const key = this.resolveTemplateKey(chip);
+      if (!key) continue;
+      mergedMap.set(key, chip);
+    }
+
+    const merged = Array.from(mergedMap.values());
+    merged.sort((a, b) => {
+      if (a.displayOrder !== b.displayOrder) {
+        return a.displayOrder - b.displayOrder;
+      }
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+
+    return merged;
+  }
+
+  async getRestaurantQuickChips(
+    restaurantId: string,
+    type?: QuickChipType,
+    includeInactive: boolean = false
+  ) {
+    return prisma.quickChip.findMany({
+      where: {
+        restaurantId,
+        ...(type ? { type } : {}),
+        ...(includeInactive ? {} : { isActive: true }),
+      },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
   async getQuickChipById(id: string) {
     return await prisma.quickChip.findUnique({
       where: { id },
@@ -70,10 +154,12 @@ export class QuickChipService {
   }
 
   async createQuickChip(data: CreateQuickChipData) {
+    const templateKey = this.buildTemplateKey(data.templateKey ?? null, data.icon, data.labelKo);
     return await prisma.quickChip.create({
       data: {
         restaurantId: data.restaurantId || null,
         type: data.type,
+        templateKey,
         icon: data.icon,
         labelKo: data.labelKo,
         labelVn: data.labelVn,
@@ -88,9 +174,13 @@ export class QuickChipService {
   }
 
   async updateQuickChip(id: string, data: UpdateQuickChipData) {
+    const templateKey = data.templateKey !== undefined
+      ? this.buildTemplateKey(data.templateKey ?? null, data.icon, data.labelKo)
+      : undefined;
     return await prisma.quickChip.update({
       where: { id },
       data: {
+        ...(templateKey !== undefined && { templateKey }),
         ...(data.icon !== undefined && { icon: data.icon }),
         ...(data.labelKo !== undefined && { labelKo: data.labelKo }),
         ...(data.labelVn !== undefined && { labelVn: data.labelVn }),

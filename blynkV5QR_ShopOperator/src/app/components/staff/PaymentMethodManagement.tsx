@@ -167,7 +167,6 @@ export function PaymentMethodManagement({ isEmbedded = false }: PaymentMethodMan
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-zinc-900">{t('payment.title')}</h2>
-            <p className="text-sm text-zinc-500 mt-1">고객이 사용할 수 있는 결제 방법을 설정합니다.</p>
           </div>
         </div>
 

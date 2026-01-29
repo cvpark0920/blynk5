@@ -135,7 +135,7 @@ const resources = {
       "revenue.chart.growth": "성장 추세",
       "revenue.chart.growth_desc": "시간에 따른 플랫폼 수수료 성장",
       "settings.title": "설정",
-      "settings.subtitle": "플랫폼 환경설정 및 구성을 관리하세요.",
+      "settings.subtitle": "",
       "settings.tab.general": "일반",
       "settings.tab.commission": "수수료",
       "settings.tab.admins": "관리자",

@@ -5,7 +5,8 @@ import {
   refreshToken,
   getMe,
   logout,
-  loginWithPin,
+  redeemDeviceRegistrationCode,
+  exchangeDeviceToken,
 } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 
@@ -16,6 +17,7 @@ router.get('/google/callback', googleCallback);
 router.post('/refresh', refreshToken);
 router.get('/me', authenticate, getMe);
 router.post('/logout', authenticate, logout);
-router.post('/pin', loginWithPin);
+router.post('/device/redeem', redeemDeviceRegistrationCode);
+router.post('/device/token', exchangeDeviceToken);
 
 export default router;

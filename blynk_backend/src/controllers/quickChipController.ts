@@ -61,6 +61,7 @@ export const createQuickChip = async (
     const {
       restaurantId,
       type,
+      templateKey,
       icon,
       labelKo,
       labelVn,
@@ -83,6 +84,7 @@ export const createQuickChip = async (
     const chip = await quickChipService.createQuickChip({
       restaurantId: restaurantId || null,
       type,
+      templateKey,
       icon,
       labelKo,
       labelVn,
@@ -109,6 +111,7 @@ export const updateQuickChip = async (
   try {
     const { id } = req.params;
     const {
+      templateKey,
       icon,
       labelKo,
       labelVn,
@@ -121,6 +124,7 @@ export const updateQuickChip = async (
     } = req.body;
     
     const chip = await quickChipService.updateQuickChip(id, {
+      templateKey,
       icon,
       labelKo,
       labelVn,

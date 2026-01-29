@@ -3,12 +3,14 @@ import { createError } from '../middleware/errorHandler';
 import { TableStatus } from '@prisma/client';
 import { eventEmitter } from '../sse/eventEmitter';
 import { sessionService } from './sessionService';
+import { generateTableQRUrl } from '../utils/qrUrlGenerator';
 
 export class TableService {
   async getTablesByRestaurant(restaurantId: string) {
-    return prisma.table.findMany({
+    const tables = await prisma.table.findMany({
       where: { restaurantId },
       include: {
+        restaurant: true,
         sessions: {
           where: {
             status: 'ACTIVE',
@@ -35,6 +37,23 @@ export class TableService {
         { tableNumber: 'asc' },
       ],
     });
+
+    // Add qrCodeUrl to each table
+    return tables.map(table => {
+      try {
+        const qrCodeUrl = generateTableQRUrl(table.restaurant, table.tableNumber);
+        return {
+          ...table,
+          qrCodeUrl,
+        };
+      } catch (error) {
+        // If subdomain is not configured, qrCodeUrl will be undefined
+        return {
+          ...table,
+          qrCodeUrl: undefined,
+        };
+      }
+    });
   }
 
   async getTableById(id: string) {
@@ -58,7 +77,20 @@ export class TableService {
       throw createError('Table not found', 404);
     }
 
-    return table;
+    // Add qrCodeUrl
+    try {
+      const qrCodeUrl = generateTableQRUrl(table.restaurant, table.tableNumber);
+      return {
+        ...table,
+        qrCodeUrl,
+      };
+    } catch (error) {
+      // If subdomain is not configured, qrCodeUrl will be undefined
+      return {
+        ...table,
+        qrCodeUrl: undefined,
+      };
+    }
   }
 
   async getTableByNumber(restaurantId: string, tableNumber: number) {
@@ -66,6 +98,7 @@ export class TableService {
       where: {
         restaurantId,
         tableNumber,
+        isActive: true,
       },
       include: {
         restaurant: true,
@@ -85,7 +118,20 @@ export class TableService {
       throw createError('Table not found', 404);
     }
 
-    return table;
+    // Add qrCodeUrl
+    try {
+      const qrCodeUrl = generateTableQRUrl(table.restaurant, table.tableNumber);
+      return {
+        ...table,
+        qrCodeUrl,
+      };
+    } catch (error) {
+      // If subdomain is not configured, qrCodeUrl will be undefined
+      return {
+        ...table,
+        qrCodeUrl: undefined,
+      };
+    }
   }
 
   async updateTableStatus(id: string, status: TableStatus) {
@@ -101,6 +147,10 @@ export class TableService {
         },
       },
     });
+
+    if (currentTable && currentTable.isActive === false) {
+      throw createError('Table is inactive', 400);
+    }
 
     let endedSessionId: string | null = null;
 
@@ -147,6 +197,15 @@ export class TableService {
       },
     });
 
+    // Add qrCodeUrl
+    let qrCodeUrl: string | undefined;
+    try {
+      qrCodeUrl = generateTableQRUrl(table.restaurant, table.tableNumber);
+    } catch (error) {
+      // If subdomain is not configured, qrCodeUrl will be undefined
+      qrCodeUrl = undefined;
+    }
+
     // Emit SSE event for table status change
     await eventEmitter.publishTableStatusChanged(
       table.restaurantId,
@@ -160,7 +219,7 @@ export class TableService {
       await eventEmitter.publishSessionEnded(endedSessionId);
     }
 
-    return table;
+    return { ...table, qrCodeUrl };
   }
 
   async createTable(data: {
@@ -170,28 +229,69 @@ export class TableService {
     capacity: number;
     qrCode: string;
   }) {
-    return prisma.table.create({
+    const table = await prisma.table.create({
       data,
+      include: {
+        restaurant: true,
+      },
     });
+
+    // Add qrCodeUrl
+    try {
+      const qrCodeUrl = generateTableQRUrl(table.restaurant, table.tableNumber);
+      return {
+        ...table,
+        qrCodeUrl,
+      };
+    } catch (error) {
+      // If subdomain is not configured, qrCodeUrl will be undefined
+      return {
+        ...table,
+        qrCodeUrl: undefined,
+      };
+    }
   }
 
   async updateTable(id: string, data: {
     tableNumber?: number;
     floor?: number;
     capacity?: number;
+    isActive?: boolean;
   }) {
-    const table = await prisma.table.findUnique({
+    const existingTable = await prisma.table.findUnique({
       where: { id },
+      include: {
+        restaurant: true,
+      },
     });
 
-    if (!table) {
+    if (!existingTable) {
       throw createError('Table not found', 404);
     }
 
-    return prisma.table.update({
+    const table = await prisma.table.update({
       where: { id },
       data,
+      include: {
+        restaurant: true,
+      },
     });
+
+    // Add qrCodeUrl (use updated tableNumber if changed)
+    const tableNumber = data.tableNumber !== undefined ? data.tableNumber : table.tableNumber;
+    try {
+      const qrCodeUrl = generateTableQRUrl(table.restaurant, tableNumber);
+      return {
+        ...table,
+        qrCodeUrl,
+      };
+    } catch (error) {
+      // If subdomain is not configured, qrCodeUrl will be undefined
+      return {
+        ...table,
+        qrCodeUrl: undefined,
+      };
+    }
   }
 
   async deleteTable(id: string) {
@@ -275,6 +375,15 @@ export class TableService {
       },
     });
 
+    // Add qrCodeUrl
+    let qrCodeUrl: string | undefined;
+    try {
+      qrCodeUrl = generateTableQRUrl(table.restaurant, table.tableNumber);
+    } catch (error) {
+      // If subdomain is not configured, qrCodeUrl will be undefined
+      qrCodeUrl = undefined;
+    }
+
     // Emit SSE event for table status change
     await eventEmitter.publishTableStatusChanged(
       table.restaurantId,
@@ -288,7 +397,7 @@ export class TableService {
       await eventEmitter.publishSessionEnded(endedSessionId);
     }
 
-    return table;
+    return { ...table, qrCodeUrl };
   }
 }
 

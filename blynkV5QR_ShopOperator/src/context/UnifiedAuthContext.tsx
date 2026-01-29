@@ -1,8 +1,44 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { getSubdomain, isReservedSubdomain } from '../../../src/utils/subdomain';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const getApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    const normalized = envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+    if (typeof window !== 'undefined') {
+      const hostWithoutPort = window.location.host.split(':')[0];
+      const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+      const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+      const isEnvLocalhost = normalized.includes('localhost') || normalized.includes('127.0.0.1');
+      if (!isLocalhost && !isLocalSubdomain && isEnvLocalhost) {
+        return '';
+      }
+    }
+    return normalized;
+  }
+
+  if (typeof window !== 'undefined') {
+    const hostWithoutPort = window.location.host.split(':')[0];
+    const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+    const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+
+    if (!isLocalhost || isLocalSubdomain) {
+      return '';
+    }
+  }
+
+  return 'http://localhost:3000';
+};
+
+const API_URL = getApiBaseUrl();
+
+const debugLog = (...args: unknown[]) => {
+  if (import.meta.env.DEV || (typeof window !== 'undefined' && window.localStorage.getItem('shop_debug') === '1')) {
+    console.log('[UnifiedAuth]', ...args);
+  }
+};
 
 // Types
 interface AdminUser {
@@ -19,7 +55,6 @@ interface ShopStaff {
   email: string;
   role: 'OWNER' | 'MANAGER' | 'STAFF' | 'KITCHEN' | 'HALL';
   status: 'active' | 'inactive' | 'pending';
-  pinCode?: string;
   phone?: string;
   joinedAt: Date;
   avatarUrl?: string;
@@ -48,7 +83,6 @@ interface UnifiedAuthContextType {
   // 공통 함수
   loginAdmin: () => Promise<void>;
   loginShop: (restaurantId: string) => Promise<void>;
-  loginShopWithPin: (restaurantId: string, staffId: string, pinCode: string) => Promise<void>;
   logoutAdmin: () => Promise<void>;
   logoutShop: () => Promise<void>;
   refreshTokens: () => Promise<void>;
@@ -69,6 +103,18 @@ const getUnifiedToken = (key: 'accessToken' | 'refreshToken'): string | null => 
 const setUnifiedTokens = (accessToken: string, refreshToken: string): void => {
   localStorage.setItem('unified_accessToken', accessToken);
   localStorage.setItem('unified_refreshToken', refreshToken);
+};
+
+const getDeviceToken = (): string | null => {
+  return localStorage.getItem('device_token');
+};
+
+const getDeviceId = (): string | null => {
+  return localStorage.getItem('device_id');
+};
+
+const clearDeviceToken = (): void => {
+  localStorage.removeItem('device_token');
 };
 
 const clearUnifiedTokens = (): void => {
@@ -142,7 +188,7 @@ async function apiRequest<T>(
 }
 
 export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
-  console.log('🔵 UnifiedAuthProvider component rendered');
+  debugLog('🔵 UnifiedAuthProvider component rendered');
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -156,6 +202,33 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
   const [shopStaffList, setShopStaffList] = useState<ShopStaff[]>([]);
   const [shopUserRole, setShopUserRole] = useState<'OWNER' | 'MANAGER' | 'STAFF' | null>(null);
   const [shopOwnerInfo, setShopOwnerInfo] = useState<ShopOwnerInfo | null>(null);
+
+  const exchangeDeviceToken = useCallback(async () => {
+    const deviceToken = getDeviceToken();
+    const deviceId = getDeviceId();
+    if (!deviceToken || !deviceId) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/device/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken, deviceId }),
+      });
+      const result = await response.json();
+      if (result.success && result.data?.accessToken && result.data?.refreshToken) {
+        setUnifiedTokens(result.data.accessToken, result.data.refreshToken);
+        setAppType('shop');
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to exchange device token:', error);
+    }
+
+    clearDeviceToken();
+    return false;
+  }, []);
 
   // Refresh admin user info
   const refreshAdminUser = useCallback(async () => {
@@ -183,12 +256,12 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
   // Refresh shop user info
   const refreshShopUser = useCallback(async () => {
     if (!getUnifiedToken('accessToken')) {
-      console.log('No access token found, skipping refreshShopUser');
+      debugLog('No access token found, skipping refreshShopUser');
       return;
     }
 
     try {
-      console.log('Calling /api/auth/me...');
+      debugLog('Calling /api/auth/me...');
       const result = await apiRequest<{
         id: string;
         email: string;
@@ -207,15 +280,15 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
         };
       }>('/api/auth/me');
 
-      console.log('API response:', result);
+      debugLog('API response:', result);
 
       if (result.success && result.data) {
         const data = result.data;
-        console.log('User data:', { role: data.role, ownerRestaurantId: data.ownerRestaurantId, hasStaff: !!data.staff });
+        debugLog('User data:', { role: data.role, ownerRestaurantId: data.ownerRestaurantId, hasStaff: !!data.staff });
         
         // Check if this is a PIN login (has staff data)
         if (data.staff) {
-          console.log('PIN login detected');
+          debugLog('PIN login detected');
           const staff = data.staff;
           const mappedStaff: ShopStaff = {
             id: staff.id,
@@ -223,7 +296,6 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
             email: staff.email,
             role: staff.role.toLowerCase() as ShopStaff['role'],
             status: 'active',
-            pinCode: '',
             phone: staff.phone || '',
             joinedAt: new Date(),
             avatarUrl: staff.avatarUrl || '',
@@ -246,7 +318,7 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
             }
           }
         } else if (data.role === 'ADMIN') {
-          console.log('ADMIN role detected, checking for restaurant ownership');
+          debugLog('ADMIN role detected, checking for restaurant ownership');
           const urlMatch = location.pathname.match(/\/shop\/restaurant\/([^/]+)/);
           const urlRestaurantId = urlMatch ? urlMatch[1] : null;
           
@@ -255,11 +327,11 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
           // If ownerRestaurantId is not in response, try to get it from URL or API
           if (!userRestaurantId && urlRestaurantId) {
             try {
-              console.log('Trying to get restaurant info from URL:', urlRestaurantId);
+              debugLog('Trying to get restaurant info from URL:', urlRestaurantId);
               const restaurantResult = await apiRequest<any>(`/api/staff/my-restaurant?restaurantId=${urlRestaurantId}`);
               if (restaurantResult.success && restaurantResult.data) {
                 userRestaurantId = restaurantResult.data.id;
-                console.log('Found restaurant from URL:', userRestaurantId);
+                debugLog('Found restaurant from URL:', userRestaurantId);
               }
             } catch (error) {
               console.error('Failed to get restaurant by URL:', error);
@@ -269,7 +341,7 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
           // If still no restaurantId, try to find restaurant by owner email
           if (!userRestaurantId) {
             try {
-              console.log('Trying to find restaurant by owner email:', data.email);
+              debugLog('Trying to find restaurant by owner email:', data.email);
               // We need to check if this user is the owner of any restaurant
               // This requires a backend API endpoint, but for now we'll use the URL restaurantId
               if (urlRestaurantId) {
@@ -281,7 +353,7 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
           }
           
           if (userRestaurantId) {
-            console.log('Setting shop user as OWNER with restaurantId:', userRestaurantId);
+            debugLog('Setting shop user as OWNER with restaurantId:', userRestaurantId);
             setShopUserRole('OWNER');
             setShopOwnerInfo({
               name: data.name || data.email.split('@')[0],
@@ -305,7 +377,7 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
                 setShopRestaurantId(apiRestaurantId);
                 const restaurantName = restaurantResult.data.nameKo || restaurantResult.data.nameVn || restaurantResult.data.nameEn || null;
                 setShopRestaurantName(restaurantName);
-                console.log('Restaurant name set:', restaurantName);
+                debugLog('Restaurant name set:', restaurantName);
               }
             } catch (error) {
               console.error('Failed to get restaurant name:', error);
@@ -314,7 +386,7 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
             console.warn(`${data.role} user but no restaurant found`);
           }
         } else {
-          console.log('User role is not ADMIN and no staff data:', data.role);
+          debugLog('User role is not ADMIN and no staff data:', data.role);
         }
       } else {
         console.error('API request failed:', result.error);
@@ -327,20 +399,20 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
 
   // Handle OAuth callback
   useEffect(() => {
-    console.log('=== UnifiedAuthProvider useEffect triggered ===');
-    console.log('pathname:', location.pathname);
-    console.log('search:', location.search);
-    console.log('hasToken in localStorage:', !!getUnifiedToken('accessToken'));
+    debugLog('=== UnifiedAuthProvider useEffect triggered ===');
+    debugLog('pathname:', location.pathname);
+    debugLog('search:', location.search);
+    debugLog('hasToken in localStorage:', !!getUnifiedToken('accessToken'));
     
     const urlParams = new URLSearchParams(location.search);
     const accessToken = urlParams.get('accessToken');
     const refreshToken = urlParams.get('refreshToken');
     
-    console.log('accessToken from URL:', accessToken ? 'exists' : 'missing');
-    console.log('refreshToken from URL:', refreshToken ? 'exists' : 'missing');
+    debugLog('accessToken from URL:', accessToken ? 'exists' : 'missing');
+    debugLog('refreshToken from URL:', refreshToken ? 'exists' : 'missing');
 
     if (accessToken && refreshToken) {
-      console.log('✅ OAuth callback detected, setting tokens');
+      debugLog('✅ OAuth callback detected, setting tokens');
       setUnifiedTokens(accessToken, refreshToken);
       
       // Determine app type from path
@@ -355,17 +427,91 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
           toast.error('Authentication failed');
         });
       } else if (location.pathname.startsWith('/shop')) {
-        console.log('✅ Shop app detected in OAuth callback');
+        console.log('✅ [OAuth Callback] Shop app detected in OAuth callback');
         setAppType('shop');
+        
+        // 서브도메인 기반인지 확인
+        const subdomain = getSubdomain();
+        const useSubdomain = subdomain && !isReservedSubdomain(subdomain);
+        const host = window.location.host;
+        console.log('🔄 [OAuth Callback] Subdomain check:', { 
+          subdomain, 
+          useSubdomain, 
+          host,
+          pathname: location.pathname,
+          search: location.search,
+          reserved: subdomain ? isReservedSubdomain(subdomain) : false
+        });
+        
+        // 서브도메인 기반일 때는 백엔드에서 restaurantId 가져오기
+        if (useSubdomain) {
+          console.log('🔄 [OAuth Callback] Fetching restaurantId from subdomain:', subdomain);
+          const apiUrl = API_URL || '';
+          const fetchUrl = `${apiUrl}/api/public/restaurant`;
+          console.log('🔄 [OAuth Callback] API URL:', fetchUrl);
+          
+          fetch(fetchUrl)
+            .then(res => {
+              console.log('🔄 [OAuth Callback] Response status:', res.status);
+              if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+              }
+              return res.json();
+            })
+            .then(data => {
+              console.log('🔄 [OAuth Callback] Response data:', data);
+              if (data.success && data.data) {
+                const fetchedRestaurantId = data.data.id;
+                console.log('✅ [OAuth Callback] Restaurant fetched:', fetchedRestaurantId);
+                setShopRestaurantId(fetchedRestaurantId);
+                
+                // Clear URL params for subdomain-based routing
+                console.log('🔄 [OAuth Callback] Clearing URL params for subdomain-based routing');
+                window.history.replaceState({}, '', '/shop');
+                
+                console.log('🔄 [OAuth Callback] Calling refreshShopUser');
+                refreshShopUser().then(() => {
+                  console.log('✅ [OAuth Callback] refreshShopUser completed successfully');
+                  toast.success('Successfully logged in');
+                }).catch((error) => {
+                  console.error('❌ [OAuth Callback] Auth callback error:', error);
+                  toast.error('Authentication failed');
+                });
+              } else {
+                console.error('❌ [OAuth Callback] Invalid response data:', data);
+                throw new Error('Failed to fetch restaurant: invalid response');
+              }
+            })
+            .catch(err => {
+              console.error('❌ [OAuth Callback] Failed to fetch restaurant from subdomain:', err);
+              console.error('❌ [OAuth Callback] Subdomain:', subdomain, 'Host:', host);
+              toast.error(`식당을 찾을 수 없습니다. (서브도메인: ${subdomain || '없음'})`);
+              clearUnifiedTokens();
+              navigate('/shop/login');
+            });
+          return; // 서브도메인 기반일 때는 여기서 종료
+        }
+        
+        // 기존 URL 형식: URL에서 restaurantId 추출
         const urlMatch = location.pathname.match(/\/shop\/restaurant\/([^/]+)/);
         const urlRestaurantId = urlMatch ? urlMatch[1] : null;
-        console.log('Extracted restaurantId from URL:', urlRestaurantId);
+        console.log('🔄 [OAuth Callback] URL-based extraction:', { 
+          pathname: location.pathname, 
+          urlRestaurantId,
+          subdomain,
+          useSubdomain
+        });
         
         if (!urlRestaurantId || urlRestaurantId === 'unknown') {
-          console.error('❌ No valid restaurantId found');
-          toast.error('식당 ID가 필요합니다. 올바른 URL로 접근해주세요.');
+          console.error('❌ [OAuth Callback] No valid restaurantId found', {
+            pathname: location.pathname,
+            subdomain,
+            useSubdomain,
+            host
+          });
+          toast.error(`식당 ID가 필요합니다. (서브도메인: ${subdomain || '없음'}, 경로: ${location.pathname})`);
           clearUnifiedTokens();
-          navigate('restaurant/unknown/login');
+          navigate('/shop/restaurant/unknown/login');
           return;
         }
         
@@ -374,12 +520,12 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
         
         // Clear URL params but preserve restaurantId path
         const newPath = `/shop/restaurant/${urlRestaurantId}/dashboard`;
-        console.log('Clearing URL params, navigating to:', newPath);
+        debugLog('Clearing URL params, navigating to:', newPath);
         window.history.replaceState({}, '', newPath);
         
-        console.log('🔄 Calling refreshShopUser after OAuth callback');
+        debugLog('🔄 Calling refreshShopUser after OAuth callback');
         refreshShopUser().then(() => {
-          console.log('✅ refreshShopUser completed successfully');
+          debugLog('✅ refreshShopUser completed successfully');
           toast.success('Successfully logged in');
         }).catch((error) => {
           console.error('❌ Auth callback error:', error);
@@ -387,42 +533,86 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
         });
       }
     } else if (getUnifiedToken('accessToken')) {
-      console.log('✅ Existing token found in localStorage, checking authentication');
+      debugLog('✅ Existing token found in localStorage, checking authentication');
       // Check existing authentication
       const appType = localStorage.getItem('unified_appType');
-      console.log('App type from localStorage:', appType);
+      debugLog('App type from localStorage:', appType);
       
       // If path is /shop, always refresh shop user (even if appType is not set)
       if (location.pathname.startsWith('/shop')) {
-        console.log('🔄 Shop path detected, refreshing shop user');
+        debugLog('🔄 Shop path detected, refreshing shop user');
         setAppType('shop');
         
-        // Extract restaurantId from URL if not already set
-        const urlMatch = location.pathname.match(/\/shop\/restaurant\/([^/]+)/);
-        const urlRestaurantId = urlMatch ? urlMatch[1] : null;
-        if (urlRestaurantId && urlRestaurantId !== restaurantId) {
-          console.log('Setting restaurantId from URL:', urlRestaurantId);
-          setShopRestaurantId(urlRestaurantId);
-        }
+        // 서브도메인 기반인지 확인
+        const subdomain = getSubdomain();
+        const useSubdomain = subdomain && !isReservedSubdomain(subdomain);
         
-        refreshShopUser().catch((error) => {
-          console.error('❌ Failed to refresh shop user:', error);
-        });
+        // 서브도메인 기반일 때는 백엔드에서 restaurantId 가져오기
+        if (useSubdomain && !shopRestaurantId) {
+          debugLog('🔄 Fetching restaurantId from subdomain for existing token...');
+          fetch(`${API_URL || ''}/api/public/restaurant`)
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+              }
+              return res.json();
+            })
+            .then(data => {
+              if (data.success && data.data) {
+                const fetchedRestaurantId = data.data.id;
+                debugLog('Restaurant fetched from subdomain:', fetchedRestaurantId);
+                setShopRestaurantId(fetchedRestaurantId);
+                refreshShopUser().catch((error) => {
+                  console.error('❌ Failed to refresh shop user:', error);
+                });
+              } else {
+                throw new Error('Failed to fetch restaurant');
+              }
+            })
+            .catch(err => {
+              console.error('Failed to fetch restaurant from subdomain:', err);
+              refreshShopUser().catch((error) => {
+                console.error('❌ Failed to refresh shop user:', error);
+              });
+            });
+        } else {
+          // 기존 URL 형식: URL에서 restaurantId 추출
+          const urlMatch = location.pathname.match(/\/shop\/restaurant\/([^/]+)/);
+          const urlRestaurantId = urlMatch ? urlMatch[1] : null;
+          if (urlRestaurantId && urlRestaurantId !== shopRestaurantId) {
+            debugLog('Setting restaurantId from URL:', urlRestaurantId);
+            setShopRestaurantId(urlRestaurantId);
+          }
+          
+          refreshShopUser().catch((error) => {
+            console.error('❌ Failed to refresh shop user:', error);
+          });
+        }
       } else if (appType === 'admin') {
-        console.log('🔄 Refreshing admin user');
+        debugLog('🔄 Refreshing admin user');
         refreshAdminUser();
       } else if (appType === 'shop') {
-        console.log('🔄 Refreshing shop user');
+        debugLog('🔄 Refreshing shop user');
         refreshShopUser().catch((error) => {
           console.error('❌ Failed to refresh shop user:', error);
         });
       } else {
         console.warn('⚠️ No app type found in localStorage');
       }
+    } else if (getDeviceToken() && getDeviceId()) {
+      debugLog('🔄 Device token found, exchanging for session');
+      exchangeDeviceToken().then((success) => {
+        if (success) {
+          setAppType('shop');
+          refreshShopUser().catch((error) => {
+            console.error('❌ Failed to refresh shop user:', error);
+          });
+        }
+      });
     } else {
-      console.log('ℹ️ No tokens found in URL or localStorage');
+      debugLog('ℹ️ No tokens found in URL or localStorage');
     }
-  }, [location.pathname, location.search, refreshAdminUser, refreshShopUser, navigate]);
+  }, [location.pathname, location.search, refreshAdminUser, refreshShopUser, navigate, exchangeDeviceToken]);
 
   // Login functions
   const loginAdmin = async () => {
@@ -432,50 +622,19 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
 
   const loginShop = async (restaurantId: string) => {
     const appType = 'shop';
+    const subdomain = getSubdomain();
     const params = new URLSearchParams({ appType, restaurantId });
+    if (subdomain && !isReservedSubdomain(subdomain)) {
+      params.append('subdomain', subdomain);
+    }
+    console.log('🔄 [loginShop] Redirecting to Google OAuth:', {
+      url: `${API_URL}/api/auth/google?${params.toString()}`,
+      restaurantId,
+      subdomain
+    });
     window.location.href = `${API_URL}/api/auth/google?${params.toString()}`;
   };
 
-  const loginShopWithPin = async (restaurantId: string, staffId: string, pinCode: string) => {
-    try {
-      const result = await apiRequest<{
-        user: { id: string; email: string; role: string };
-        accessToken: string;
-        refreshToken: string;
-        restaurantId?: string;
-      }>('/api/auth/pin', {
-        method: 'POST',
-        body: JSON.stringify({ staffId, pinCode }),
-      });
-
-      if (result.success && result.data) {
-        setUnifiedTokens(result.data.accessToken, result.data.refreshToken);
-        setAppType('shop');
-        
-        const staff = shopStaffList.find(s => s.id === staffId);
-        if (staff) {
-          const staffRestaurantId = result.data.restaurantId;
-          if (staffRestaurantId && staffRestaurantId !== restaurantId) {
-            toast.error('이 식당에 대한 접근 권한이 없습니다.');
-            throw new Error('Restaurant ID mismatch');
-          }
-          
-          setShopUser(staff);
-          setShopUserRole(staff.role as 'OWNER' | 'MANAGER' | 'STAFF');
-          if (staffRestaurantId) {
-            setShopRestaurantId(staffRestaurantId);
-          }
-          toast.success(`Welcome back, ${staff.name}!`);
-        }
-      } else {
-        throw new Error(result.error?.message || 'PIN login failed');
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Incorrect PIN';
-      toast.error(errorMessage);
-      throw error;
-    }
-  };
 
   const logoutAdmin = async () => {
     try {
@@ -546,7 +705,6 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
         shopOwnerInfo,
         loginAdmin,
         loginShop,
-        loginShopWithPin,
         logoutAdmin,
         logoutShop,
         refreshTokens,

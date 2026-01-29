@@ -5,6 +5,8 @@ services:
     image: ${DOCKER_USERNAME:-your-docker-username}/blynk-backend:latest
     container_name: blynk_backend_prod
     restart: unless-stopped
+    env_file:
+      - .env.production
     ports:
       - "3000:3000"
     environment:
@@ -24,6 +26,9 @@ services:
       VIETQR_API_KEY: ${VIETQR_API_KEY:-}
       UPLOAD_MAX_SIZE: ${UPLOAD_MAX_SIZE:-5242880}
       UPLOAD_ALLOWED_TYPES: ${UPLOAD_ALLOWED_TYPES:-image/jpeg,image/png,image/webp}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:support@qoodle.top}
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,6 +36,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./public/uploads:/app/public/uploads
     networks:
       - blynk_network
     healthcheck:

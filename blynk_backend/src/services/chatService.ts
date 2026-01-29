@@ -81,11 +81,15 @@ export class ChatService {
 
     const message = await prisma.chatMessage.create({
       data: {
-        ...data,
+        sessionId: data.sessionId,
+        senderType: data.senderType,
         textKo,
         textVn,
         textEn,
-        detectedLanguage,
+        detectedLanguage: detectedLanguage || null,
+        messageType: data.messageType,
+        imageUrl: data.imageUrl || null,
+        metadata: data.metadata || {},
       },
       include: {
         session: {
@@ -122,7 +126,7 @@ export class ChatService {
     );
 
     // If message is from user, notify staff
-    if (data.senderType === 'USER') {
+    if (data.senderType === 'USER' && message.session) {
       const tableNumber = message.session.table?.tableNumber || 0;
       
       // Don't publish chat:new SSE event for ORDER type messages

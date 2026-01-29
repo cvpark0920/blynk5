@@ -115,7 +115,8 @@ npm run dev
 - `POST /api/auth/logout` - 로그아웃
 - `POST /api/auth/refresh` - 토큰 갱신
 - `GET /api/auth/me` - 현재 사용자 정보
-- `POST /api/auth/pin` - PIN 코드 로그인 (직원용)
+- `POST /api/auth/device/redeem` - 디바이스 등록 코드 교환
+- `POST /api/auth/device/token` - 디바이스 토큰으로 세션 발급
 
 ### 고객 API
 - `GET /api/customer/restaurant/:qrCode` - QR 코드로 식당 정보 조회

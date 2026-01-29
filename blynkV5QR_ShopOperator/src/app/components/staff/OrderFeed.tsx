@@ -96,19 +96,19 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
   return (
     <div className="w-full h-full flex flex-col">
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'cooking')} className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-6 shrink-0 border-b border-zinc-200">
-          <TabsList className="bg-transparent p-0 h-auto w-full md:w-auto gap-1">
-            <TabsTrigger value="pending" className="gap-2 px-4 py-2.5 data-[state=active]:bg-zinc-900 data-[state=active]:text-white data-[state=active]:shadow-none rounded-lg border-0">
+        <div className="px-6 shrink-0">
+          <TabsList className="bg-muted/60 p-0.5 h-9 w-full gap-1 rounded-lg">
+            <TabsTrigger value="pending" className="gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0">
               <ChefHat size={14} />
-              <span className="text-sm font-semibold">{t('feed.tab.new_orders')}</span>
-              <span className="text-xs bg-zinc-200 data-[state=active]:bg-zinc-700 text-zinc-600 data-[state=active]:text-zinc-200 px-1.5 py-0.5 rounded font-medium">
+              <span className="text-xs font-semibold">{t('feed.tab.new_orders')}</span>
+              <span className="text-[11px] bg-background/80 data-[state=active]:bg-primary/20 text-muted-foreground data-[state=active]:text-primary-foreground px-1.5 py-0.5 rounded font-medium">
                 {pendingOrders.length}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="cooking" className="gap-2 px-4 py-2.5 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-none rounded-lg border-0">
+            <TabsTrigger value="cooking" className="gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0">
               <Timer size={14} />
-              <span className="text-sm font-semibold">{t('feed.tab.cooking')}</span>
-              <span className="text-xs bg-zinc-200 data-[state=active]:bg-blue-400 text-zinc-600 data-[state=active]:text-white px-1.5 py-0.5 rounded font-medium">
+              <span className="text-xs font-semibold">{t('feed.tab.cooking')}</span>
+              <span className="text-[11px] bg-background/80 data-[state=active]:bg-primary/20 text-muted-foreground data-[state=active]:text-primary-foreground px-1.5 py-0.5 rounded font-medium">
                 {cookingOrders.length}
               </span>
             </TabsTrigger>

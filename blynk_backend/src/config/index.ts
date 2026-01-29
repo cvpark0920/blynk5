@@ -46,7 +46,59 @@ export const config = {
   
   // CORS
   cors: {
-    origin: process.env.CORS_ORIGIN?.split(',').map(origin => origin.trim()) || ['http://localhost:5173'],
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // origin이 없으면 (같은 origin 요청) 허용
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map(o => o.trim()) || [
+        'http://localhost:5173',
+        'http://localhost:3000',
+      ];
+
+      // 허용된 origin 목록에 있으면 허용
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      // 운영 도메인 서브도메인 허용
+      if (origin === 'https://qoodle.top' || origin.endsWith('.qoodle.top')) {
+        callback(null, true);
+        return;
+      }
+
+      // 와일드카드 패턴 허용 (예: https://*.qoodle.top)
+      const matchesWildcardOrigin = allowedOrigins.some((allowed) => {
+        if (!allowed.includes('*')) return false;
+        const escaped = allowed.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace('\\*', '[^.]+');
+        const regex = new RegExp(`^${escaped}$`);
+        return regex.test(origin);
+      });
+
+      if (matchesWildcardOrigin) {
+        callback(null, true);
+        return;
+      }
+
+      // 로컬 서브도메인 허용 (포트 유무 모두 허용)
+      const isLocalhostSubdomain = (
+        /^https?:\/\/[^.]+\.localhost(?::\d+)?$/.test(origin) ||
+        /^https?:\/\/.*\.localhost(?::\d+)?$/.test(origin)
+      );
+
+      // 로컬 루트 호스트 허용 (프록시 환경)
+      const isLocalhostRoot = /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin);
+
+      if (isLocalhostSubdomain || isLocalhostRoot) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Not allowed by CORS: ${origin}`));
+      }
+    },
+    credentials: true,
   },
   
   // File upload
@@ -59,5 +111,12 @@ export const config = {
   vietqr: {
     clientId: process.env.VIETQR_CLIENT_ID || '',
     apiKey: process.env.VIETQR_API_KEY || '',
+  },
+
+  // Web Push (VAPID)
+  webPush: {
+    publicKey: process.env.VAPID_PUBLIC_KEY || '',
+    privateKey: process.env.VAPID_PRIVATE_KEY || '',
+    subject: process.env.VAPID_SUBJECT || 'mailto:support@qoodle.top',
   },
 };

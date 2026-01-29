@@ -2,6 +2,7 @@ import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { sseHandler } from '../sse/sseHandler';
 import { AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
+import { logger } from '../utils/logger';
 
 export const connectSessionSSE: RequestHandler = async (
   req: Request,
@@ -20,6 +21,10 @@ export const connectSessionSSE: RequestHandler = async (
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering in nginx
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+    res.write(`: connected\n\n`);
 
     const channel = `sse:session:${sessionId}`;
 
@@ -33,6 +38,7 @@ export const connectSessionSSE: RequestHandler = async (
       try {
         res.write(`: heartbeat\n\n`);
       } catch (error) {
+        logger.warn('SSE heartbeat failed (session)', { sessionId, error: (error as Error)?.message });
         clearInterval(heartbeat);
       }
     }, 30000); // Every 30 seconds
@@ -40,6 +46,13 @@ export const connectSessionSSE: RequestHandler = async (
     req.on('close', () => {
       clearInterval(heartbeat);
       sseHandler.removeClient(channel, { response: res });
+      logger.info('SSE session connection closed', {
+        sessionId,
+        channel,
+        writableEnded: res.writableEnded,
+        writableFinished: (res as any).writableFinished,
+      });
+      res.end();
     });
   } catch (error) {
     next(error);
@@ -94,6 +107,10 @@ export const connectStaffSSE: RequestHandler = async (
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+    res.write(`: connected\n\n`);
 
     const channel = `sse:restaurant:${restaurantId}:staff`;
 
@@ -107,6 +124,7 @@ export const connectStaffSSE: RequestHandler = async (
       try {
         res.write(`: heartbeat\n\n`);
       } catch (error) {
+        logger.warn('SSE heartbeat failed (staff)', { restaurantId, error: (error as Error)?.message });
         clearInterval(heartbeat);
       }
     }, 30000);
@@ -114,6 +132,13 @@ export const connectStaffSSE: RequestHandler = async (
     req.on('close', () => {
       clearInterval(heartbeat);
       sseHandler.removeClient(channel, { response: res });
+      logger.info('SSE staff connection closed', {
+        restaurantId,
+        channel,
+        writableEnded: res.writableEnded,
+        writableFinished: (res as any).writableFinished,
+      });
+      res.end();
     });
   } catch (error) {
     next(error);

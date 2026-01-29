@@ -205,7 +205,7 @@ export function NotificationsView({ open, onOpenChange }: NotificationsViewProps
   const NotificationList = () => (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between py-2 mb-2">
-        <Tabs defaultValue="all" onValueChange={setFilter} className="w-full">
+        <Tabs value={filter} onValueChange={setFilter} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="all">전체</TabsTrigger>
               <TabsTrigger value="unread">미확인</TabsTrigger>

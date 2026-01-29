@@ -9,7 +9,6 @@ interface AuthContextType {
   currentUser: Staff | null;
   isAuthenticated: boolean;
   login: () => Promise<void>;
-  loginWithPin: (staffId: string, pinCode: string) => Promise<void>;
   logout: () => Promise<void>;
   staffList: Staff[];
   setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
@@ -67,7 +66,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: staff.email || '',
             role: staff.role.toLowerCase() as Staff['role'],
             status: 'active',
-            pinCode: '', // PIN is not returned for security
             phone: staff.phone || '',
             joinedAt: new Date(),
             avatarUrl: staff.avatarUrl || '',
@@ -191,37 +189,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshUserInfo]);
 
-  const loginWithPin = async (staffId: string, pinCode: string) => {
-    try {
-      const result = await apiClient.loginWithPin(staffId, pinCode);
-      if (result.success && result.data) {
-    const staff = staffList.find(s => s.id === staffId);
-    if (staff) {
-          // Verify restaurantId matches URL
-          const staffRestaurantId = result.data.restaurantId;
-          const urlRestaurantId = getRestaurantIdFromUrl();
-          if (urlRestaurantId && urlRestaurantId !== 'unknown' && staffRestaurantId && staffRestaurantId !== urlRestaurantId) {
-            toast.error('이 식당에 대한 접근 권한이 없습니다.');
-            throw new Error('Restaurant ID mismatch');
-          }
-          
-        setCurrentUser(staff);
-          setUserRole(staff.role as 'OWNER' | 'MANAGER' | 'STAFF');
-          if (staffRestaurantId) {
-            setRestaurantId(staffRestaurantId);
-          }
-        toast.success(`Welcome back, ${staff.name}!`);
-        }
-      } else {
-        throw new Error(result.error?.message || 'PIN login failed');
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Incorrect PIN';
-      toast.error(errorMessage);
-      throw error;
-    }
-  };
-
   const login = async () => {
     // Redirect to backend Google OAuth
     const urlRestaurantId = getRestaurantIdFromUrl();
@@ -247,7 +214,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       currentUser, 
       isAuthenticated: !!currentUser || !!userRole, 
       login, 
-      loginWithPin,
       logout,
       staffList,
       setStaffList,
