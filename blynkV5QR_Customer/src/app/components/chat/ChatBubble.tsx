@@ -187,23 +187,31 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
                         <span className={`text-sm font-bold truncate ${isUser ? 'text-foreground' : 'text-white'}`}>{itemName}</span>
-                        <span className={`text-sm font-bold ml-2 ${isUser ? 'text-foreground/80' : 'text-white/80'}`}>×{item.quantity}</span>
+                        <span className={`text-sm font-bold ml-2 shrink-0 ${isUser ? 'text-foreground/80' : 'text-white/80'}`}>
+                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(priceVND * item.quantity)}
+                        </span>
                       </div>
                       {itemSub && (
                         <p className={`text-xs truncate ${isUser ? 'text-foreground/80' : 'text-white/80'}`}>{itemSub}</p>
                       )}
+                      <div className={`text-xs mt-0.5 ${isUser ? 'text-foreground/70' : 'text-white/70'}`}>
+                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(priceVND)} × {item.quantity}
+                      </div>
                       {selectedOptions.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-muted/30">
                           {selectedOptions.map((opt: any, i: number) => {
                             const optLabel = userLang === 'ko' ? opt.labelKO : userLang === 'vn' ? opt.labelVN : (opt.labelEN || opt.labelKO);
+                            const optPrice = opt.priceVND || opt.price || 0;
+                            const optQuantity = opt.quantity || 1;
                             return (
-                              <span 
-                                key={i} 
-                                className={`text-[10px] px-1.5 py-0.5 rounded ${isUser ? 'text-foreground' : 'text-white'}`}
-                                style={isUser ? { backgroundColor: 'rgba(0, 0, 0, 0.1)' } : { backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
-                              >
-                                {optLabel}
-                              </span>
+                              <div key={i} className="flex justify-between items-center text-[10px]">
+                                <span className={`${isUser ? 'text-foreground/70' : 'text-white/70'}`}>
+                                  + {optLabel} {optQuantity > 1 ? `× ${optQuantity}` : ''}
+                                </span>
+                                <span className={`${isUser ? 'text-foreground/70' : 'text-white/70'}`}>
+                                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(optPrice * optQuantity)}
+                                </span>
+                              </div>
                             );
                           })}
                         </div>

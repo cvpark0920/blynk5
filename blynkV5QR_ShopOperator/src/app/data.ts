@@ -7,7 +7,7 @@ export interface Order {
   id: string;
   tableId: number;
   sessionId?: string; // 활성 세션 필터링을 위해 추가
-  items: { name: string; quantity: number; price: number; unitPrice?: number; options?: string[] }[];
+  items: { name: string; quantity: number; price: number; unitPrice?: number; options?: Array<{ name: string; quantity: number; price: number }> }[];
   status: OrderStatus;
   timestamp: Date;
   type: 'order' | 'request';

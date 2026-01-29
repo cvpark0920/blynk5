@@ -197,11 +197,16 @@ export function CheckoutSheet({
                                 <span className="text-muted-foreground">{formatPriceVND(itemTotal)}</span>
                               </div>
                               {item.options && item.options.length > 0 && (
-                                <div className="flex flex-wrap gap-1 pl-2">
-                                  {item.options.map((opt: string, optIdx: number) => (
-                                    <span key={optIdx} className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                      {opt}
-                                    </span>
+                                <div className="space-y-0.5 pl-3 border-l-2 border-muted/50">
+                                  {item.options.map((opt: { name: string; quantity: number; price: number }, optIdx: number) => (
+                                    <div key={optIdx} className="flex justify-between items-center text-xs">
+                                      <span className="text-muted-foreground">
+                                        + {opt.name} {opt.quantity > 1 ? `× ${opt.quantity}` : ''}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {formatPriceVND(opt.price * opt.quantity)}
+                                      </span>
+                                    </div>
                                   ))}
                                 </div>
                               )}

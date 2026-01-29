@@ -56,6 +56,9 @@ export interface BackendOrder {
       name?: string;
     };
     options?: Array<{
+      id: string;
+      quantity: number;
+      price: number;
       option: {
         id: string;
         nameKo?: string;

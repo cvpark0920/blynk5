@@ -2366,16 +2366,23 @@ function DetailBody({
                                                                         <span className="text-sm font-semibold text-foreground leading-snug">{item.name}</span>
                                                                         <span className="text-sm font-bold text-foreground shrink-0">{formatPriceVND(item.price)}</span>
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-xs text-muted-foreground">
-                                                                            {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
-                                                                        </span>
+                                                                    <div className="space-y-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-xs text-muted-foreground">
+                                                                                {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
+                                                                            </span>
+                                                                        </div>
                                                                         {item.options && item.options.length > 0 && (
-                                                                            <div className="flex flex-wrap gap-1">
-                                                                                {item.options.map((opt: string, i: number) => (
-                                                                                    <span key={i} className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                                                                        {opt}
-                                                                                    </span>
+                                                                            <div className="space-y-1 pl-3 border-l-2 border-muted">
+                                                                                {item.options.map((opt: { name: string; quantity: number; price: number }, i: number) => (
+                                                                                    <div key={i} className="flex items-center justify-between gap-2">
+                                                                                        <span className="text-xs text-muted-foreground">
+                                                                                            + {opt.name} {opt.quantity > 1 ? `× ${opt.quantity}` : ''}
+                                                                                        </span>
+                                                                                        <span className="text-xs text-muted-foreground">
+                                                                                            {formatPriceVND(opt.price * opt.quantity)}
+                                                                                        </span>
+                                                                                    </div>
                                                                                 ))}
                                                                             </div>
                                                                         )}

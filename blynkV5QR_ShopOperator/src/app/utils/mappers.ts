@@ -109,12 +109,19 @@ export function mapBackendOrderToFrontend(backendOrder: BackendOrder, language: 
     items: backendOrder.items.map((item) => {
       const mappedOptions = item.options?.map((opt) => {
         try {
-          return getOptionName(opt as any);
+          const optData = opt as { option: { nameKo?: string; nameVn?: string; nameEn?: string }; quantity: number; price: number };
+          const name = getOptionName(opt as any);
+          if (!name) return null;
+          return {
+            name,
+            quantity: optData.quantity || 1,
+            price: optData.price || 0,
+          };
         } catch (error) {
           console.error('[mapBackendOrderToFrontend] Error mapping option:', error, opt);
-          return '';
+          return null;
         }
-      }).filter(opt => opt !== '') || [];
+      }).filter((opt): opt is { name: string; quantity: number; price: number } => opt !== null) || [];
       
       console.info('[mapBackendOrderToFrontend] Mapping order item', {
         itemId: item.id,
@@ -122,6 +129,7 @@ export function mapBackendOrderToFrontend(backendOrder: BackendOrder, language: 
         optionsCount: item.options?.length || 0,
         mappedOptionsCount: mappedOptions.length,
         options: item.options,
+        mappedOptions,
       });
       
       return {
