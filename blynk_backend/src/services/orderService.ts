@@ -144,6 +144,12 @@ export class OrderService {
       });
     });
 
+    // Update table status to DINING if it's currently ORDERING
+    // This ensures the table shows as "식사 중" when orders are placed
+    if (order.table.status === 'ORDERING') {
+      await tableService.updateTableStatus(data.tableId, 'DINING');
+    }
+
     // Emit SSE event for new order
     console.log(`[OrderService] createOrder - Publishing SSE event for new order`, {
       restaurantId: data.restaurantId,
