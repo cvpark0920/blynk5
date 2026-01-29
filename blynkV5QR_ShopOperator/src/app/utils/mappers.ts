@@ -93,6 +93,10 @@ export function mapBackendOrderToFrontend(backendOrder: BackendOrder, language: 
   // Get option name based on language
   const getOptionName = (option: BackendOrder['items'][0]['options'] extends Array<infer T> ? T : never): string => {
     const opt = option as { option: { nameKo?: string; nameVn?: string; nameEn?: string } };
+    if (!opt || !opt.option) {
+      console.warn('[mapBackendOrderToFrontend] Invalid option structure:', opt);
+      return '';
+    }
     if (language === 'ko') return opt.option.nameKo || opt.option.nameEn || opt.option.nameVn || '';
     if (language === 'vn') return opt.option.nameVn || opt.option.nameKo || opt.option.nameEn || '';
     return opt.option.nameEn || opt.option.nameKo || opt.option.nameVn || '';
@@ -102,13 +106,32 @@ export function mapBackendOrderToFrontend(backendOrder: BackendOrder, language: 
     id: backendOrder.id,
     tableId: tableNumber || backendOrder.table?.tableNumber || 0,
     sessionId: backendOrder.sessionId, // 활성 세션 필터링을 위해 추가
-    items: backendOrder.items.map((item) => ({
-      name: getMenuItemName(item.menuItem),
-      quantity: item.quantity,
-      price: item.totalPrice, // 합계 금액
-      unitPrice: item.unitPrice, // 단가
-      options: item.options?.map((opt) => getOptionName(opt as any)) || [],
-    })),
+    items: backendOrder.items.map((item) => {
+      const mappedOptions = item.options?.map((opt) => {
+        try {
+          return getOptionName(opt as any);
+        } catch (error) {
+          console.error('[mapBackendOrderToFrontend] Error mapping option:', error, opt);
+          return '';
+        }
+      }).filter(opt => opt !== '') || [];
+      
+      console.info('[mapBackendOrderToFrontend] Mapping order item', {
+        itemId: item.id,
+        menuItemName: getMenuItemName(item.menuItem),
+        optionsCount: item.options?.length || 0,
+        mappedOptionsCount: mappedOptions.length,
+        options: item.options,
+      });
+      
+      return {
+        name: getMenuItemName(item.menuItem),
+        quantity: item.quantity,
+        price: item.totalPrice, // 합계 금액
+        unitPrice: item.unitPrice, // 단가
+        options: mappedOptions,
+      };
+    }),
     status: backendOrder.status.toLowerCase() as Order['status'],
     timestamp: new Date(backendOrder.createdAt),
     type: 'order',
