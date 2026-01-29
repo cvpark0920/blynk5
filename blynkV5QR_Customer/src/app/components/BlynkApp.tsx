@@ -562,8 +562,14 @@ export const BlynkApp: React.FC = () => {
                 orders.push({
                   ...frontendMenuItem,
                   quantity: item.quantity || 1,
-                  selectedOptions,
+                  selectedOptions: selectedOptions.map(opt => ({
+                    ...opt,
+                    quantity: item.options?.find((o: any) => o.option?.id === opt.id)?.quantity || 1,
+                  })),
                   notes: Array.isArray(item.notes) ? item.notes : [],
+                  // 백엔드에서 받은 unitPrice와 totalPrice 사용
+                  unitPrice: item.unitPrice || priceVND, // 순수 메뉴 항목 단가
+                  totalPrice: item.totalPrice || (priceVND * (item.quantity || 1)), // 총액 (옵션 포함)
                 });
               });
             } else {
@@ -882,11 +888,40 @@ export const BlynkApp: React.FC = () => {
         // 세션의 주문 목록 새로고침
         await refreshSessionOrders();
         
-        const orderTextKO = items.map(i => `${i.nameKO} x${i.quantity}`).join(', ');
-        const orderTextVN = items.map(i => `${i.nameVN} x${i.quantity}`).join(', ');
-        const orderTextEN = items.map(i => `${i.nameEN || i.nameKO} x${i.quantity}`).join(', ');
+        // 백엔드에서 생성된 주문 정보를 사용하여 메시지 metadata 구성
+        const orderData = response.data;
+        const orderItemsForMessage = orderData.items?.map((orderItem: any) => {
+          const cartItem = items.find(item => item.id === orderItem.menuItem?.id);
+          const selectedOptions = orderItem.options?.map((opt: any) => ({
+            id: opt.option?.id,
+            labelKO: opt.option?.nameKo,
+            labelVN: opt.option?.nameVn,
+            labelEN: opt.option?.nameEn,
+            priceVND: opt.price,
+            quantity: opt.quantity,
+          })) || [];
+          
+          return {
+            id: orderItem.id,
+            menuItemId: orderItem.menuItem?.id,
+            nameKO: orderItem.menuItem?.nameKo || cartItem?.nameKO,
+            nameVN: orderItem.menuItem?.nameVn || cartItem?.nameVN,
+            nameEN: orderItem.menuItem?.nameEn || cartItem?.nameEN,
+            imageQuery: orderItem.menuItem?.imageUrl || cartItem?.imageQuery,
+            imageUrl: orderItem.menuItem?.imageUrl || cartItem?.imageQuery,
+            quantity: orderItem.quantity,
+            unitPrice: orderItem.unitPrice, // 순수 메뉴 항목 단가
+            priceVND: orderItem.unitPrice, // 단가 (옵션 제외)
+            totalPrice: orderItem.totalPrice, // 총액 (옵션 포함)
+            selectedOptions,
+          };
+        }) || items; // 백엔드 응답이 없으면 기존 items 사용
         
-        // 주문 메시지 전송
+        const orderTextKO = orderItemsForMessage.map((i: any) => `${i.nameKO || i.nameKO} x${i.quantity}`).join(', ');
+        const orderTextVN = orderItemsForMessage.map((i: any) => `${i.nameVN || i.nameVN} x${i.quantity}`).join(', ');
+        const orderTextEN = orderItemsForMessage.map((i: any) => `${i.nameEN || i.nameKO} x${i.quantity}`).join(', ');
+        
+        // 주문 메시지 전송 (백엔드 주문 정보 사용)
         await apiClient.sendMessage({
           sessionId,
           senderType: 'USER',
@@ -894,7 +929,7 @@ export const BlynkApp: React.FC = () => {
           textVn: `Đặt món: ${orderTextVN}`,
           textEn: `Order: ${orderTextEN}`,
           messageType: 'ORDER',
-          metadata: items,
+          metadata: orderItemsForMessage,
         });
 
         // 채팅 히스토리 새로고침

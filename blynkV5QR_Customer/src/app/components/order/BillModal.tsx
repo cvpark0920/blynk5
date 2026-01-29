@@ -42,9 +42,18 @@ export const BillModal: React.FC<BillModalProps> = ({
   } | null>(null);
 
   const total = orders.reduce((sum, item) => {
-    const basePrice = item.priceVND || 0;
-    const optionsPrice = item.selectedOptions?.reduce((s, o) => s + (o.priceVND || 0), 0) || 0;
-    const itemTotal = (basePrice + optionsPrice) * (item.quantity || 1);
+    // unitPrice는 순수 메뉴 항목의 단가 (백엔드에서 받은 값 사용)
+    const unitPrice = (item as any).unitPrice || item.priceVND || 0;
+    
+    // 옵션 총액 계산
+    const optionsTotal = item.selectedOptions?.reduce((optSum, opt) => {
+      const optPrice = opt.priceVND || 0;
+      const optQuantity = (opt as any).quantity || 1;
+      return optSum + (optPrice * optQuantity);
+    }, 0) || 0;
+    
+    // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
+    const itemTotal = (unitPrice * (item.quantity || 1)) + optionsTotal;
     return sum + itemTotal;
   }, 0);
 
@@ -219,8 +228,19 @@ export const BillModal: React.FC<BillModalProps> = ({
                        </div>
                      ) : (
                        orders.map((item, idx) => {
-                         const unitPrice = item.priceVND + (item.selectedOptions?.reduce((s,o)=>s+o.priceVND,0) || 0);
-                         const totalPrice = unitPrice * item.quantity;
+                         // unitPrice는 순수 메뉴 항목의 단가 (백엔드에서 받은 값 사용)
+                         const unitPrice = (item as any).unitPrice || item.priceVND || 0;
+                         
+                         // 옵션 총액 계산
+                         const optionsTotal = item.selectedOptions?.reduce((sum, opt) => {
+                           const optPrice = opt.priceVND || 0;
+                           const optQuantity = (opt as any).quantity || 1;
+                           return sum + (optPrice * optQuantity);
+                         }, 0) || 0;
+                         
+                         // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
+                         const totalPrice = (unitPrice * item.quantity) + optionsTotal;
+                         
                          return (
                           <div key={`${item.id}-${idx}`} className="flex justify-between items-start py-3 border-b border-border last:border-0">
                             <div className="flex items-start gap-3">
@@ -239,10 +259,12 @@ export const BillModal: React.FC<BillModalProps> = ({
                                         <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
                                           {item.selectedOptions.map((opt, i) => {
                                             const optLabel = lang === 'ko' ? opt.labelKO : lang === 'vn' ? opt.labelVN : (opt.labelEN || opt.labelKO);
+                                            const optQuantity = (opt as any).quantity || 1;
+                                            const optPrice = opt.priceVND || 0;
                                             return (
-                                              <div key={i} className="flex items-center gap-1">
-                                                <span>• {optLabel}</span>
-                                                {opt.priceVND > 0 && <span className="text-muted-foreground/80">(+{opt.priceVND.toLocaleString()})</span>}
+                                              <div key={i} className="flex items-center justify-between gap-1">
+                                                <span>• {optLabel} {optQuantity > 1 ? `× ${optQuantity}` : ''}</span>
+                                                {optPrice > 0 && <span className="text-muted-foreground/80">+{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(optPrice * optQuantity)}</span>}
                                               </div>
                                             );
                                           })}
@@ -257,7 +279,7 @@ export const BillModal: React.FC<BillModalProps> = ({
                             </div>
                             <div className="flex flex-col items-end gap-0.5 shrink-0">
                              <div className="text-xs text-muted-foreground">
-                                {unitPrice.toLocaleString('vi-VN')}₫ × {item.quantity}
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(unitPrice)} × {item.quantity}
                               </div>
                               <CurrencyDisplay amountVND={totalPrice} className="font-bold" />
                             </div>
