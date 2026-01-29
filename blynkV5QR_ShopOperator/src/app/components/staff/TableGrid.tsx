@@ -850,11 +850,28 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
           const orderAge = Date.now() - o.timestamp.getTime();
           const twoHours = 2 * 60 * 60 * 1000;
           const fiveMinutes = 5 * 60 * 1000;
+          const oneMinute = 1 * 60 * 1000;
           
           // If table is cleaning, only show very recent orders (within 5 minutes)
           // This handles the case where order was just created but table status hasn't updated yet
           if (selectedTable.status === 'cleaning') {
             return orderAge < fiveMinutes;
+          }
+          
+          // For empty tables: only show orders if table has an active session (currentSessionId)
+          // This prevents showing orders from previous customers after table reset
+          if (selectedTable.status === 'empty') {
+            // If table has no active session, exclude all orders
+            if (!selectedTable.currentSessionId) {
+              return false;
+            }
+            // If order belongs to active session, show it
+            if (o.sessionId && o.sessionId === selectedTable.currentSessionId) {
+              return true;
+            }
+            // Allow very recent orders (within 1 minute) only if table has currentSessionId
+            // This handles timing issues when a new order is created but sessionId hasn't been synced yet
+            return orderAge < oneMinute && !!selectedTable.currentSessionId;
           }
           
           // If table has an active session, prioritize showing orders from that session
@@ -869,7 +886,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
             if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
               return orderAge < twoHours;
             }
-            // Very recent orders (within 5 minutes) are always shown, even for empty tables
+            // Very recent orders (within 5 minutes) are always shown for non-empty tables
             return orderAge < fiveMinutes;
           }
           
@@ -878,12 +895,6 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
           if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
             // Show recent orders (within 2 hours) that match this table
             return orderAge < twoHours;
-          }
-          
-          // For empty tables, only show very recent orders (within 5 minutes)
-          // This prevents showing stale orders from previous sessions
-          if (selectedTable.status === 'empty') {
-            return orderAge < fiveMinutes;
           }
           
           // Very recent orders (within 5 minutes) are always shown

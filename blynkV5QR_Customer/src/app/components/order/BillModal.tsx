@@ -392,12 +392,14 @@ export const BillModal: React.FC<BillModalProps> = ({
                           <div className="text-sm text-muted-foreground">
                              {lang === 'ko' ? `예금주: ${bankInfo.accountHolder}` : lang === 'vn' ? `Chủ tài khoản: ${bankInfo.accountHolder}` : `Account Holder: ${bankInfo.accountHolder}`}
                            </div>
-                         </div>
-
-                        <div className="bg-primary/10 px-6 py-3 rounded-xl">
-                          <span className="text-primary font-bold text-2xl">
-                             {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(total)}
-                           </span>
+                          <div className="pt-2 mt-2 border-t border-border/50">
+                            <div className="text-xs text-muted-foreground mb-1">
+                              {lang === 'ko' ? '입금 금액' : lang === 'vn' ? 'Số tiền cần chuyển' : 'Transfer Amount'}
+                            </div>
+                            <div className="text-xl font-bold text-primary">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(total)}
+                            </div>
+                          </div>
                          </div>
                        </div>
 

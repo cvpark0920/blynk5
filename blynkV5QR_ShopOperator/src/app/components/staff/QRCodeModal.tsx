@@ -307,19 +307,14 @@ export function QRCodeModal({
           <div className="text-sm text-zinc-400">
             {language === 'ko' ? `예금주: ${bankInfo.accountHolder}` : language === 'vn' ? `Chủ tài khoản: ${bankInfo.accountHolder}` : `Account Holder: ${bankInfo.accountHolder}`}
           </div>
-        </div>
-      </div>
-
-      {/* Amount */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 text-center">
-        <div className="text-sm text-blue-600 mb-2">
-          {language === 'ko' ? '입금 금액' : language === 'vn' ? 'Số tiền cần chuyển' : 'Transfer Amount'}
-        </div>
-        <div className="text-3xl font-bold text-blue-600">
-          {formatPriceVND(validAmount)}
-        </div>
-        <div className="text-xs text-blue-500 mt-2">
-          {language === 'ko' ? `테이블 ${tableNumber}` : language === 'vn' ? `Bàn ${tableNumber}` : `Table ${tableNumber}`}
+          <div className="pt-2 border-t border-zinc-100">
+            <div className="text-xs text-zinc-500 mb-1">
+              {language === 'ko' ? '입금 금액' : language === 'vn' ? 'Số tiền cần chuyển' : 'Transfer Amount'}
+            </div>
+            <div className="text-xl font-bold text-blue-600">
+              {formatPriceVND(validAmount)}
+            </div>
+          </div>
         </div>
       </div>
 

@@ -264,14 +264,28 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                                   <div className="flex-1 min-w-0 pt-0.5">
                                     <div className="flex items-start justify-between gap-2">
                                       <span className="text-sm font-semibold text-zinc-700 leading-snug">{item.name}</span>
-                                      <span className="text-xs font-bold text-zinc-500 bg-zinc-50 px-2 py-0.5 rounded shrink-0">×{item.quantity}</span>
+                                      <span className="text-xs font-bold text-zinc-600 shrink-0">
+                                        {formatPriceVND(
+                                          (item.unitPrice || 0) * item.quantity + 
+                                          (item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                            sum + (opt.price * opt.quantity), 0) || 0)
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-zinc-500 mt-0.5">
+                                      {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
                                     </div>
                                     {item.options && item.options.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {item.options.map((opt, i) => (
-                                          <span key={i} className="text-[10px] font-medium text-zinc-400 bg-zinc-50 px-1.5 py-0.5 rounded">
-                                            {opt}
-                                          </span>
+                                      <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-zinc-200">
+                                        {item.options.map((opt: { name: string; quantity: number; price: number }, i: number) => (
+                                          <div key={i} className="flex justify-between items-center text-xs">
+                                            <span className="text-zinc-500">
+                                              + {opt.name} {opt.quantity > 1 ? `× ${opt.quantity}` : ''}
+                                            </span>
+                                            <span className="text-zinc-500">
+                                              {formatPriceVND(opt.price * opt.quantity)}
+                                            </span>
+                                          </div>
                                         ))}
                                       </div>
                                     )}

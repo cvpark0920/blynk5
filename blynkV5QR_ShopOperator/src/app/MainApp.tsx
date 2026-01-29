@@ -1015,10 +1015,23 @@ export function MainApp() {
           
           // Exclude orders from empty tables unless:
           // 1. Order belongs to an active session (currentSessionId matches)
-          // 2. Order is very recent (within 2 minutes) - handles timing issues
+          // 2. Order is very recent (within 1 minute) AND table has currentSessionId - handles timing issues during new order creation
           if (table.status === 'empty') {
+            // If table has no active session (currentSessionId is null), exclude all orders
+            // This prevents showing orders from previous customers after table reset
+            if (!table.currentSessionId) {
+              console.info('[loadOrders] Order excluded (empty table, no active session)', {
+                orderId: order.id,
+                tableId: order.tableId,
+                tableStatus: table.status,
+                tableCurrentSessionId: table.currentSessionId,
+                orderSessionId: order.sessionId,
+              });
+              return false;
+            }
+            
             // Check if order belongs to active session
-            if (order.sessionId && table.currentSessionId && order.sessionId === table.currentSessionId) {
+            if (order.sessionId && order.sessionId === table.currentSessionId) {
               console.info('[loadOrders] Order included (active session on empty table)', {
                 orderId: order.id,
                 tableId: order.tableId,
@@ -1028,20 +1041,22 @@ export function MainApp() {
               return true;
             }
             
-            // Allow very recent orders (within 2 minutes) to handle timing issues
+            // Allow very recent orders (within 1 minute) only if table has currentSessionId
+            // This handles timing issues when a new order is created but sessionId hasn't been synced yet
             const orderAge = Date.now() - order.timestamp.getTime();
-            const twoMinutes = 2 * 60 * 1000;
-            if (orderAge < twoMinutes) {
-              console.info('[loadOrders] Order included (very recent order on empty table)', {
+            const oneMinute = 1 * 60 * 1000;
+            if (orderAge < oneMinute && table.currentSessionId) {
+              console.info('[loadOrders] Order included (very recent order on empty table with active session)', {
                 orderId: order.id,
                 tableId: order.tableId,
                 tableStatus: table.status,
                 orderAge,
+                tableCurrentSessionId: table.currentSessionId,
               });
               return true;
             }
             
-            console.info('[loadOrders] Order excluded (empty table, not recent)', {
+            console.info('[loadOrders] Order excluded (empty table, not recent or no active session)', {
               orderId: order.id,
               tableId: order.tableId,
               tableStatus: table.status,

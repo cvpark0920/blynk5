@@ -347,13 +347,14 @@ export class TableService {
       await sessionService.endSession(endedSessionId);
     }
 
-    // Cancel all pending/cooking orders for this table
+    // Cancel all non-paid orders for this table (PENDING, COOKING, SERVED)
     // This ensures that when a table is reset, old orders don't appear for new customers
+    // Note: PAID orders are not cancelled as they are already completed transactions
     const cancelledOrders = await prisma.order.updateMany({
       where: {
         tableId: id,
         status: {
-          in: ['PENDING', 'COOKING'],
+          in: ['PENDING', 'COOKING', 'SERVED'], // Include SERVED to prevent showing served orders after reset
         },
       },
       data: {
@@ -361,15 +362,29 @@ export class TableService {
       },
     });
 
-    console.log(`[TableService] resetTableToEmpty - Cancelled ${cancelledOrders.count} orders for table ${id}`);
+    console.log(`[TableService] resetTableToEmpty - Cancelled ${cancelledOrders.count} orders for table ${id}`, {
+      tableId: id,
+      cancelledStatuses: ['PENDING', 'COOKING', 'SERVED'],
+    });
 
-    // If there's a currentSessionId but no active session found, still clear it
-    // This handles edge cases where session might be in inconsistent state
+    // Create a new empty session for the table
+    // This ensures that currentSessionId is set immediately, preventing old orders from showing
+    // The new session will be used when customer app loads
+    const newSession = await sessionService.createSession({
+      tableId: id,
+      restaurantId: currentTable.restaurantId,
+      guestCount: 0, // Empty session, guest count will be updated when customer app loads
+    });
+
+    console.log(`[TableService] resetTableToEmpty - Created new session ${newSession.id} for table ${id}`);
+
+    // Update table status to EMPTY and set the new session ID
+    // This ensures that old orders are filtered out immediately
     const table = await prisma.table.update({
       where: { id },
       data: {
         status: TableStatus.EMPTY,
-        currentSessionId: null,
+        currentSessionId: newSession.id, // Set new session ID instead of null
       },
       include: {
         restaurant: true,
@@ -401,11 +416,12 @@ export class TableService {
     }
 
     // Emit SSE event for table status change
+    // Include the new session ID so frontend can filter orders correctly
     await eventEmitter.publishTableStatusChanged(
       table.restaurantId,
       id,
       TableStatus.EMPTY,
-      undefined // No active session after reset
+      newSession.id // New session ID after reset
     );
 
     // Emit session ended event if a session was ended
