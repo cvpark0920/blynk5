@@ -958,7 +958,11 @@ export function MainApp() {
     try {
       const result = await apiClient.getOrders(restaurantId);
       if (result.success && result.data) {
-        const mappedOrders = result.data.map((order: BackendOrder) => mapBackendOrderToFrontend(order, language));
+        const mappedOrders = result.data.map((order: BackendOrder) => {
+          // Pass tableNumber from backend order if available
+          const tableNumber = order.table?.tableNumber;
+          return mapBackendOrderToFrontend(order, language, tableNumber);
+        });
         
         // Filter orders: only include orders from active sessions
         // This prevents showing orders from ended sessions (e.g., after table reset)
@@ -970,25 +974,80 @@ export function MainApp() {
             .filter((id): id is string => id !== null && id !== undefined)
         );
         
+        console.info('[loadOrders] Filtering orders', {
+          totalOrders: mappedOrders.length,
+          activeSessionIds: Array.from(activeSessionIds),
+          tablesCount: tablesForFilter.length,
+        });
+        
         const filteredOrders = mappedOrders.filter(order => {
-          // Include orders that belong to active sessions
-          if (order.sessionId && activeSessionIds.has(order.sessionId)) {
-            return true;
-          }
-          // Exclude orders from tables that are now empty (no active session)
+          // Find the table for this order
           const table = tablesForFilter.find(t => t.id === order.tableId);
-          if (table && table.status === 'empty') {
+          
+          // If table not found, exclude the order
+          if (!table) {
+            console.info('[loadOrders] Order excluded (table not found)', {
+              orderId: order.id,
+              orderTableId: order.tableId,
+            });
             return false;
           }
-          // For backward compatibility: include recent orders (within 30 minutes) 
-          // if table is ordering/dining but sessionId is not set yet
-          if (table && (table.status === 'ordering' || table.status === 'dining')) {
-            const orderAge = Date.now() - order.timestamp.getTime();
-            const thirtyMinutes = 30 * 60 * 1000;
-            return orderAge < thirtyMinutes;
+          
+          // Exclude orders from empty tables
+          if (table.status === 'empty') {
+            console.info('[loadOrders] Order excluded (empty table)', {
+              orderId: order.id,
+              tableId: order.tableId,
+              tableStatus: table.status,
+            });
+            return false;
           }
+          
+          // Include orders that belong to active sessions
+          if (order.sessionId && activeSessionIds.has(order.sessionId)) {
+            console.info('[loadOrders] Order included (active session)', {
+              orderId: order.id,
+              tableId: order.tableId,
+              sessionId: order.sessionId,
+            });
+            return true;
+          }
+          
+          // Include orders from tables that are ordering or dining
+          // This ensures orders are shown even if sessionId is not yet updated
+          if (table.status === 'ordering' || table.status === 'dining') {
+            // Include recent orders (within 1 hour) to handle timing issues
+            const orderAge = Date.now() - order.timestamp.getTime();
+            const oneHour = 60 * 60 * 1000;
+            const included = orderAge < oneHour;
+            console.info('[loadOrders] Order check (table status)', {
+              orderId: order.id,
+              tableId: order.tableId,
+              tableStatus: table.status,
+              orderAge,
+              included,
+              sessionId: order.sessionId,
+              tableCurrentSessionId: table.currentSessionId,
+            });
+            return included;
+          }
+          
           // Exclude all other orders
+          console.info('[loadOrders] Order excluded (no match)', {
+            orderId: order.id,
+            tableId: order.tableId,
+            sessionId: order.sessionId,
+            tableStatus: table.status,
+          });
           return false;
+        });
+        
+        console.info('[loadOrders] Filtered orders result', {
+          filteredCount: filteredOrders.length,
+          ordersByTable: filteredOrders.reduce((acc, o) => {
+            acc[o.tableId] = (acc[o.tableId] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>),
         });
         
         setOrders(filteredOrders);

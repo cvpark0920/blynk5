@@ -1376,11 +1376,21 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
               // Also exclude orders for empty tables to prevent showing stale data
               const tableOrders = table.status === 'empty' 
                 ? [] 
-                : orders.filter(o => 
-                    o.tableId === table.id && 
-                    o.type === 'order' && 
-                    o.status !== 'cancelled'
-                  );
+                : orders.filter(o => {
+                    const matches = o.tableId === table.id && 
+                      o.type === 'order' && 
+                      o.status !== 'cancelled';
+                    if (!matches && o.type === 'order' && o.status !== 'cancelled') {
+                      console.debug('[TableGrid] Order filtered out for table', {
+                        orderId: o.id,
+                        orderTableId: o.tableId,
+                        tableId: table.id,
+                        tableNumber: table.id,
+                        matches: o.tableId === table.id,
+                      });
+                    }
+                    return matches;
+                  });
               const pendingOrders = tableOrders.filter(o => o.status === 'pending');
               const cookingOrders = tableOrders.filter(o => o.status === 'cooking');
               const servedOrders = tableOrders.filter(o => o.status === 'served');
