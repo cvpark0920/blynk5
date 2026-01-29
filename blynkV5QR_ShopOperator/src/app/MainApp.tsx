@@ -1003,13 +1003,36 @@ export function MainApp() {
             return false;
           }
           
-          // Exclude orders from empty tables (but allow if order is very recent - within 5 minutes)
-          // This handles the case where order was just created but table status hasn't updated yet
+          // Exclude cancelled orders
+          if (order.status === 'cancelled') {
+            console.info('[loadOrders] Order excluded (cancelled)', {
+              orderId: order.id,
+              tableId: order.tableId,
+              orderStatus: order.status,
+            });
+            return false;
+          }
+          
+          // Exclude orders from empty tables unless:
+          // 1. Order belongs to an active session (currentSessionId matches)
+          // 2. Order is very recent (within 2 minutes) - handles timing issues
           if (table.status === 'empty') {
+            // Check if order belongs to active session
+            if (order.sessionId && table.currentSessionId && order.sessionId === table.currentSessionId) {
+              console.info('[loadOrders] Order included (active session on empty table)', {
+                orderId: order.id,
+                tableId: order.tableId,
+                sessionId: order.sessionId,
+                tableCurrentSessionId: table.currentSessionId,
+              });
+              return true;
+            }
+            
+            // Allow very recent orders (within 2 minutes) to handle timing issues
             const orderAge = Date.now() - order.timestamp.getTime();
-            const fiveMinutes = 5 * 60 * 1000;
-            if (orderAge < fiveMinutes) {
-              console.info('[loadOrders] Order included (recent order on empty table)', {
+            const twoMinutes = 2 * 60 * 1000;
+            if (orderAge < twoMinutes) {
+              console.info('[loadOrders] Order included (very recent order on empty table)', {
                 orderId: order.id,
                 tableId: order.tableId,
                 tableStatus: table.status,
@@ -1017,10 +1040,14 @@ export function MainApp() {
               });
               return true;
             }
-            console.info('[loadOrders] Order excluded (empty table)', {
+            
+            console.info('[loadOrders] Order excluded (empty table, not recent)', {
               orderId: order.id,
               tableId: order.tableId,
               tableStatus: table.status,
+              orderAge,
+              orderSessionId: order.sessionId,
+              tableCurrentSessionId: table.currentSessionId,
             });
             return false;
           }

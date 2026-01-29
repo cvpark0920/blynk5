@@ -347,6 +347,22 @@ export class TableService {
       await sessionService.endSession(endedSessionId);
     }
 
+    // Cancel all pending/cooking orders for this table
+    // This ensures that when a table is reset, old orders don't appear for new customers
+    const cancelledOrders = await prisma.order.updateMany({
+      where: {
+        tableId: id,
+        status: {
+          in: ['PENDING', 'COOKING'],
+        },
+      },
+      data: {
+        status: 'CANCELLED',
+      },
+    });
+
+    console.log(`[TableService] resetTableToEmpty - Cancelled ${cancelledOrders.count} orders for table ${id}`);
+
     // If there's a currentSessionId but no active session found, still clear it
     // This handles edge cases where session might be in inconsistent state
     const table = await prisma.table.update({
