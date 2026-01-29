@@ -160,9 +160,8 @@ export class ReportService {
       startDateForLoop = new Date(periodStart);
     } else {
       daysToShow = period === 'week' ? 7 : (period === 'month' ? 30 : 1);
-      startDateForLoop = period === 'today' ? new Date(todayStart) : 
-                         period === 'week' ? new Date(todayStart) : 
-                         new Date(todayStart);
+      // Use periodStart for week/month to show historical data, not future dates
+      startDateForLoop = period === 'today' ? new Date(todayStart) : new Date(periodStart);
     }
 
     for (let i = 0; i < daysToShow; i++) {
@@ -206,7 +205,12 @@ export class ReportService {
       where: { restaurantId },
     });
 
-    const turnoverRate = tableCount > 0 ? Number((todayOrderCount / tableCount).toFixed(1)) : 0;
+    // Calculate total orders for the period
+    const periodTotalOrders = period === 'today' 
+      ? todayOrderCount
+      : weeklyData.reduce((sum, day) => sum + day.orders, 0);
+
+    const turnoverRate = tableCount > 0 ? Number((periodTotalOrders / tableCount).toFixed(1)) : 0;
 
     return {
       today: {
