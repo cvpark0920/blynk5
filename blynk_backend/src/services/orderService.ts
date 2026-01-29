@@ -44,7 +44,7 @@ export class OrderService {
     const orderItemsData = [];
 
     for (const item of data.items) {
-      const menuItem = menuItems.find(m => m.id === item.menuItemId);
+      const menuItem = menuItems.find((m: { id: string }) => m.id === item.menuItemId);
       if (!menuItem) {
         throw createError(`Menu item ${item.menuItemId} not found`, 404);
       }
@@ -60,8 +60,8 @@ export class OrderService {
       if (item.options && item.options.length > 0) {
         for (const opt of item.options) {
           const option = menuItem.optionGroups
-            .flatMap(og => og.options)
-            .find(o => o.id === opt.optionId);
+            .flatMap((og: { options: any[] }) => og.options)
+            .find((o: { id: string }) => o.id === opt.optionId);
 
           if (option) {
             itemTotal += option.priceVnd * opt.quantity;
@@ -150,7 +150,7 @@ export class OrderService {
       order.id,
       data.tableId,
       order.table.tableNumber,
-      order.items.map(item => ({
+      order.items.map((item: any) => ({
         id: item.id,
         menuItem: item.menuItem,
         quantity: item.quantity,
@@ -445,7 +445,7 @@ export class OrderService {
     });
 
     // Calculate total amount from all orders
-    const totalAmount = session.orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalAmount = session.orders.reduce((sum: number, order: { totalAmount: number }) => sum + order.totalAmount, 0);
 
     // Create PAYMENT_CONFIRMED notification
     await notificationService.createNotification({
@@ -463,7 +463,7 @@ export class OrderService {
         tableNumber: session.table.tableNumber,
         totalAmount,
         paymentMethod,
-        orderIds: session.orders.map(o => o.id),
+        orderIds: session.orders.map((o: { id: string }) => o.id),
       },
     });
 
