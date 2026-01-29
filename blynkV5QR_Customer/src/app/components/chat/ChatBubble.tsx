@@ -157,15 +157,31 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
                 const itemName = userLang === 'ko' ? item.nameKO : userLang === 'vn' ? item.nameVN : (item.nameEN || item.nameKO);
                 const itemSub = userLang === 'vn' ? (item.nameEN || item.nameKO) : item.nameVN;
                 const imageUrl = item.imageQuery || item.imageUrl || '';
-                const priceVND = item.priceVND || item.totalPrice || 0;
+                // unitPrice는 순수 메뉴 항목의 단가, totalPrice는 옵션을 포함한 총액
+                const unitPrice = item.unitPrice || 0; // 순수 메뉴 항목 단가
+                const itemQuantity = item.quantity || 1;
                 
                 // selectedOptions가 배열인지 확인하고, 없으면 빈 배열로 설정
                 const selectedOptions = Array.isArray(item.selectedOptions) ? item.selectedOptions : [];
+                
+                // 옵션 총액 계산
+                const optionsTotal = selectedOptions.reduce((sum: number, opt: any) => {
+                  const optPrice = opt.priceVND || opt.price || 0;
+                  const optQuantity = opt.quantity || 1;
+                  return sum + (optPrice * optQuantity);
+                }, 0);
+                
+                // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
+                const itemTotal = (unitPrice * itemQuantity) + optionsTotal;
                 
                 // 디버깅: selectedOptions 확인
                 if (import.meta.env.DEV && (message.sender === 'system' || message.sender === 'staff')) {
                   console.log('[ChatBubble] Order item:', {
                     itemName,
+                    unitPrice,
+                    itemQuantity,
+                    optionsTotal,
+                    itemTotal,
                     selectedOptions,
                     item: item,
                     messageSender: message.sender,
@@ -188,14 +204,14 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
                       <div className="flex justify-between items-start">
                         <span className={`text-sm font-bold truncate ${isUser ? 'text-foreground' : 'text-white'}`}>{itemName}</span>
                         <span className={`text-sm font-bold ml-2 shrink-0 ${isUser ? 'text-foreground/80' : 'text-white/80'}`}>
-                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(priceVND * item.quantity)}
+                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(itemTotal)}
                         </span>
                       </div>
                       {itemSub && (
                         <p className={`text-xs truncate ${isUser ? 'text-foreground/80' : 'text-white/80'}`}>{itemSub}</p>
                       )}
                       <div className={`text-xs mt-0.5 ${isUser ? 'text-foreground/70' : 'text-white/70'}`}>
-                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(priceVND)} × {item.quantity}
+                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(unitPrice)} × {itemQuantity}
                       </div>
                       {selectedOptions.length > 0 && (
                         <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-muted/30">
@@ -227,9 +243,15 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
                   <span className={`text-sm font-bold ${isUser ? 'text-foreground' : 'text-white'}`}>
                     {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
                       itemsToDisplay.reduce((sum: number, item: any) => {
-                        const itemPrice = item.priceVND || item.totalPrice || 0;
+                        const unitPrice = item.unitPrice || 0;
                         const itemQty = item.quantity || 1;
-                        return sum + (itemPrice * itemQty);
+                        const selectedOptions = Array.isArray(item.selectedOptions) ? item.selectedOptions : [];
+                        const optionsTotal = selectedOptions.reduce((optSum: number, opt: any) => {
+                          const optPrice = opt.priceVND || opt.price || 0;
+                          const optQuantity = opt.quantity || 1;
+                          return optSum + (optPrice * optQuantity);
+                        }, 0);
+                        return sum + (unitPrice * itemQty) + optionsTotal;
                       }, 0)
                     )}
                   </span>

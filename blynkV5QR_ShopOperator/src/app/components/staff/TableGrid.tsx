@@ -2364,12 +2364,18 @@ function DetailBody({
                                                                 <div className="flex-1 min-w-0">
                                                                     <div className="flex items-start justify-between gap-2 mb-1">
                                                                         <span className="text-sm font-semibold text-foreground leading-snug">{item.name}</span>
-                                                                        <span className="text-sm font-bold text-foreground shrink-0">{formatPriceVND(item.price)}</span>
+                                                                        <span className="text-sm font-bold text-foreground shrink-0">
+                                                                            {formatPriceVND(
+                                                                                (item.unitPrice || 0) * item.quantity + 
+                                                                                (item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                                                                    sum + (opt.price * opt.quantity), 0) || 0)
+                                                                            )}
+                                                                        </span>
                                                                     </div>
                                                                     <div className="space-y-1">
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="text-xs text-muted-foreground">
-                                                                                {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
+                                                                                {formatPriceVND(item.unitPrice || 0)} × {item.quantity}
                                                                             </span>
                                                                         </div>
                                                                         {item.options && item.options.length > 0 && (

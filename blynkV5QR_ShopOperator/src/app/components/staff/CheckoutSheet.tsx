@@ -187,14 +187,25 @@ export function CheckoutSheet({
                       </div>
                       <ul className="space-y-2">
                         {order.items.map((item, idx) => {
-                          // item.price is already totalPrice (unitPrice * quantity + options)
-                          // So we should use it directly, not multiply by quantity again
-                          const itemTotal = item.price || (item.unitPrice ? item.unitPrice * item.quantity : 0);
+                          // unitPrice는 순수 메뉴 항목의 단가
+                          const unitPrice = item.unitPrice || 0;
+                          const itemQuantity = item.quantity || 1;
+                          
+                          // 옵션 총액 계산
+                          const optionsTotal = item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                            sum + (opt.price * opt.quantity), 0) || 0;
+                          
+                          // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
+                          const itemTotal = (unitPrice * itemQuantity) + optionsTotal;
+                          
                           return (
                             <li key={idx} className="space-y-1">
                               <div className="flex justify-between items-center text-sm">
-                                <span className="text-foreground/80">{item.name} x{item.quantity}</span>
+                                <span className="text-foreground/80">{item.name} x{itemQuantity}</span>
                                 <span className="text-muted-foreground">{formatPriceVND(itemTotal)}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatPriceVND(unitPrice)} × {itemQuantity}
                               </div>
                               {item.options && item.options.length > 0 && (
                                 <div className="space-y-0.5 pl-3 border-l-2 border-muted/50">
