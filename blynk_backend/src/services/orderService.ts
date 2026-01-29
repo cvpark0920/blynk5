@@ -237,6 +237,11 @@ export class OrderService {
         items: {
           include: {
             menuItem: true,
+            options: {
+              include: {
+                option: true,
+              },
+            },
           },
         },
         table: true,
