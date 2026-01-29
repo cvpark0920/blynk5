@@ -97,8 +97,11 @@ export class ReportService {
       periodStart = todayStart;
       periodEnd = todayEnd;
     } else if (period === 'week') {
+      // 이번 주의 시작(월요일)부터 오늘까지
       periodStart = new Date(todayStart);
-      periodStart.setDate(periodStart.getDate() - 7);
+      const dayOfWeek = periodStart.getDay(); // 0 = 일요일, 1 = 월요일, ...
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 일요일이면 6일 전, 아니면 (요일-1)일 전
+      periodStart.setDate(periodStart.getDate() - daysToMonday);
       periodEnd = todayEnd;
     } else {
       // month
@@ -159,9 +162,19 @@ export class ReportService {
       daysToShow = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       startDateForLoop = new Date(periodStart);
     } else {
-      daysToShow = period === 'week' ? 7 : (period === 'month' ? 30 : 1);
-      // Use periodStart for week/month to show historical data, not future dates
-      startDateForLoop = period === 'today' ? new Date(todayStart) : new Date(periodStart);
+      if (period === 'week') {
+        // 이번 주의 일수 계산 (월요일부터 오늘까지)
+        const dayOfWeek = todayStart.getDay();
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        daysToShow = daysToMonday + 1; // 월요일부터 오늘까지
+        startDateForLoop = new Date(periodStart);
+      } else if (period === 'month') {
+        daysToShow = 30;
+        startDateForLoop = new Date(periodStart);
+      } else {
+        daysToShow = 1;
+        startDateForLoop = new Date(todayStart);
+      }
     }
 
     for (let i = 0; i < daysToShow; i++) {
