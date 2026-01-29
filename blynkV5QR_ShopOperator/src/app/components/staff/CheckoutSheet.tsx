@@ -160,10 +160,10 @@ export function CheckoutSheet({
   ].filter(Boolean) as Array<{ key: 'cash' | 'card' | 'bankTransfer'; label: string; icon: React.ElementType }> : [];
 
   const content = (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <ScrollArea className="flex-1 px-6">
-          <div className="space-y-6 py-6">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-6 space-y-6 py-6">
             {/* Orders List */}
             <div>
               <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4">
@@ -266,7 +266,7 @@ export function CheckoutSheet({
 
         {/* Footer with Total and Checkout Button */}
         {servedOrders.length > 0 && (
-          <div className="border-t border-border p-6 bg-card">
+          <div className="border-t border-border p-6 bg-card shrink-0">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-medium text-muted-foreground">{t('checkout.total')}</span>
               <span className="text-2xl font-bold text-foreground">{formatPriceVND(totalAmount)}</span>

@@ -503,9 +503,20 @@ export function MainApp() {
   const handleSSEEvent = (event: SSEEvent) => {
     switch (event.type) {
       case 'order:new':
+        console.info('[SSE] order:new event received', { 
+          orderId: event.orderId, 
+          tableId: event.tableId, 
+          tableNumber: event.tableNumber 
+        });
         // Reload both tables and orders to get updated currentSessionId and new order
         loadTables().then((freshTables) => {
+          console.info('[SSE] Tables reloaded, loading orders', { 
+            tablesCount: freshTables?.length || 0,
+            activeSessions: freshTables?.filter(t => t.currentSessionId).length || 0
+          });
           loadOrders(freshTables);
+        }).catch((error) => {
+          console.error('[SSE] Failed to reload tables/orders after order:new', error);
         });
         toast.success(t('msg.new_order') || '새 주문이 들어왔습니다.');
         

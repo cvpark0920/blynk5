@@ -145,6 +145,13 @@ export class OrderService {
     });
 
     // Emit SSE event for new order
+    console.log(`[OrderService] createOrder - Publishing SSE event for new order`, {
+      restaurantId: data.restaurantId,
+      orderId: order.id,
+      tableId: data.tableId,
+      tableNumber: order.table.tableNumber,
+      totalAmount,
+    });
     await eventEmitter.publishNewOrder(
       data.restaurantId,
       order.id,
@@ -158,6 +165,7 @@ export class OrderService {
       })),
       totalAmount
     );
+    console.log(`[OrderService] createOrder - SSE event published successfully`);
 
     // Emit SSE event to customer session
     await eventEmitter.publishOrderStatus(data.sessionId, order.id, 'PENDING');

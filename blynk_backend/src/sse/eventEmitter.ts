@@ -71,7 +71,8 @@ export class EventEmitter {
     items: any[],
     totalAmount: number
   ) {
-    await this.publish(`sse:restaurant:${restaurantId}:staff`, {
+    const channel = `sse:restaurant:${restaurantId}:staff`;
+    const eventData = {
       type: 'order:new',
       orderId,
       tableId,
@@ -79,7 +80,17 @@ export class EventEmitter {
       items,
       totalAmount,
       timestamp: new Date().toISOString(),
+    };
+    logger.info('Publishing order:new SSE event', {
+      channel,
+      orderId,
+      tableId,
+      tableNumber,
+      totalAmount,
     });
+    console.log(`[EventEmitter] publishNewOrder - Publishing to channel: ${channel}`, eventData);
+    await this.publish(channel, eventData);
+    logger.info('order:new SSE event published successfully', { channel, orderId });
 
     try {
       await pushService.sendToRestaurant(restaurantId, {
