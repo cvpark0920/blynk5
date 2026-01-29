@@ -191,9 +191,20 @@ export function CheckoutSheet({
                           // So we should use it directly, not multiply by quantity again
                           const itemTotal = item.price || (item.unitPrice ? item.unitPrice * item.quantity : 0);
                           return (
-                            <li key={idx} className="flex justify-between items-center text-sm">
-                              <span className="text-foreground/80">{item.name} x{item.quantity}</span>
-                              <span className="text-muted-foreground">{formatPriceVND(itemTotal)}</span>
+                            <li key={idx} className="space-y-1">
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-foreground/80">{item.name} x{item.quantity}</span>
+                                <span className="text-muted-foreground">{formatPriceVND(itemTotal)}</span>
+                              </div>
+                              {item.options && item.options.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pl-2">
+                                  {item.options.map((opt: string, optIdx: number) => (
+                                    <span key={optIdx} className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                      {opt}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </li>
                           );
                         })}
