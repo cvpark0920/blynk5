@@ -954,6 +954,7 @@ export function MainApp() {
   const loadOrders = async (tablesOverride?: Table[] | null) => {
     if (!restaurantId) return;
     
+    console.info('[loadOrders] Starting to load orders', { restaurantId, tablesOverride: !!tablesOverride });
     setIsLoadingOrders(true);
     try {
       const result = await apiClient.getOrders(restaurantId);
@@ -993,8 +994,20 @@ export function MainApp() {
             return false;
           }
           
-          // Exclude orders from empty tables
+          // Exclude orders from empty tables (but allow if order is very recent - within 5 minutes)
+          // This handles the case where order was just created but table status hasn't updated yet
           if (table.status === 'empty') {
+            const orderAge = Date.now() - order.timestamp.getTime();
+            const fiveMinutes = 5 * 60 * 1000;
+            if (orderAge < fiveMinutes) {
+              console.info('[loadOrders] Order included (recent order on empty table)', {
+                orderId: order.id,
+                tableId: order.tableId,
+                tableStatus: table.status,
+                orderAge,
+              });
+              return true;
+            }
             console.info('[loadOrders] Order excluded (empty table)', {
               orderId: order.id,
               tableId: order.tableId,
@@ -1016,10 +1029,10 @@ export function MainApp() {
           // Include orders from tables that are ordering or dining
           // This ensures orders are shown even if sessionId is not yet updated
           if (table.status === 'ordering' || table.status === 'dining') {
-            // Include recent orders (within 1 hour) to handle timing issues
+            // Include recent orders (within 2 hours) to handle timing issues
             const orderAge = Date.now() - order.timestamp.getTime();
-            const oneHour = 60 * 60 * 1000;
-            const included = orderAge < oneHour;
+            const twoHours = 2 * 60 * 60 * 1000;
+            const included = orderAge < twoHours;
             console.info('[loadOrders] Order check (table status)', {
               orderId: order.id,
               tableId: order.tableId,
@@ -1030,6 +1043,20 @@ export function MainApp() {
               tableCurrentSessionId: table.currentSessionId,
             });
             return included;
+          }
+          
+          // Include very recent orders (within 5 minutes) even if table status is not ordering/dining
+          // This handles the case where order was just created but table status hasn't updated yet
+          const orderAge = Date.now() - order.timestamp.getTime();
+          const fiveMinutes = 5 * 60 * 1000;
+          if (orderAge < fiveMinutes) {
+            console.info('[loadOrders] Order included (very recent order)', {
+              orderId: order.id,
+              tableId: order.tableId,
+              tableStatus: table.status,
+              orderAge,
+            });
+            return true;
           }
           
           // Exclude all other orders

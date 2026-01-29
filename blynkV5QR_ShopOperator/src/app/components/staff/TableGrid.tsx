@@ -842,35 +842,47 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
               return false;
             }
             
+            // Always show orders for this table if they match the table number
+            // The main filtering is done in loadOrders(), so here we just need to match by tableId
+            // Show orders if:
+            // 1. Order has matching sessionId (if table has currentSessionId)
+            // 2. Order is recent (within 2 hours) and table is ordering/dining
+            // 3. Order is very recent (within 5 minutes) regardless of table status
+            
+            const orderAge = Date.now() - o.timestamp.getTime();
+            const twoHours = 2 * 60 * 60 * 1000;
+            const fiveMinutes = 5 * 60 * 1000;
+            
             // If table has an active session, prioritize showing orders from that session
             // But also show recent orders without sessionId (for orders created before sessionId is set)
             if (selectedTable.currentSessionId) {
               // If order has sessionId, it must match the table's currentSessionId
-              if (o.sessionId) {
-                return o.sessionId === selectedTable.currentSessionId;
+              if (o.sessionId && o.sessionId === selectedTable.currentSessionId) {
+                return true;
               }
-              // If order doesn't have sessionId but is recent (within 30 minutes), show it
+              // If order doesn't have sessionId but is recent, show it
               // This handles the case where order was created before sessionId was set
               if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
-                const orderAge = Date.now() - o.timestamp.getTime();
-                const thirtyMinutes = 30 * 60 * 1000;
-                return orderAge < thirtyMinutes;
+                return orderAge < twoHours;
               }
-              return false;
+              // Very recent orders (within 5 minutes) are always shown
+              return orderAge < fiveMinutes;
             }
             
             // If no active session but table is ordering/dining, show orders that match the table
             // This handles the case where order was just created but table's currentSessionId hasn't been updated yet
-            // Only show recent orders (within last 30 minutes) to avoid showing old orders
-            // Also show orders without sessionId if they're recent (for backward compatibility)
             if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
-              const orderAge = Date.now() - o.timestamp.getTime();
-              const thirtyMinutes = 30 * 60 * 1000;
-              // Show recent orders (within 30 minutes) that match this table
-              // This ensures customer orders are visible even if sessionId is not set
-              return orderAge < thirtyMinutes;
+              // Show recent orders (within 2 hours) that match this table
+              return orderAge < twoHours;
             }
-            // If no active session and table is not ordering/dining, don't show any orders
+            
+            // Very recent orders (within 5 minutes) are always shown
+            // This ensures customer orders are visible immediately after creation
+            if (orderAge < fiveMinutes) {
+              return true;
+            }
+            
+            // If no active session and table is not ordering/dining, don't show old orders
             // This prevents showing orders from previous customers when a new customer sits down
             return false;
           })
@@ -1381,12 +1393,21 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                       o.type === 'order' && 
                       o.status !== 'cancelled';
                     if (!matches && o.type === 'order' && o.status !== 'cancelled') {
-                      console.debug('[TableGrid] Order filtered out for table', {
+                      console.info('[TableGrid] Order filtered out for table', {
                         orderId: o.id,
                         orderTableId: o.tableId,
                         tableId: table.id,
                         tableNumber: table.id,
                         matches: o.tableId === table.id,
+                      });
+                    }
+                    if (matches && o.type === 'order' && o.status !== 'cancelled') {
+                      console.info('[TableGrid] Order included for table', {
+                        orderId: o.id,
+                        orderTableId: o.tableId,
+                        tableId: table.id,
+                        tableStatus: table.status,
+                        orderStatus: o.status,
                       });
                     }
                     return matches;
