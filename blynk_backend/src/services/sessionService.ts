@@ -54,6 +54,12 @@ export class SessionService {
     // If table is EMPTY and guestCount > 0, change status to ORDERING
     if (table && table.status === TableStatus.EMPTY && data.guestCount > 0) {
       updateData.status = TableStatus.ORDERING;
+      console.log(`[SessionService] createSession - Updating table status from EMPTY to ORDERING`, {
+        tableId: data.tableId,
+        tableNumber: table.tableNumber,
+        guestCount: data.guestCount,
+        restaurantId: data.restaurantId,
+      });
     }
 
     const updatedTable = await prisma.table.update({
@@ -63,12 +69,26 @@ export class SessionService {
 
     // Emit SSE event for table status change if status was changed
     if (updateData.status) {
+      console.log(`[SessionService] createSession - Publishing table:status-changed SSE event`, {
+        restaurantId: data.restaurantId,
+        tableId: data.tableId,
+        tableNumber: table.tableNumber,
+        status: updateData.status,
+        sessionId: session.id,
+      });
       await eventEmitter.publishTableStatusChanged(
         data.restaurantId,
         data.tableId,
         updateData.status,
         session.id
       );
+      console.log(`[SessionService] createSession - SSE event published successfully`);
+    } else {
+      console.log(`[SessionService] createSession - No status change, skipping SSE event`, {
+        tableId: data.tableId,
+        tableStatus: table.status,
+        guestCount: data.guestCount,
+      });
     }
 
     return session;

@@ -562,8 +562,17 @@ export function MainApp() {
         break;
 
       case 'table:status-changed':
+        console.info('[SSE] table:status-changed event received', {
+          tableId: event.tableId,
+          status: event.status,
+          sessionId: event.sessionId,
+        });
         // Reload tables to get updated table state
-        loadTables();
+        loadTables().then(() => {
+          console.info('[SSE] Tables reloaded after table:status-changed');
+          // Also reload orders to ensure they are displayed
+          loadOrders();
+        });
         break;
 
       case 'payment:confirmed':
