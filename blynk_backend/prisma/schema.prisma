@@ -34,7 +34,8 @@ enum OrderStatus {
   PENDING
   COOKING
   SERVED
-  PAID
+  DELIVERED   // 서빙완료 (음식 전달) — 결제 전
+  PAID        // 결제 완료
   CANCELLED
 }
 
@@ -179,6 +180,7 @@ model MenuCategory {
   nameKo       String   @map("name_ko")
   nameVn       String   @map("name_vn")
   nameEn       String?  @map("name_en")
+  nameZh       String?  @map("name_zh")
   displayOrder Int      @default(0) @map("display_order")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -197,9 +199,11 @@ model MenuItem {
   nameKo        String   @map("name_ko")
   nameVn        String   @map("name_vn")
   nameEn        String?  @map("name_en")
+  nameZh        String?  @map("name_zh")
   descriptionKo String?  @map("description_ko")
   descriptionVn String?  @map("description_vn")
   descriptionEn String?  @map("description_en")
+  descriptionZh String?  @map("description_zh")
   priceVnd      Int      @map("price_vnd")
   imageUrl      String?  @map("image_url")
   isSoldOut     Boolean  @default(false) @map("is_sold_out")
@@ -222,6 +226,7 @@ model MenuOptionGroup {
   nameKo     String   @map("name_ko")
   nameVn     String   @map("name_vn")
   nameEn     String?  @map("name_en")
+  nameZh     String?  @map("name_zh")
   minSelect  Int      @default(0) @map("min_select")
   maxSelect  Int      @default(1) @map("max_select")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -240,6 +245,7 @@ model MenuOption {
   nameKo        String   @map("name_ko")
   nameVn        String   @map("name_vn")
   nameEn        String?  @map("name_en")
+  nameZh        String?  @map("name_zh")
   priceVnd      Int      @default(0) @map("price_vnd")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -540,9 +546,11 @@ model QuickChip {
   labelKo      String        @map("label_ko")
   labelVn      String        @map("label_vn")
   labelEn      String?       @map("label_en")
+  labelZh      String?       @map("label_zh")
   messageKo    String?       @map("message_ko")
   messageVn    String?       @map("message_vn")
   messageEn    String?       @map("message_en")
+  messageZh    String?       @map("message_zh")
   displayOrder Int           @default(0) @map("display_order")
   isActive     Boolean       @default(true) @map("is_active")
   createdAt    DateTime      @default(now()) @map("created_at")

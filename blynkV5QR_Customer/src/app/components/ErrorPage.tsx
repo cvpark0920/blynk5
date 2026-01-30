@@ -13,17 +13,8 @@ interface ErrorPageProps {
 export const ErrorPage: React.FC<ErrorPageProps> = ({ title, message, onRetry }) => {
   const { lang } = useLanguage();
 
-  const defaultTitle = lang === 'ko' 
-    ? '오류가 발생했습니다' 
-    : lang === 'vn' 
-    ? 'Đã xảy ra lỗi'
-    : 'An error occurred';
-
-  const defaultMessage = lang === 'ko'
-    ? '잠시 후 다시 시도해주세요.'
-    : lang === 'vn'
-    ? 'Vui lòng thử lại sau.'
-    : 'Please try again later.';
+  const defaultTitle = getTranslation('error.title', lang) || (lang === 'ko' ? '오류가 발생했습니다' : lang === 'vn' ? 'Đã xảy ra lỗi' : lang === 'zh' ? '发生错误' : 'An error occurred');
+  const defaultMessage = getTranslation('error.message', lang) || (lang === 'ko' ? '잠시 후 다시 시도해주세요.' : lang === 'vn' ? 'Vui lòng thử lại sau.' : lang === 'zh' ? '请稍后重试。' : 'Please try again later.');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -41,7 +32,7 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({ title, message, onRetry })
         </p>
         {onRetry && (
           <Button onClick={onRetry} className="bg-blue-600 hover:bg-blue-700">
-            {lang === 'ko' ? '다시 시도' : lang === 'vn' ? 'Thử lại' : 'Retry'}
+            {getTranslation('error.retry', lang) || (lang === 'ko' ? '다시 시도' : lang === 'vn' ? 'Thử lại' : lang === 'zh' ? '重试' : 'Retry')}
           </Button>
         )}
       </div>

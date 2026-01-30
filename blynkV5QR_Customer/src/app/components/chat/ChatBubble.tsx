@@ -11,9 +11,10 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
   const [showTranslation, setShowTranslation] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
-  const getTextByLanguage = (lang: 'ko' | 'vn' | 'en') => {
+  const getTextByLanguage = (lang: 'ko' | 'vn' | 'en' | 'zh') => {
     if (lang === 'ko') return message.textKO || '';
     if (lang === 'vn') return message.textVN || '';
+    if (lang === 'zh') return message.textEN || message.textKO || '';
     return message.textEN || message.textKO || '';
   };
 
@@ -30,6 +31,9 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
       break;
     case 'vn':
       dateFormatLocale = 'vi-VN';
+      break;
+    case 'zh':
+      dateFormatLocale = 'zh-CN';
       break;
     case 'ko':
     default:
@@ -154,8 +158,8 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
                 {getTranslation('chat.orderDetails', userLang)}
               </div>
               {itemsToDisplay.map((item: any, idx: number) => {
-                const itemName = userLang === 'ko' ? item.nameKO : userLang === 'vn' ? item.nameVN : (item.nameEN || item.nameKO);
-                const itemSub = userLang === 'vn' ? (item.nameEN || item.nameKO) : item.nameVN;
+                const itemName = userLang === 'ko' ? item.nameKO : userLang === 'vn' ? item.nameVN : userLang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+                const itemSub = userLang === 'vn' ? (item.nameEN || item.nameKO) : userLang === 'zh' ? item.nameVN : item.nameVN;
                 const imageUrl = item.imageQuery || item.imageUrl || '';
                 // unitPrice는 순수 메뉴 항목의 단가, totalPrice는 옵션을 포함한 총액
                 const unitPrice = item.unitPrice || 0; // 순수 메뉴 항목 단가
@@ -216,7 +220,7 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
                       {selectedOptions.length > 0 && (
                         <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-muted/30">
                           {selectedOptions.map((opt: any, i: number) => {
-                            const optLabel = userLang === 'ko' ? opt.labelKO : userLang === 'vn' ? opt.labelVN : (opt.labelEN || opt.labelKO);
+                            const optLabel = userLang === 'ko' ? opt.labelKO : userLang === 'vn' ? opt.labelVN : userLang === 'zh' ? (opt.labelZH || opt.labelEN || opt.labelKO) : (opt.labelEN || opt.labelKO);
                             const optPrice = opt.priceVND || opt.price || 0;
                             const optQuantity = opt.quantity || 1;
                             return (

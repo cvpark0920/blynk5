@@ -42,6 +42,8 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(false);
+  const [backendCategories, setBackendCategories] = useState<BackendMenuCategory[]>([]);
+  const [backendMenuItems, setBackendMenuItems] = useState<BackendMenuItem[]>([]);
 
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
   const [isItemSheetOpen, setIsItemSheetOpen] = useState(false);
@@ -49,6 +51,10 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
 
   // --- Category Management ---
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryNameKo, setNewCategoryNameKo] = useState('');
+  const [newCategoryNameVn, setNewCategoryNameVn] = useState('');
+  const [newCategoryNameEn, setNewCategoryNameEn] = useState('');
+  const [newCategoryNameZh, setNewCategoryNameZh] = useState('');
 
   // Load menu and categories from API on mount
   useEffect(() => {
@@ -68,14 +74,21 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
         const loadedCategories: MenuCategory[] = [];
         const loadedMenu: MenuItem[] = [];
         
+        // 원본 백엔드 카테고리 데이터 저장 (편집 시 다국어 필드 사용)
+        setBackendCategories(result.data);
+        
+        // 원본 백엔드 메뉴 아이템 데이터 저장 (편집 시 다국어 필드 사용)
+        const allBackendItems: BackendMenuItem[] = [];
         result.data.forEach((category: BackendMenuCategory) => {
           loadedCategories.push(mapBackendCategoryToFrontend(category, language));
           
           (category.menuItems || []).forEach((item: BackendMenuItem) => {
             loadedMenu.push(mapBackendMenuItemToFrontend(item, language));
+            allBackendItems.push(item);
           });
         });
         
+        setBackendMenuItems(allBackendItems);
         setCategories(loadedCategories);
         setMenu(loadedMenu);
       } else {
@@ -95,17 +108,18 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       return;
     }
 
-    if (!newCategoryName.trim()) {
-      toast.error('카테고리 이름을 입력해주세요.');
+    if (!newCategoryNameKo.trim() || !newCategoryNameVn.trim()) {
+      toast.error('한국어와 베트남어 카테고리 이름은 필수입니다.');
       return;
     }
 
     setIsLoading(true);
     try {
       const backendData = {
-        nameKo: newCategoryName,
-        nameVn: newCategoryName,
-        nameEn: language === 'en' ? newCategoryName : undefined,
+        nameKo: newCategoryNameKo.trim(),
+        nameVn: newCategoryNameVn.trim(),
+        nameEn: newCategoryNameEn.trim() || undefined,
+        nameZh: newCategoryNameZh.trim() || undefined,
         displayOrder: categories.length,
       };
 
@@ -113,7 +127,13 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       if (result.success && result.data) {
         const newCat = mapBackendCategoryToFrontend(result.data, language);
         setCategories(prev => [...prev, newCat].sort((a, b) => a.order - b.order));
+        // 백엔드 카테고리 데이터도 추가
+        setBackendCategories(prev => [...prev, result.data]);
         setNewCategoryName('');
+        setNewCategoryNameKo('');
+        setNewCategoryNameVn('');
+        setNewCategoryNameEn('');
+        setNewCategoryNameZh('');
         setIsCategorySheetOpen(false);
         toast.success(t('msg.cat_added'));
       } else {
@@ -128,29 +148,32 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
     }
   };
 
-  const handleUpdateCategory = async (id: string, newName: string) => {
+  const handleUpdateCategory = async (id: string, data: { nameKo: string; nameVn: string; nameEn?: string; nameZh?: string }) => {
     if (!restaurantId) {
       toast.error('식당 ID가 필요합니다.');
       return;
     }
 
-    if (!newName.trim()) {
-      toast.error('카테고리 이름을 입력해주세요.');
+    if (!data.nameKo.trim() || !data.nameVn.trim()) {
+      toast.error('한국어와 베트남어 카테고리 이름은 필수입니다.');
       return;
     }
 
     setIsLoading(true);
     try {
       const backendData = {
-        nameKo: newName,
-        nameVn: newName,
-        nameEn: language === 'en' ? newName : undefined,
+        nameKo: data.nameKo.trim(),
+        nameVn: data.nameVn.trim(),
+        nameEn: data.nameEn?.trim() || undefined,
+        nameZh: data.nameZh?.trim() || undefined,
       };
 
       const result = await apiClient.updateCategory(restaurantId, id, backendData);
       if (result.success && result.data) {
         const updatedCat = mapBackendCategoryToFrontend(result.data, language);
         setCategories(prev => prev.map(c => c.id === id ? updatedCat : c).sort((a, b) => a.order - b.order));
+        // 백엔드 카테고리 데이터도 업데이트
+        setBackendCategories(prev => prev.map(c => c.id === id ? result.data : c));
         toast.success('카테고리가 성공적으로 수정되었습니다');
       } else {
         throw new Error(result.error?.message || '카테고리 수정에 실패했습니다');
@@ -243,6 +266,8 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       const result = await apiClient.deleteCategory(restaurantId, id);
       if (result.success) {
         setCategories(prev => prev.filter(c => c.id !== id));
+        // 백엔드 카테고리 데이터도 삭제
+        setBackendCategories(prev => prev.filter(c => c.id !== id));
         toast.success(t('msg.cat_deleted'));
       } else {
         throw new Error(result.error?.message || '카테고리 삭제에 실패했습니다');
@@ -262,15 +287,59 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       id: `m-${Date.now()}`,
       categoryId,
       name: '',
+      nameKo: '',
+      nameVn: '',
+      nameEn: '',
+      nameZh: '',
+      description: '',
+      descriptionKo: '',
+      descriptionVn: '',
+      descriptionEn: '',
+      descriptionZh: '',
       price: 0,
       isSoldOut: false,
       optionGroups: []
-    });
+    } as any);
     setIsItemSheetOpen(true);
   };
 
   const handleEditItem = (item: MenuItem) => {
-    setEditingItem({ ...item }); // Deep copy might be needed for options, but simple spread works for first level
+    // 원본 백엔드 메뉴 아이템 데이터에서 다국어 필드 가져오기
+    const backendItem = backendMenuItems.find((bi: BackendMenuItem) => bi.id === item.id);
+    const editingItemWithMultilang = {
+      ...item,
+      // 다국어 필드 추가 (편집용)
+      nameKo: backendItem?.nameKo || item.name,
+      nameVn: backendItem?.nameVn || item.name,
+      nameEn: backendItem?.nameEn || '',
+      nameZh: backendItem?.nameZh || '',
+      descriptionKo: backendItem?.descriptionKo || item.description || '',
+      descriptionVn: backendItem?.descriptionVn || item.description || '',
+      descriptionEn: backendItem?.descriptionEn || '',
+      descriptionZh: backendItem?.descriptionZh || '',
+      // 옵션 그룹도 다국어 필드 추가
+      optionGroups: item.optionGroups.map((og: any) => {
+        const backendOg = backendItem?.optionGroups?.find((bog: any) => bog.id === og.id);
+        return {
+          ...og,
+          nameKo: backendOg?.nameKo || og.name,
+          nameVn: backendOg?.nameVn || og.name,
+          nameEn: backendOg?.nameEn || '',
+          nameZh: backendOg?.nameZh || '',
+          options: og.options.map((opt: any) => {
+            const backendOpt = backendOg?.options?.find((bopt: any) => bopt.id === opt.id);
+            return {
+              ...opt,
+              nameKo: backendOpt?.nameKo || opt.name,
+              nameVn: backendOpt?.nameVn || opt.name,
+              nameEn: backendOpt?.nameEn || '',
+              nameZh: backendOpt?.nameZh || '',
+            };
+          }),
+        };
+      }),
+    };
+    setEditingItem(editingItemWithMultilang as any);
     setIsItemSheetOpen(true);
   };
 
@@ -280,14 +349,48 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       return;
     }
 
-    if (!editingItem || !editingItem.name) {
-      toast.error(t('msg.name_required'));
+    // 다국어 필드 검증
+    const nameKo = (editingItem as any).nameKo?.trim() || '';
+    const nameVn = (editingItem as any).nameVn?.trim() || '';
+    if (!nameKo || !nameVn) {
+      toast.error('한국어와 베트남어 메뉴 이름은 필수입니다.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const backendData = mapFrontendMenuItemToBackend(editingItem, restaurantId, language);
+      // 다국어 필드를 직접 사용하여 백엔드 데이터 생성
+      const backendData = {
+        categoryId: editingItem.categoryId,
+        restaurantId,
+        nameKo,
+        nameVn,
+        nameEn: (editingItem as any).nameEn?.trim() || undefined,
+        nameZh: (editingItem as any).nameZh?.trim() || undefined,
+        descriptionKo: (editingItem as any).descriptionKo?.trim() || undefined,
+        descriptionVn: (editingItem as any).descriptionVn?.trim() || undefined,
+        descriptionEn: (editingItem as any).descriptionEn?.trim() || undefined,
+        descriptionZh: (editingItem as any).descriptionZh?.trim() || undefined,
+        priceVnd: editingItem.price || 0,
+        imageUrl: editingItem.imageUrl || undefined,
+        isSoldOut: editingItem.isSoldOut || false,
+        displayOrder: 0,
+        optionGroups: editingItem.optionGroups.map((og: any) => ({
+          nameKo: og.nameKo?.trim() || og.name || '',
+          nameVn: og.nameVn?.trim() || og.name || '',
+          nameEn: og.nameEn?.trim() || undefined,
+          nameZh: og.nameZh?.trim() || undefined,
+          minSelect: og.minSelect || 0,
+          maxSelect: og.maxSelect || 1,
+          options: og.options.map((opt: any) => ({
+            nameKo: opt.nameKo?.trim() || opt.name || '',
+            nameVn: opt.nameVn?.trim() || opt.name || '',
+            nameEn: opt.nameEn?.trim() || undefined,
+            nameZh: opt.nameZh?.trim() || undefined,
+            priceVnd: opt.price || 0,
+          })),
+        })),
+      };
       
       if (editingItem.id.startsWith('m-')) {
         // New item (temporary ID)
@@ -295,6 +398,8 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
         if (result.success && result.data) {
           const newItem = mapBackendMenuItemToFrontend(result.data, language);
           setMenu(prev => [...prev, newItem]);
+          // 백엔드 메뉴 아이템 데이터도 추가
+          setBackendMenuItems(prev => [...prev, result.data]);
           setIsItemSheetOpen(false);
           setEditingItem(null);
           toast.success(t('msg.item_saved'));
@@ -307,6 +412,8 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
         if (result.success && result.data) {
           const updatedItem = mapBackendMenuItemToFrontend(result.data, language);
           setMenu(prev => prev.map(m => m.id === editingItem.id ? updatedItem : m));
+          // 백엔드 메뉴 아이템 데이터도 업데이트
+          setBackendMenuItems(prev => prev.map(m => m.id === editingItem.id ? result.data : m));
           setIsItemSheetOpen(false);
           setEditingItem(null);
           toast.success(t('msg.item_saved'));
@@ -336,6 +443,8 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       const result = await apiClient.deleteMenuItem(restaurantId, editingItem.id);
       if (result.success) {
         setMenu(prev => prev.filter(m => m.id !== editingItem.id));
+        // 백엔드 메뉴 아이템 데이터도 삭제
+        setBackendMenuItems(prev => prev.filter(m => m.id !== editingItem.id));
         setIsItemSheetOpen(false);
         setEditingItem(null);
         toast.success(t('msg.item_deleted'));
@@ -501,12 +610,21 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
               <SheetDescription>{t('dialog.cat.desc')}</SheetDescription>
             </SheetHeader>
             <CategoryManagerContent 
-              categories={categories} 
+              categories={categories}
+              backendCategories={backendCategories}
               handleDeleteCategory={handleDeleteCategory}
               handleUpdateCategory={handleUpdateCategory}
               handleReorderCategory={handleReorderCategory}
               newCategoryName={newCategoryName} 
-              setNewCategoryName={setNewCategoryName} 
+              setNewCategoryName={setNewCategoryName}
+              newCategoryNameKo={newCategoryNameKo}
+              setNewCategoryNameKo={setNewCategoryNameKo}
+              newCategoryNameVn={newCategoryNameVn}
+              setNewCategoryNameVn={setNewCategoryNameVn}
+              newCategoryNameEn={newCategoryNameEn}
+              setNewCategoryNameEn={setNewCategoryNameEn}
+              newCategoryNameZh={newCategoryNameZh}
+              setNewCategoryNameZh={setNewCategoryNameZh}
               handleAddCategory={handleAddCategory} 
               onClose={() => setIsCategorySheetOpen(false)}
               t={t}
@@ -523,12 +641,21 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
               <DrawerDescription>{t('dialog.cat.desc')}</DrawerDescription>
             </DrawerHeader>
             <CategoryManagerContent 
-              categories={categories} 
+              categories={categories}
+              backendCategories={backendCategories}
               handleDeleteCategory={handleDeleteCategory}
               handleUpdateCategory={handleUpdateCategory}
               handleReorderCategory={handleReorderCategory}
               newCategoryName={newCategoryName} 
-              setNewCategoryName={setNewCategoryName} 
+              setNewCategoryName={setNewCategoryName}
+              newCategoryNameKo={newCategoryNameKo}
+              setNewCategoryNameKo={setNewCategoryNameKo}
+              newCategoryNameVn={newCategoryNameVn}
+              setNewCategoryNameVn={setNewCategoryNameVn}
+              newCategoryNameEn={newCategoryNameEn}
+              setNewCategoryNameEn={setNewCategoryNameEn}
+              newCategoryNameZh={newCategoryNameZh}
+              setNewCategoryNameZh={setNewCategoryNameZh}
               handleAddCategory={handleAddCategory} 
               onClose={() => setIsCategorySheetOpen(false)}
               t={t}
@@ -585,25 +712,73 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
 }
 
 // Extracted Components to avoid duplication
-function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdateCategory, handleReorderCategory, newCategoryName, setNewCategoryName, handleAddCategory, onClose, t, isLoading, language }: any) {
+function CategoryManagerContent({ 
+  categories, 
+  backendCategories,
+  handleDeleteCategory, 
+  handleUpdateCategory, 
+  handleReorderCategory, 
+  newCategoryName, 
+  setNewCategoryName,
+  newCategoryNameKo,
+  setNewCategoryNameKo,
+  newCategoryNameVn,
+  setNewCategoryNameVn,
+  newCategoryNameEn,
+  setNewCategoryNameEn,
+  newCategoryNameZh,
+  setNewCategoryNameZh,
+  handleAddCategory, 
+  onClose, 
+  t, 
+  isLoading, 
+  language 
+}: any) {
     const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-    const [editingCategoryName, setEditingCategoryName] = useState('');
+    const [editingCategoryNameKo, setEditingCategoryNameKo] = useState('');
+    const [editingCategoryNameVn, setEditingCategoryNameVn] = useState('');
+    const [editingCategoryNameEn, setEditingCategoryNameEn] = useState('');
+    const [editingCategoryNameZh, setEditingCategoryNameZh] = useState('');
 
     const startEdit = (cat: any) => {
         setEditingCategoryId(cat.id);
-        setEditingCategoryName(cat.name);
+        // 원본 백엔드 카테고리 데이터에서 다국어 필드 가져오기
+        const backendCat = backendCategories.find((bc: any) => bc.id === cat.id);
+        if (backendCat) {
+          setEditingCategoryNameKo(backendCat.nameKo || '');
+          setEditingCategoryNameVn(backendCat.nameVn || '');
+          setEditingCategoryNameEn(backendCat.nameEn || '');
+          setEditingCategoryNameZh(backendCat.nameZh || '');
+        } else {
+          // 백엔드 데이터가 없으면 현재 표시된 이름 사용
+          setEditingCategoryNameKo(cat.name || '');
+          setEditingCategoryNameVn(cat.name || '');
+          setEditingCategoryNameEn(cat.name || '');
+          setEditingCategoryNameZh(cat.name || '');
+        }
     };
 
     const cancelEdit = () => {
         setEditingCategoryId(null);
-        setEditingCategoryName('');
+        setEditingCategoryNameKo('');
+        setEditingCategoryNameVn('');
+        setEditingCategoryNameEn('');
+        setEditingCategoryNameZh('');
     };
 
     const saveEdit = async () => {
-        if (editingCategoryId && editingCategoryName.trim()) {
-            await handleUpdateCategory(editingCategoryId, editingCategoryName.trim());
+        if (editingCategoryId && editingCategoryNameKo.trim() && editingCategoryNameVn.trim()) {
+            await handleUpdateCategory(editingCategoryId, {
+                nameKo: editingCategoryNameKo.trim(),
+                nameVn: editingCategoryNameVn.trim(),
+                nameEn: editingCategoryNameEn.trim() || undefined,
+                nameZh: editingCategoryNameZh.trim() || undefined,
+            });
             setEditingCategoryId(null);
-            setEditingCategoryName('');
+            setEditingCategoryNameKo('');
+            setEditingCategoryNameVn('');
+            setEditingCategoryNameEn('');
+            setEditingCategoryNameZh('');
         }
     };
 
@@ -616,29 +791,49 @@ function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdate
                   {sortedCategories.map((cat: any, index: number) => (
                     <div key={cat.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg border border-zinc-100">
                       {editingCategoryId === cat.id ? (
-                        <>
-                          <div className="flex items-center gap-3 flex-1">
-                              <div className="bg-white p-2 rounded-md border border-zinc-100 text-zinc-400">
-                                  <Tag size={14} />
-                              </div>
+                        <div className="w-full space-y-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="grid gap-1">
+                              <label className="text-xs text-zinc-500">한국어 *</label>
                               <Input 
-                                  value={editingCategoryName}
-                                  onChange={(e) => setEditingCategoryName(e.target.value)}
-                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 flex-1"
-                                  onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                          saveEdit();
-                                      } else if (e.key === 'Escape') {
-                                          cancelEdit();
-                                      }
-                                  }}
-                                  autoFocus
+                                  value={editingCategoryNameKo}
+                                  onChange={(e) => setEditingCategoryNameKo(e.target.value)}
+                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
+                                  placeholder="한국어"
                               />
+                            </div>
+                            <div className="grid gap-1">
+                              <label className="text-xs text-zinc-500">베트남어 *</label>
+                              <Input 
+                                  value={editingCategoryNameVn}
+                                  onChange={(e) => setEditingCategoryNameVn(e.target.value)}
+                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
+                                  placeholder="베트남어"
+                              />
+                            </div>
+                            <div className="grid gap-1">
+                              <label className="text-xs text-zinc-500">영어</label>
+                              <Input 
+                                  value={editingCategoryNameEn}
+                                  onChange={(e) => setEditingCategoryNameEn(e.target.value)}
+                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
+                                  placeholder="영어"
+                              />
+                            </div>
+                            <div className="grid gap-1">
+                              <label className="text-xs text-zinc-500">중국어</label>
+                              <Input 
+                                  value={editingCategoryNameZh}
+                                  onChange={(e) => setEditingCategoryNameZh(e.target.value)}
+                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
+                                  placeholder="중국어"
+                              />
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 justify-end">
                               <button 
                                   onClick={saveEdit}
-                                  disabled={isLoading || !editingCategoryName.trim()}
+                                  disabled={isLoading || !editingCategoryNameKo.trim() || !editingCategoryNameVn.trim()}
                                   className="text-zinc-400 hover:text-emerald-500 p-2 hover:bg-emerald-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                   <Check size={16}/>
@@ -651,7 +846,7 @@ function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdate
                                   <Trash2 size={16}/>
                               </button>
                           </div>
-                        </>
+                        </div>
                       ) : (
                         <>
                           <div className="flex items-center gap-3 flex-1">
@@ -704,22 +899,52 @@ function CategoryManagerContent({ categories, handleDeleteCategory, handleUpdate
                 </div>
              </div>
              
-             <div className="p-4 bg-white border-t border-zinc-100 space-y-3 sticky bottom-0 z-10 pb-8 md:pb-4">
-               <div className="grid gap-2">
+             <div className="p-4 bg-white border-t border-zinc-100 space-y-4 sticky bottom-0 z-10 pb-8 md:pb-4 overflow-y-auto max-h-[60vh]">
+               <div className="grid gap-4">
                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">New Category</label>
-                   <div className="flex gap-2">
-                        <Input 
-                            placeholder={t('dialog.cat.placeholder')}
-                            value={newCategoryName}
-                            onChange={(e) => setNewCategoryName(e.target.value)}
-                            className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
-                        />
+                   <div className="grid gap-3">
+                        <div className="grid gap-2">
+                            <label className="text-xs font-medium text-zinc-500">라벨 (한국어) *</label>
+                            <Input 
+                                placeholder="예: 음식"
+                                value={newCategoryNameKo}
+                                onChange={(e) => setNewCategoryNameKo(e.target.value)}
+                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="text-xs font-medium text-zinc-500">라벨 (베트남어) *</label>
+                            <Input 
+                                placeholder="예: Đồ ăn"
+                                value={newCategoryNameVn}
+                                onChange={(e) => setNewCategoryNameVn(e.target.value)}
+                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="text-xs font-medium text-zinc-500">라벨 (영어)</label>
+                            <Input 
+                                placeholder="예: Food"
+                                value={newCategoryNameEn}
+                                onChange={(e) => setNewCategoryNameEn(e.target.value)}
+                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="text-xs font-medium text-zinc-500">라벨 (중국어)</label>
+                            <Input 
+                                placeholder="예: 食物"
+                                value={newCategoryNameZh}
+                                onChange={(e) => setNewCategoryNameZh(e.target.value)}
+                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
+                            />
+                        </div>
                         <button 
                             onClick={handleAddCategory}
-                            disabled={isLoading}
-                            className="bg-zinc-900 text-white px-4 rounded-lg text-sm font-bold whitespace-nowrap hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isLoading || !newCategoryNameKo.trim() || !newCategoryNameVn.trim()}
+                            className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isLoading ? '추가 중...' : t('btn.add')}
+                            {isLoading ? t('btn.adding') : t('btn.add')}
                         </button>
                    </div>
                </div>
@@ -745,23 +970,87 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                             {t('menu.basic_info')}
                         </h3>
                         <div className="grid gap-4">
-                            <div>
-                                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">{t('menu.item_name')}</label>
-                                <Input 
-                                    value={editingItem.name} 
-                                    onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
-                                    placeholder="e.g. Tomato Pasta"
-                                />
+                            <div className="grid gap-3">
+                                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('menu.item_name')}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">한국어 *</label>
+                                        <Input 
+                                            value={(editingItem as any).nameKo || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, nameKo: e.target.value, name: e.target.value})}
+                                            placeholder="예: 토마토 파스타"
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">베트남어 *</label>
+                                        <Input 
+                                            value={(editingItem as any).nameVn || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, nameVn: e.target.value})}
+                                            placeholder="예: Mì Ý sốt cà chua"
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">영어</label>
+                                        <Input 
+                                            value={(editingItem as any).nameEn || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, nameEn: e.target.value})}
+                                            placeholder="예: Tomato Pasta"
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">중국어</label>
+                                        <Input 
+                                            value={(editingItem as any).nameZh || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, nameZh: e.target.value})}
+                                            placeholder="예: 番茄意大利面"
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">{t('menu.description') || '메뉴 설명'}</label>
-                                <textarea 
-                                    value={editingItem.description || ''} 
-                                    onChange={(e) => setEditingItem({...editingItem, description: e.target.value})}
-                                    placeholder="메뉴에 대한 설명을 입력하세요"
-                                    className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                                    rows={3}
-                                />
+                            <div className="grid gap-3">
+                                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('menu.description') || '메뉴 설명'}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">한국어</label>
+                                        <textarea 
+                                            value={(editingItem as any).descriptionKo || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, descriptionKo: e.target.value, description: e.target.value})}
+                                            placeholder="메뉴에 대한 설명을 입력하세요"
+                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                                            rows={2}
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">베트남어</label>
+                                        <textarea 
+                                            value={(editingItem as any).descriptionVn || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, descriptionVn: e.target.value})}
+                                            placeholder="Mô tả về món ăn"
+                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                                            rows={2}
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">영어</label>
+                                        <textarea 
+                                            value={(editingItem as any).descriptionEn || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, descriptionEn: e.target.value})}
+                                            placeholder="Description of the dish"
+                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                                            rows={2}
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">중국어</label>
+                                        <textarea 
+                                            value={(editingItem as any).descriptionZh || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, descriptionZh: e.target.value})}
+                                            placeholder="菜品描述"
+                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                                            rows={2}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -906,16 +1195,49 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                 <div key={group.id} className="bg-zinc-50 p-4 rounded-xl border border-zinc-100 space-y-3">
                                     <div className="flex justify-between items-start">
                                         <div className="flex-1 grid gap-2">
-                                            <Input 
-                                                value={group.name}
-                                                onChange={(e) => {
-                                                    const newGroups = [...editingItem.optionGroups];
-                                                    newGroups[groupIdx].name = e.target.value;
-                                                    setEditingItem({...editingItem, optionGroups: newGroups});
-                                                }}
-                                                className="bg-white font-bold"
-                                                placeholder={t('menu.group_name')}
-                                            />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Input 
+                                                    value={group.nameKo || group.name || ''}
+                                                    onChange={(e) => {
+                                                        const newGroups = [...editingItem.optionGroups];
+                                                        newGroups[groupIdx].nameKo = e.target.value;
+                                                        newGroups[groupIdx].name = e.target.value;
+                                                        setEditingItem({...editingItem, optionGroups: newGroups});
+                                                    }}
+                                                    className="bg-white font-bold text-xs"
+                                                    placeholder="한국어 *"
+                                                />
+                                                <Input 
+                                                    value={group.nameVn || ''}
+                                                    onChange={(e) => {
+                                                        const newGroups = [...editingItem.optionGroups];
+                                                        newGroups[groupIdx].nameVn = e.target.value;
+                                                        setEditingItem({...editingItem, optionGroups: newGroups});
+                                                    }}
+                                                    className="bg-white font-bold text-xs"
+                                                    placeholder="베트남어 *"
+                                                />
+                                                <Input 
+                                                    value={group.nameEn || ''}
+                                                    onChange={(e) => {
+                                                        const newGroups = [...editingItem.optionGroups];
+                                                        newGroups[groupIdx].nameEn = e.target.value;
+                                                        setEditingItem({...editingItem, optionGroups: newGroups});
+                                                    }}
+                                                    className="bg-white text-xs"
+                                                    placeholder="영어"
+                                                />
+                                                <Input 
+                                                    value={group.nameZh || ''}
+                                                    onChange={(e) => {
+                                                        const newGroups = [...editingItem.optionGroups];
+                                                        newGroups[groupIdx].nameZh = e.target.value;
+                                                        setEditingItem({...editingItem, optionGroups: newGroups});
+                                                    }}
+                                                    className="bg-white text-xs"
+                                                    placeholder="중국어"
+                                                />
+                                            </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs text-zinc-500">{t('menu.min')}:</span>
                                                 <Input 
@@ -955,16 +1277,49 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                     <div className="space-y-2 pl-2 border-l-2 border-zinc-200">
                                         {group.options.map((opt: any, optIdx: number) => (
                                             <div key={opt.id} className="flex gap-2 items-center">
-                                                <Input 
-                                                    value={opt.name}
-                                                    onChange={(e) => {
-                                                        const newGroups = [...editingItem.optionGroups];
-                                                        newGroups[groupIdx].options[optIdx].name = e.target.value;
-                                                        setEditingItem({...editingItem, optionGroups: newGroups});
-                                                    }}
-                                                    placeholder={t('menu.option_name')}
-                                                    className="h-8 text-sm bg-white"
-                                                />
+                                                <div className="grid grid-cols-2 gap-1 flex-1">
+                                                    <Input 
+                                                        value={opt.nameKo || opt.name || ''}
+                                                        onChange={(e) => {
+                                                            const newGroups = [...editingItem.optionGroups];
+                                                            newGroups[groupIdx].options[optIdx].nameKo = e.target.value;
+                                                            newGroups[groupIdx].options[optIdx].name = e.target.value;
+                                                            setEditingItem({...editingItem, optionGroups: newGroups});
+                                                        }}
+                                                        placeholder="한국어"
+                                                        className="h-8 text-xs bg-white"
+                                                    />
+                                                    <Input 
+                                                        value={opt.nameVn || ''}
+                                                        onChange={(e) => {
+                                                            const newGroups = [...editingItem.optionGroups];
+                                                            newGroups[groupIdx].options[optIdx].nameVn = e.target.value;
+                                                            setEditingItem({...editingItem, optionGroups: newGroups});
+                                                        }}
+                                                        placeholder="베트남어"
+                                                        className="h-8 text-xs bg-white"
+                                                    />
+                                                    <Input 
+                                                        value={opt.nameEn || ''}
+                                                        onChange={(e) => {
+                                                            const newGroups = [...editingItem.optionGroups];
+                                                            newGroups[groupIdx].options[optIdx].nameEn = e.target.value;
+                                                            setEditingItem({...editingItem, optionGroups: newGroups});
+                                                        }}
+                                                        placeholder="영어"
+                                                        className="h-8 text-xs bg-white"
+                                                    />
+                                                    <Input 
+                                                        value={opt.nameZh || ''}
+                                                        onChange={(e) => {
+                                                            const newGroups = [...editingItem.optionGroups];
+                                                            newGroups[groupIdx].options[optIdx].nameZh = e.target.value;
+                                                            setEditingItem({...editingItem, optionGroups: newGroups});
+                                                        }}
+                                                        placeholder="중국어"
+                                                        className="h-8 text-xs bg-white"
+                                                    />
+                                                </div>
                                                 <Input 
                                                     type="number"
                                                     value={opt.price}
@@ -1023,7 +1378,7 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                     disabled={isLoading}
                     className="h-12 rounded-xl bg-zinc-900 text-white font-bold text-sm hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {isLoading ? '저장 중...' : t('btn.save')}
+                    {isLoading ? t('btn.saving') : t('btn.save')}
                 </button>
             </div>
         </div>

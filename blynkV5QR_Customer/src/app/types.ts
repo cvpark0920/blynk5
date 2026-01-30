@@ -3,6 +3,7 @@ export interface MenuOption {
   labelKO: string;
   labelVN: string;
   labelEN?: string;
+  labelZH?: string;
   priceVND: number;
 }
 
@@ -11,6 +12,7 @@ export interface MenuItem {
   nameKO: string;
   nameVN: string;
   nameEN?: string;
+  nameZH?: string;
   priceVND: number;
   category: 'food' | 'drink' | 'dessert'; // 하위 호환성을 위해 유지
   categoryId: string; // 실제 카테고리 ID
@@ -18,6 +20,7 @@ export interface MenuItem {
   descriptionKO?: string;
   descriptionVN?: string;
   descriptionEN?: string;
+  descriptionZH?: string;
   options?: MenuOption[];
 }
 
@@ -47,8 +50,10 @@ export interface QuickChip {
   labelKO: string;
   labelVN: string;
   labelEN?: string;
+  labelZH?: string;
   action: 'message' | 'toggle_feature';
   messageKO?: string;
   messageVN?: string;
   messageEN?: string;
+  messageZH?: string;
 }

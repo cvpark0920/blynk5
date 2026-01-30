@@ -296,9 +296,14 @@ export class OrderService {
         en: 'Cooking has started.',
       },
       SERVED: {
-        ko: '서빙이 완료되었습니다.',
-        vn: 'Đã phục vụ xong.',
-        en: 'Order has been served.',
+        ko: '조리가 완료되었습니다.',
+        vn: 'Đã nấu xong.',
+        en: 'Cooking has been completed.',
+      },
+      DELIVERED: {
+        ko: '음식이 서빙되었습니다.',
+        vn: 'Món ăn đã được phục vụ.',
+        en: 'Food has been delivered to your table.',
       },
       PAID: {
         ko: '결제가 완료되었습니다.',
@@ -328,8 +333,8 @@ export class OrderService {
     }));
 
     // Save order status change message to database with order items details
-    // SERVED 상태는 고객에게 알릴 필요 없으므로 채팅 메시지 생성하지 않음
-    if (status !== OrderStatus.SERVED) {
+    // SERVED(조리완료), DELIVERED(서빙완료)는 고객 채팅에 표시하지 않음. 결제 완료만 정확한 시점에 전달
+    if (status !== OrderStatus.SERVED && status !== OrderStatus.DELIVERED) {
       // 디버깅: order.items 구조 확인
       console.log(`[OrderService] updateOrderStatus - Order ID: ${order.id}, Status: ${status}`);
       console.log(`[OrderService] order.items.length: ${order.items.length}`);
@@ -501,6 +506,21 @@ export class OrderService {
       await eventEmitter.publishOrderStatusChanged(session.restaurantId, order.id, OrderStatus.PAID);
       await eventEmitter.publishOrderStatus(sessionId, order.id, OrderStatus.PAID);
     }
+
+    // 고객 채팅에 결제 완료 메시지 전달 (결제 시점에만)
+    await chatService.createMessage({
+      sessionId,
+      senderType: 'STAFF',
+      textKo: '결제가 완료되었습니다.',
+      textVn: 'Thanh toán đã hoàn tất.',
+      textEn: 'Payment has been completed.',
+      messageType: 'TEXT',
+      metadata: {
+        tableNumber: session.table.tableNumber,
+        totalAmount,
+        paymentMethod,
+      },
+    });
 
     // Update table status to CLEANING after payment is completed
     // This ensures the table card doesn't show "결제 완료" badge while table is still in DINING status

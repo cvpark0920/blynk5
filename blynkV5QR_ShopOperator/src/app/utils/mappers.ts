@@ -87,18 +87,20 @@ export function mapBackendOrderToFrontend(backendOrder: BackendOrder, language: 
   const getMenuItemName = (menuItem: BackendOrder['items'][0]['menuItem']): string => {
     if (language === 'ko') return menuItem.nameKo || menuItem.nameEn || menuItem.nameVn || menuItem.name || '';
     if (language === 'vn') return menuItem.nameVn || menuItem.nameKo || menuItem.nameEn || menuItem.name || '';
+    if (language === 'zh') return (menuItem as { nameZh?: string }).nameZh || menuItem.nameEn || menuItem.nameKo || menuItem.name || '';
     return menuItem.nameEn || menuItem.nameKo || menuItem.nameVn || menuItem.name || '';
   };
 
   // Get option name based on language
   const getOptionName = (option: BackendOrder['items'][0]['options'] extends Array<infer T> ? T : never): string => {
-    const opt = option as { option: { nameKo?: string; nameVn?: string; nameEn?: string } };
+    const opt = option as { option: { nameKo?: string; nameVn?: string; nameEn?: string; nameZh?: string } };
     if (!opt || !opt.option) {
       console.warn('[mapBackendOrderToFrontend] Invalid option structure:', opt);
       return '';
     }
     if (language === 'ko') return opt.option.nameKo || opt.option.nameEn || opt.option.nameVn || '';
     if (language === 'vn') return opt.option.nameVn || opt.option.nameKo || opt.option.nameEn || '';
+    if (language === 'zh') return opt.option.nameZh || opt.option.nameEn || opt.option.nameKo || '';
     return opt.option.nameEn || opt.option.nameKo || opt.option.nameVn || '';
   };
 
@@ -153,6 +155,7 @@ export function mapBackendCategoryToFrontend(backendCategory: BackendMenuCategor
     ko: backendCategory.nameKo || '',
     vn: backendCategory.nameVn || '',
     en: backendCategory.nameEn || backendCategory.nameKo || '',
+    zh: (backendCategory as { nameZh?: string }).nameZh || backendCategory.nameEn || backendCategory.nameKo || '',
   };
   
   return {
@@ -179,12 +182,14 @@ export function mapBackendMenuItemToFrontend(backendItem: BackendMenuItem, langu
     ko: backendItem.nameKo || '',
     vn: backendItem.nameVn || '',
     en: backendItem.nameEn || backendItem.nameKo || '',
+    zh: (backendItem as { nameZh?: string }).nameZh || backendItem.nameEn || backendItem.nameKo || '',
   };
   
   const descMap: Record<Language, string | undefined> = {
     ko: backendItem.descriptionKo || undefined,
     vn: backendItem.descriptionVn || undefined,
     en: backendItem.descriptionEn || undefined,
+    zh: (backendItem as { descriptionZh?: string }).descriptionZh || backendItem.descriptionEn || undefined,
   };
 
   const optionGroups: MenuOptionGroup[] = (backendItem.optionGroups || []).map((og: BackendMenuOptionGroup) => {
@@ -192,6 +197,7 @@ export function mapBackendMenuItemToFrontend(backendItem: BackendMenuItem, langu
       ko: og.nameKo || '',
       vn: og.nameVn || '',
       en: og.nameEn || og.nameKo || '',
+      zh: (og as { nameZh?: string }).nameZh || og.nameEn || og.nameKo || '',
     };
     
     const options: MenuOption[] = (og.options || []).map((opt: BackendMenuOption) => {
@@ -199,6 +205,7 @@ export function mapBackendMenuItemToFrontend(backendItem: BackendMenuItem, langu
         ko: opt.nameKo || '',
         vn: opt.nameVn || '',
         en: opt.nameEn || opt.nameKo || '',
+        zh: (opt as { nameZh?: string }).nameZh || opt.nameEn || opt.nameKo || '',
       };
       
       return {
@@ -333,6 +340,7 @@ export function mapChatMessageToOrder(
   const getMessageText = (): string => {
     if (language === 'ko') return chatMessage.textKo || '';
     if (language === 'vn') return chatMessage.textVn || '';
+    if (language === 'zh') return (chatMessage as { textZh?: string }).textZh || chatMessage.textEn || '';
     return chatMessage.textEn || '';
   };
 

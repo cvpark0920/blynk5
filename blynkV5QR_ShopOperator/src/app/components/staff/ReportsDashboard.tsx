@@ -15,7 +15,7 @@ import { BackendSalesReport, BackendSalesHistoryEntry } from '../../types/api';
 import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, Clock, Table as TableIcon } from 'lucide-react';
 import { format } from 'date-fns';
-import { ko, vi, enUS, Locale } from 'date-fns/locale';
+import { ko, vi, enUS, zhCN, Locale } from 'date-fns/locale';
 import {
   Pagination,
   PaginationContent,
@@ -154,6 +154,7 @@ export function ReportsDashboard() {
       ko: ko,
       vn: vi,
       en: enUS,
+      zh: zhCN,
     };
     
     const locale = localeMap[language] || enUS;
@@ -162,6 +163,8 @@ export function ReportsDashboard() {
       return `${format(from, 'yyyy년 MM월 dd일', { locale })} ~ ${format(to, 'yyyy년 MM월 dd일', { locale })}`;
     } else if (language === 'vn') {
       return `${format(from, 'dd/MM/yyyy', { locale })} ~ ${format(to, 'dd/MM/yyyy', { locale })}`;
+    } else if (language === 'zh') {
+      return `${format(from, 'yyyy年MM月dd日', { locale })} ~ ${format(to, 'yyyy年MM月dd日', { locale })}`;
     } else {
       return `${format(from, 'MMM dd, yyyy', { locale })} ~ ${format(to, 'MMM dd, yyyy', { locale })}`;
     }
@@ -191,11 +194,13 @@ export function ReportsDashboard() {
   const weeklyData = reportData?.statistics.weekly.map((day) => {
     const date = new Date(day.date);
     // Use date-fns to get localized day names
-    const locale = language === 'ko' ? ko : language === 'vn' ? vi : enUS;
+    const locale = language === 'ko' ? ko : language === 'vn' ? vi : language === 'zh' ? zhCN : enUS;
     const dayNames = language === 'ko' 
       ? ['일', '월', '화', '수', '목', '금', '토']
       : language === 'vn'
       ? ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+      : language === 'zh'
+      ? ['日', '一', '二', '三', '四', '五', '六']
       : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return {
       name: dayNames[date.getDay()],
@@ -267,7 +272,7 @@ export function ReportsDashboard() {
     return null;
   };
 
-  const currentDate = new Date().toLocaleDateString(language === 'ko' ? 'ko-KR' : language === 'vn' ? 'vi-VN' : 'en-US', {
+  const currentDate = new Date().toLocaleDateString(language === 'ko' ? 'ko-KR' : language === 'vn' ? 'vi-VN' : language === 'zh' ? 'zh-CN' : 'en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -540,7 +545,7 @@ export function ReportsDashboard() {
                             {t('table.number')} {session.tableNumber}
                           </span>
                           <span className="text-[10px] sm:text-xs text-zinc-500">
-                            {session.orders.length} {session.orders.length === 1 ? (language === 'ko' ? '주문' : language === 'vn' ? 'đơn' : 'order') : (language === 'ko' ? '주문' : language === 'vn' ? 'đơn' : 'orders')}
+                            {session.orders.length} {session.orders.length === 1 ? (language === 'ko' ? '주문' : language === 'vn' ? 'đơn' : language === 'zh' ? '订单' : 'order') : (language === 'ko' ? '주문' : language === 'vn' ? 'đơn' : language === 'zh' ? '订单' : 'orders')}
                           </span>
                         </div>
                         <div className="text-[10px] sm:text-xs text-zinc-500 truncate">

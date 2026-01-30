@@ -778,9 +778,11 @@ class ApiClient {
     labelKo: string;
     labelVn: string;
     labelEn?: string;
+    labelZh?: string;
     messageKo?: string;
     messageVn?: string;
     messageEn?: string;
+    messageZh?: string;
     displayOrder: number;
     isActive: boolean;
   }>>> {
@@ -805,9 +807,11 @@ class ApiClient {
       labelKo: string;
       labelVn: string;
       labelEn?: string;
+      labelZh?: string;
       messageKo?: string;
       messageVn?: string;
       messageEn?: string;
+      messageZh?: string;
       displayOrder: number;
       isActive: boolean;
     }>>(`/api/staff/quick-chips/templates${queryString ? `?${queryString}` : ''}`);
@@ -827,9 +831,11 @@ class ApiClient {
       labelKo: string;
       labelVn: string;
       labelEn?: string;
+      labelZh?: string;
       messageKo?: string;
       messageVn?: string;
       messageEn?: string;
+      messageZh?: string;
       displayOrder: number;
       isActive: boolean;
     }>>(`/api/staff/quick-chips?${params.toString()}`);
@@ -843,9 +849,11 @@ class ApiClient {
     labelKo: string;
     labelVn: string;
     labelEn?: string;
+    labelZh?: string;
     messageKo?: string;
     messageVn?: string;
     messageEn?: string;
+    messageZh?: string;
     displayOrder?: number;
     isActive?: boolean;
   }) {
@@ -864,9 +872,11 @@ class ApiClient {
       labelKo?: string;
       labelVn?: string;
       labelEn?: string;
+      labelZh?: string;
       messageKo?: string;
       messageVn?: string;
       messageEn?: string;
+      messageZh?: string;
       displayOrder?: number;
       isActive?: boolean;
     }

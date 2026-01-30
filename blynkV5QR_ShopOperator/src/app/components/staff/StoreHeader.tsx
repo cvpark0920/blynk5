@@ -68,6 +68,7 @@ function NotificationList({ onRefresh, onTableOpen }: { onRefresh?: () => void; 
   const getTitle = (notification: BackendNotification) => {
     if (language === 'ko') return notification.titleKo || '';
     if (language === 'vn') return notification.titleVn || '';
+    if (language === 'zh') return (notification as { titleZh?: string }).titleZh || notification.titleEn || '';
     return notification.titleEn || '';
   };
 
@@ -75,6 +76,7 @@ function NotificationList({ onRefresh, onTableOpen }: { onRefresh?: () => void; 
   const getDescription = (notification: BackendNotification) => {
     if (language === 'ko') return notification.descriptionKo || '';
     if (language === 'vn') return notification.descriptionVn || '';
+    if (language === 'zh') return (notification as { descriptionZh?: string }).descriptionZh || notification.descriptionEn || '';
     return notification.descriptionEn || '';
   };
 
@@ -256,7 +258,7 @@ function NotificationList({ onRefresh, onTableOpen }: { onRefresh?: () => void; 
           <div className="flex flex-col">
              {isLoading ? (
                <div className="p-12 text-center">
-                  <p className="text-sm text-zinc-400">로딩 중...</p>
+                  <p className="text-sm text-zinc-400">{t('common.loading')}</p>
                </div>
              ) : filteredNotifications.length === 0 ? (
                <div className="p-12 text-center">
@@ -455,7 +457,7 @@ export function StoreHeader({
           className="w-auto h-8 gap-1 border-0 bg-white/50 hover:bg-white shadow-sm rounded-full px-3 text-xs font-semibold text-zinc-600 transition-all focus:ring-0 inline-flex items-center disabled:opacity-60"
         >
           <Bell size={12} className={isSoundEnabled ? 'text-emerald-500' : 'text-zinc-400'} />
-          <span className="hidden sm:inline">{isSoundEnabled ? '알림 ON' : '알림 OFF'}</span>
+          <span className="hidden sm:inline">{isSoundEnabled ? t('settings.notification_on') : t('settings.notification_off')}</span>
           <span
             className={`ml-1 inline-flex h-2 w-2 rounded-full ${
               isSoundEnabled ? 'bg-emerald-500' : 'bg-zinc-300'

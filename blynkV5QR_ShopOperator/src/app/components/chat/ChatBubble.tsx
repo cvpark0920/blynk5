@@ -1,33 +1,31 @@
 import React, { useState } from 'react';
 import { Languages, User } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import { BackendChatMessage } from '../../types/api';
 
 interface ChatBubbleProps {
   message: BackendChatMessage;
-  language: 'ko' | 'vn' | 'en';
+  language: 'ko' | 'vn' | 'en' | 'zh';
   tableNumber?: number;
 }
 
-const getMessageText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en'): string => {
+const getMessageText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh'): string => {
   if (language === 'ko') return message.textKo || message.textEn || message.textVn || '';
   if (language === 'vn') return message.textVn || message.textEn || message.textKo || '';
+  if (language === 'zh') return (message as { textZh?: string }).textZh || message.textEn || message.textKo || '';
   return message.textEn || message.textKo || message.textVn || '';
 };
 
-const getTranslatedText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en'): string => {
+const getTranslatedText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh'): string => {
   if (language === 'ko') return message.textVn || message.textEn || '';
   if (language === 'vn') return message.textKo || message.textEn || '';
+  if (language === 'zh') return message.textEn || message.textKo || '';
   return message.textKo || message.textVn || '';
 };
 
 
-const getTranslateLabel = (language: 'ko' | 'vn' | 'en'): string => {
-  if (language === 'ko') return '번역하기';
-  if (language === 'vn') return 'Dich';
-  return 'Translate';
-};
-
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber }) => {
+  const { t } = useLanguage();
   const [avatarError, setAvatarError] = React.useState(false);
   const isUser = message.senderType === 'USER';
   // 주문 상태 메시지(SYSTEM 타입이지만 metadata에 orderStatus가 있음)는 STAFF처럼 표시
@@ -51,7 +49,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
     hasTranslation;
   const displayTranslatedText = translatedText || messageText;
   const timeText = new Intl.DateTimeFormat(
-    language === 'vn' ? 'vi-VN' : language === 'en' ? 'en-US' : 'ko-KR',
+    language === 'vn' ? 'vi-VN' : language === 'en' ? 'en-US' : language === 'zh' ? 'zh-CN' : 'ko-KR',
     { hour: '2-digit', minute: '2-digit' },
   ).format(new Date(message.createdAt));
 
@@ -106,7 +104,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                       }`}
                     >
                       <Languages size={12} />
-                      {getTranslateLabel(language)}
+                      {t('chat.translate')}
                     </button>
                   ) : (
                     <div className="overflow-hidden">
@@ -125,10 +123,12 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
             const orderPrefixKo = '주문합니다:';
             const orderPrefixVn = 'Đặt món:';
             const orderPrefixEn = 'Order:';
+            const orderPrefixZh = '点餐:';
             
             const getOrderPrefix = () => {
               if (language === 'ko') return orderPrefixKo;
               if (language === 'vn') return orderPrefixVn;
+              if (language === 'zh') return orderPrefixZh;
               return orderPrefixEn;
             };
             
@@ -146,8 +146,8 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                 {orderItems && orderItems.length > 0 && (
                   <div className="space-y-2 sm:space-y-3 w-full min-w-[180px] sm:min-w-[200px] mt-2 sm:mt-3">
                     {orderItems.map((item: any, idx: number) => {
-                      const itemName = language === 'ko' ? item.nameKO : language === 'vn' ? item.nameVN : (item.nameEN || item.nameKO);
-                      const itemSub = language === 'vn' ? (item.nameEN || item.nameKO) : item.nameVN;
+                      const itemName = language === 'ko' ? item.nameKO : language === 'vn' ? item.nameVN : language === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+                      const itemSub = language === 'vn' ? (item.nameEN || item.nameKO) : language === 'zh' ? (item.nameEN || item.nameKO) : item.nameVN;
                       const imageUrl = item.imageQuery || item.imageUrl || '';
                       const quantity = item.quantity || 1;
                       
@@ -192,7 +192,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                             {selectedOptions.length > 0 && (
                               <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-muted/30">
                                 {selectedOptions.map((opt: any, i: number) => {
-                                  const optLabel = language === 'ko' ? opt.labelKO : language === 'vn' ? opt.labelVN : (opt.labelEN || opt.labelKO);
+                                  const optLabel = language === 'ko' ? opt.labelKO : language === 'vn' ? opt.labelVN : language === 'zh' ? (opt.labelZH || opt.labelEN || opt.labelKO) : (opt.labelEN || opt.labelKO);
                                   const optPrice = opt.priceVND || opt.price || 0;
                                   const optQuantity = opt.quantity || 1;
                                   return (
@@ -216,7 +216,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                     {orderItems.length > 0 && (
                       <div className={`pt-1.5 sm:pt-2 mt-1.5 sm:mt-2 border-t flex justify-between items-center ${isStaff ? 'border-foreground/20' : 'border-white/20'}`}>
                         <span className={`text-[10px] sm:text-xs ${isStaff ? 'text-foreground/80' : 'text-white/80'}`}>
-                          {language === 'ko' ? '총합계' : language === 'vn' ? 'Tổng cộng' : 'Total'}
+                          {t('chat.total')}
                         </span>
                         <span className={`text-xs sm:text-sm font-bold ${isStaff ? 'text-foreground' : 'text-white'}`}>
                           {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(

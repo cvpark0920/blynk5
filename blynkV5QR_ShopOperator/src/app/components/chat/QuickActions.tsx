@@ -11,19 +11,21 @@ interface QuickReply {
 
 interface QuickActionsProps {
   replies: QuickReply[];
-  language: 'ko' | 'vn' | 'en';
+  language: 'ko' | 'vn' | 'en' | 'zh';
   onReply: (message: string) => void;
 }
 
-const getLabel = (reply: QuickReply, language: 'ko' | 'vn' | 'en') => {
+const getLabel = (reply: QuickReply, language: 'ko' | 'vn' | 'en' | 'zh') => {
   if (language === 'ko') return reply.labelKo;
   if (language === 'vn') return reply.labelVn;
+  if (language === 'zh') return (reply as { labelZh?: string }).labelZh || reply.labelEn || reply.labelKo;
   return reply.labelEn || reply.labelKo;
 };
 
-const getMessage = (reply: QuickReply, language: 'ko' | 'vn' | 'en') => {
+const getMessage = (reply: QuickReply, language: 'ko' | 'vn' | 'en' | 'zh') => {
   if (language === 'ko') return reply.messageKo || reply.labelKo || '';
   if (language === 'vn') return reply.messageVn || reply.labelVn || '';
+  if (language === 'zh') return (reply as { messageZh?: string }).messageZh || reply.messageEn || reply.labelEn || reply.labelKo || '';
   return reply.messageEn || reply.labelEn || reply.labelKo || '';
 };
 

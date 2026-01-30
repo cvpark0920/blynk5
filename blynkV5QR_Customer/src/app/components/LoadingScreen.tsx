@@ -1,7 +1,14 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { getTranslation } from '../i18n/translations';
+import type { LangType } from '../i18n/translations';
 
-export const LoadingScreen: React.FC = () => {
+interface LoadingScreenProps {
+  lang?: LangType;
+}
+
+export const LoadingScreen: React.FC<LoadingScreenProps> = ({ lang }) => {
+  const loadingText = lang ? getTranslation('common.loading', lang) : '로딩 중...';
   return (
     <div className="fixed inset-0 bg-slate-50 flex items-center justify-center z-50">
       <div className="flex flex-col items-center gap-4">
@@ -17,7 +24,7 @@ export const LoadingScreen: React.FC = () => {
           animate={{ opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 1.5, repeat: Infinity }}
         >
-          로딩 중...
+          {loadingText}
         </motion.p>
       </div>
     </div>

@@ -72,10 +72,10 @@ export function CheckoutSheet({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
 
-  // Filter served orders for checkout - only show orders from the active session
+  // Filter served/delivered orders for checkout - only show orders from the active session
   const servedOrders = orders.filter(o => {
-    // Must be served status and match table number
-    if (o.status !== 'served' || o.tableId !== tableNumber) {
+    // Must be served or delivered status and match table number
+    if ((o.status !== 'served' && o.status !== 'delivered') || o.tableId !== tableNumber) {
       return false;
     }
     // If table has an active session, only show orders from that session
@@ -115,7 +115,7 @@ export function CheckoutSheet({
       }
     } catch (error: unknown) {
       console.error('Error loading payment methods:', error);
-      toast.error('결제 방법을 불러오는데 실패했습니다.');
+      toast.error(t('checkout.payment_load_failed'));
     } finally {
       setIsLoading(false);
     }
@@ -128,7 +128,7 @@ export function CheckoutSheet({
     }
 
     if (!restaurantId || !tableId) {
-      toast.error('테이블 정보가 없습니다.');
+      toast.error(t('checkout.table_info_missing'));
       return;
     }
 
@@ -142,11 +142,11 @@ export function CheckoutSheet({
         onCheckoutComplete();
         onClose();
       } else {
-        throw new Error(result.error?.message || '결제 처리에 실패했습니다.');
+        throw new Error(result.error?.message || t('checkout.payment_process_failed'));
       }
     } catch (error: unknown) {
       console.error('Error processing checkout:', error);
-      const errorMessage = error instanceof Error ? error.message : '결제 처리에 실패했습니다.';
+      const errorMessage = error instanceof Error ? error.message : t('checkout.payment_process_failed');
       toast.error(errorMessage);
     } finally {
       setIsProcessing(false);
@@ -243,7 +243,7 @@ export function CheckoutSheet({
                   </div>
                 ) : availablePaymentMethods.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-sm">
-                    활성화된 결제 방법이 없습니다.
+                    {t('checkout.no_payment_methods')}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -315,7 +315,7 @@ export function CheckoutSheet({
                 {isProcessing ? (
                   <>
                     <Loader2 className="animate-spin mr-2" size={16} />
-                    처리 중...
+                    {t('btn.processing')}
                   </>
                 ) : (
                   t('checkout.complete')
@@ -335,7 +335,7 @@ export function CheckoutSheet({
           <SheetContent side="right" className="w-full h-full sm:w-[540px] p-0 flex flex-col rounded-l-[32px] rounded-bl-[32px] border-none outline-none overflow-hidden">
             <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
               <SheetTitle className="text-xl font-bold text-foreground">
-                {t('checkout.title')} - 테이블 {tableNumber}
+                {t('checkout.title_table').replace('{number}', String(tableNumber))}
               </SheetTitle>
             </SheetHeader>
             {content}
@@ -366,7 +366,7 @@ export function CheckoutSheet({
       <Drawer open={isOpen} onOpenChange={onClose}>
         <DrawerContent className="h-[90vh] flex flex-col">
           <DrawerTitle className="px-6 pt-6 pb-4 border-b border-border text-xl font-bold text-foreground">
-            {t('checkout.title')} - 테이블 {tableNumber}
+            {t('checkout.title_table').replace('{number}', String(tableNumber))}
           </DrawerTitle>
           {content}
         </DrawerContent>

@@ -106,7 +106,7 @@ export const BillModal: React.FC<BillModalProps> = ({
       const qrResponse = await apiClient.generateQRCode({
         restaurantId,
         amount: total,
-        memo: lang === 'ko' ? `테이블 ${tableNumber}` : lang === 'vn' ? `Bàn ${tableNumber}` : `Table ${tableNumber}`,
+        memo: getTranslation('bill.tableLabel', lang).replace('{n}', String(tableNumber ?? '')),
         tableNumber: tableNumber || undefined,
       });
 
@@ -249,8 +249,8 @@ export const BillModal: React.FC<BillModalProps> = ({
                               </div>
                               <div className="flex-1">
                                 {(() => {
-                                  const itemName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : (item.nameEN || item.nameKO);
-                                  const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : item.nameVN;
+                                  const itemName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+                                  const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : item.nameVN;
                                   return (
                                     <>
                                       <div className="font-medium text-foreground leading-tight">{itemName}</div>
@@ -258,7 +258,7 @@ export const BillModal: React.FC<BillModalProps> = ({
                                       {item.selectedOptions && item.selectedOptions.length > 0 && (
                                         <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
                                           {item.selectedOptions.map((opt, i) => {
-                                            const optLabel = lang === 'ko' ? opt.labelKO : lang === 'vn' ? opt.labelVN : (opt.labelEN || opt.labelKO);
+                                            const optLabel = lang === 'ko' ? opt.labelKO : lang === 'vn' ? opt.labelVN : lang === 'zh' ? (opt.labelZH || opt.labelEN || opt.labelKO) : (opt.labelEN || opt.labelKO);
                                             const optQuantity = (opt as any).quantity || 1;
                                             const optPrice = opt.priceVND || 0;
                                             return (
@@ -321,7 +321,7 @@ export const BillModal: React.FC<BillModalProps> = ({
                    </Button>
 
                    <Button 
-                    onClick={() => onPaymentRequest(lang === 'ko' ? '현금' : lang === 'vn' ? 'Tiền mặt' : 'Cash')}
+                    onClick={() => onPaymentRequest(getTranslation('bill.cash', lang))}
                     variant="outline"
                     className="w-full h-20 text-lg flex flex-col gap-1 items-center justify-center hover:bg-muted"
                    >
@@ -330,7 +330,7 @@ export const BillModal: React.FC<BillModalProps> = ({
                    </Button>
 
                    <Button 
-                    onClick={() => onPaymentRequest(lang === 'ko' ? '신용카드' : lang === 'vn' ? 'Thẻ tín dụng' : 'Credit Card')}
+                    onClick={() => onPaymentRequest(getTranslation('bill.creditCard', lang))}
                     variant="outline"
                     className="w-full h-20 text-lg flex flex-col gap-1 items-center justify-center hover:bg-muted"
                    >
@@ -347,7 +347,7 @@ export const BillModal: React.FC<BillModalProps> = ({
                      <div className="flex-1 flex flex-col items-center justify-center p-6">
                        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
                        <p className="text-muted-foreground">
-                         {lang === 'ko' ? 'QR 코드 생성 중...' : lang === 'vn' ? 'Đang tạo mã QR...' : 'Generating QR code...'}
+                         {getTranslation('bill.qrGenerating', lang)}
                        </p>
                      </div>
                    ) : qrCodeUrl && bankInfo ? (
@@ -390,11 +390,11 @@ export const BillModal: React.FC<BillModalProps> = ({
                            </div>
                           <div className="text-xl font-bold tracking-wider text-foreground">{bankInfo.accountNumber}</div>
                           <div className="text-sm text-muted-foreground">
-                             {lang === 'ko' ? `예금주: ${bankInfo.accountHolder}` : lang === 'vn' ? `Chủ tài khoản: ${bankInfo.accountHolder}` : `Account Holder: ${bankInfo.accountHolder}`}
+                             {getTranslation('bill.accountHolderLabel', lang)}: {bankInfo.accountHolder}
                            </div>
                           <div className="pt-2 mt-2 border-t border-border/50">
                             <div className="text-xs text-muted-foreground mb-1">
-                              {lang === 'ko' ? '입금 금액' : lang === 'vn' ? 'Số tiền cần chuyển' : 'Transfer Amount'}
+                              {getTranslation('bill.transferAmount', lang)}
                             </div>
                             <div className="text-xl font-bold text-primary">
                               {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(total)}
@@ -424,13 +424,13 @@ export const BillModal: React.FC<BillModalProps> = ({
                    ) : (
                     <div className="flex-1 flex flex-col items-center justify-center p-6">
                       <p className="text-muted-foreground mb-4">
-                         {lang === 'ko' ? 'QR 코드를 불러올 수 없습니다.' : lang === 'vn' ? 'Không thể tải mã QR.' : 'Unable to load QR code.'}
+                         {getTranslation('toast.qrLoadFailed', lang)}
                        </p>
                        <Button 
                          onClick={() => setStep('method')}
                          variant="outline"
                        >
-                         {lang === 'ko' ? '돌아가기' : lang === 'vn' ? 'Quay lại' : 'Go Back'}
+                         {getTranslation('common.goBack', lang)}
                        </Button>
                      </div>
                    )}

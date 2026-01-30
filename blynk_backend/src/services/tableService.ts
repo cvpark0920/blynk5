@@ -347,14 +347,14 @@ export class TableService {
       await sessionService.endSession(endedSessionId);
     }
 
-    // Cancel all non-paid orders for this table (PENDING, COOKING, SERVED)
+    // Cancel all non-paid orders for this table (PENDING, COOKING, SERVED, DELIVERED)
     // This ensures that when a table is reset, old orders don't appear for new customers
     // Note: PAID orders are not cancelled as they are already completed transactions
     const cancelledOrders = await prisma.order.updateMany({
       where: {
         tableId: id,
         status: {
-          in: ['PENDING', 'COOKING', 'SERVED'], // Include SERVED to prevent showing served orders after reset
+          in: ['PENDING', 'COOKING', 'SERVED', 'DELIVERED'],
         },
       },
       data: {
@@ -364,7 +364,7 @@ export class TableService {
 
     console.log(`[TableService] resetTableToEmpty - Cancelled ${cancelledOrders.count} orders for table ${id}`, {
       tableId: id,
-      cancelledStatuses: ['PENDING', 'COOKING', 'SERVED'],
+      cancelledStatuses: ['PENDING', 'COOKING', 'SERVED', 'DELIVERED'],
     });
 
     // Create a new empty session for the table

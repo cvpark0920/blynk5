@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Order } from '../../data';
-import { ChefHat, CircleCheck, Clock, UtensilsCrossed, ArrowRight, Timer, Hash } from 'lucide-react';
+import { ChefHat, CircleCheck, Clock, UtensilsCrossed, ArrowRight, Timer, Hash, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../../context/LanguageContext';
 import { apiClient } from '../../../lib/api';
@@ -15,16 +15,17 @@ interface OrderFeedProps {
 
 export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: OrderFeedProps & { menu?: Array<{ id: string; name: string; imageUrl?: string }> }) {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'pending' | 'cooking'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'cooking' | 'served'>('pending');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   const foodOrders = orders.filter(o => 
     o.type === 'order' && 
-    (o.status === 'pending' || o.status === 'cooking')
+    (o.status === 'pending' || o.status === 'cooking' || o.status === 'served')
   ).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
   const pendingOrders = foodOrders.filter(o => o.status === 'pending');
   const cookingOrders = foodOrders.filter(o => o.status === 'cooking');
+  const servedOrders = foodOrders.filter(o => o.status === 'served');
 
   // Group orders by tableId
   const groupOrdersByTable = (ordersList: Order[]) => {
@@ -52,6 +53,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
 
   const pendingOrdersByTable = groupOrdersByTable(pendingOrders);
   const cookingOrdersByTable = groupOrdersByTable(cookingOrders);
+  const servedOrdersByTable = groupOrdersByTable(servedOrders);
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     setUpdatingOrderId(orderId);
@@ -72,7 +74,9 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
         if (newStatus === 'cooking') {
           toast.success(t('msg.cooking_started') || "Order started cooking");
         } else if (newStatus === 'served') {
-          toast.success(t('msg.completed') || "Order served");
+          toast.success(t('msg.cooking_done') || "조리 완료");
+        } else if (newStatus === 'delivered') {
+          toast.success(t('order.action.mark_served') || "서빙 완료");
         }
       } else {
         throw new Error(result.error?.message || 'Failed to update order status');
@@ -96,7 +100,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
 
   return (
     <div className="w-full h-full flex flex-col">
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'cooking')} className="flex-1 flex flex-col overflow-hidden">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'cooking' | 'served')} className="flex-1 flex flex-col overflow-hidden">
         <div className="px-6 shrink-0">
           <TabsList className="bg-muted/60 p-0.5 h-9 w-full gap-1 rounded-lg">
             <TabsTrigger value="pending" className="gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0">
@@ -111,6 +115,13 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
               <span className="text-xs font-semibold">{t('feed.tab.cooking')}</span>
               <span className="text-[11px] bg-background/80 data-[state=active]:bg-primary/20 text-muted-foreground data-[state=active]:text-primary-foreground px-1.5 py-0.5 rounded font-medium">
                 {cookingOrders.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="served" className="gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0">
+              <CheckCircle2 size={14} />
+              <span className="text-xs font-semibold">{t('feed.tab.served')}</span>
+              <span className="text-[11px] bg-background/80 data-[state=active]:bg-primary/20 text-muted-foreground data-[state=active]:text-primary-foreground px-1.5 py-0.5 rounded font-medium">
+                {servedOrders.length}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -129,10 +140,10 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-zinc-900">
-                          Table {tableId}
+                          {t('feed.table_label').replace('{number}', String(tableId))}
                         </h3>
                         <p className="text-xs text-zinc-500 mt-0.5">
-                          {tableOrders.length} {tableOrders.length === 1 ? 'order' : 'orders'}
+                          {t('feed.order_count').replace('{count}', String(tableOrders.length))}
                         </p>
                       </div>
                     </div>
@@ -144,7 +155,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                           <div className="px-4 pt-4 pb-3 flex items-center justify-between">
                             <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
                               <Clock size={12} className="text-orange-500" />
-                              <span className="text-orange-600">{Math.floor((Date.now() - order.timestamp.getTime()) / 60000)}m ago</span>
+                              <span className="text-orange-600">{t('feed.minutes_ago').replace('{m}', String(Math.floor((Date.now() - order.timestamp.getTime()) / 60000)))}</span>
                             </div>
                           </div>
 
@@ -199,7 +210,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                               className="w-full h-10 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <ChefHat size={16} />
-                              {updatingOrderId === order.id ? 'Updating...' : 'Start Cooking'}
+                              {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.start_cooking')}
                             </button>
                           </div>
                         </div>
@@ -209,7 +220,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                 ))
               ) : (
                 <div className="col-span-full">
-                  <EmptyState message="No new orders" />
+                  <EmptyState message={t('feed.empty_new')} />
                 </div>
               )}
             </div>
@@ -227,10 +238,10 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-zinc-900">
-                          Table {tableId}
+                          {t('feed.table_label').replace('{number}', String(tableId))}
                         </h3>
                         <p className="text-xs text-zinc-500 mt-0.5">
-                          {tableOrders.length} {tableOrders.length === 1 ? 'order' : 'orders'} cooking
+                          {t('feed.order_count').replace('{count}', String(tableOrders.length))}
                         </p>
                       </div>
                     </div>
@@ -242,7 +253,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                           <div className="px-4 pt-4 pb-3 flex items-center justify-between">
                             <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
                               <Timer size={12} className="text-blue-500" />
-                              <span className="text-blue-600">{Math.floor((Date.now() - order.timestamp.getTime()) / 60000)}m elapsed</span>
+                              <span className="text-blue-600">{t('feed.minutes_elapsed').replace('{m}', String(Math.floor((Date.now() - order.timestamp.getTime()) / 60000)))}</span>
                             </div>
                           </div>
 
@@ -295,7 +306,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                             })}
                           </div>
 
-                          {/* Action Button */}
+                          {/* Action Button: 조리완료 → 다음 탭(조리완료)으로 */}
                           <div className="px-4 pb-4">
                             <button 
                               onClick={() => handleUpdateStatus(order.id, 'served')}
@@ -303,7 +314,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                               className="w-full h-10 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <CircleCheck size={16} />
-                              {updatingOrderId === order.id ? 'Updating...' : 'Mark Served'}
+                              {updatingOrderId === order.id ? t('order.status.updating') : t('feed.tab.served')}
                             </button>
                           </div>
                         </div>
@@ -313,7 +324,121 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                 ))
               ) : (
                 <div className="col-span-full">
-                  <EmptyState message="Nothing cooking right now" />
+                  <EmptyState message={t('feed.empty_cooking')} />
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="served" className="m-0 h-full border-none">
+            <div className="space-y-8 pt-4">
+              {servedOrdersByTable.length > 0 ? (
+                servedOrdersByTable.map(([tableId, tableOrders]) => (
+                  <div key={tableId} className="space-y-4">
+                    {/* Table Header - Minimal */}
+                    <div className="flex items-center gap-3 pb-2 border-b border-zinc-100">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center">
+                        {tableId}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-zinc-900">
+                          {t('feed.table_label').replace('{number}', String(tableId))}
+                        </h3>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          {t('feed.orders_ready_to_serve').replace('{count}', String(tableOrders.length))}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Orders Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {tableOrders.map(order => {
+                        // Calculate waiting time since served (in minutes)
+                        const waitingMinutes = Math.floor((Date.now() - order.timestamp.getTime()) / 60000);
+                        return (
+                          <div key={order.id} className="bg-white rounded-xl border border-emerald-200/60 hover:border-emerald-300 hover:shadow-sm transition-all group">
+                            {/* Time Badge */}
+                            <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                                <CheckCircle2 size={12} className="text-emerald-500" />
+                                <span className={`font-semibold ${waitingMinutes > 10 ? 'text-red-600' : waitingMinutes > 5 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                  {t('feed.minutes_waiting').replace('{m}', String(waitingMinutes))}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Menu Items */}
+                            <div className="px-4 pb-4 space-y-2.5">
+                              {order.items.map((item, idx) => {
+                                const menuItem = menu.find(m => m.name === item.name);
+                                return (
+                                  <div key={idx} className="flex items-start gap-2.5">
+                                    <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
+                                      {menuItem?.imageUrl ? (
+                                        <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <UtensilsCrossed size={14} className="text-zinc-300" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0 pt-0.5">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <span className="text-sm font-semibold text-zinc-700 leading-snug">{item.name}</span>
+                                        <span className="text-xs font-bold text-zinc-600 shrink-0">
+                                          {formatPriceVND(
+                                            (item.unitPrice || 0) * item.quantity + 
+                                            (item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                              sum + (opt.price * opt.quantity), 0) || 0)
+                                          )}
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-zinc-500 mt-0.5">
+                                        {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
+                                      </div>
+                                      {item.options && item.options.length > 0 && (
+                                        <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-zinc-200">
+                                          {item.options.map((opt: { name: string; quantity: number; price: number }, i: number) => (
+                                            <div key={i} className="flex justify-between items-center text-xs">
+                                              <span className="text-zinc-500">
+                                                + {opt.name} {opt.quantity > 1 ? `× ${opt.quantity}` : ''}
+                                              </span>
+                                              <span className="text-zinc-500">
+                                                {formatPriceVND(opt.price * opt.quantity)}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* 조리완료 상태 배지 + 서빙완료 버튼 */}
+                            <div className="px-4 pb-4 space-y-2">
+                              <div className="w-full h-9 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 border border-emerald-200">
+                                <CheckCircle2 size={14} />
+                                {t('feed.tab.served')}
+                              </div>
+                              <button 
+                                onClick={() => handleUpdateStatus(order.id, 'delivered')}
+                                disabled={updatingOrderId === order.id}
+                                className="w-full h-10 bg-zinc-800 hover:bg-zinc-900 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <UtensilsCrossed size={16} />
+                                {updatingOrderId === order.id ? t('order.status.updating') : t('btn.serve')}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full">
+                  <EmptyState message={t('feed.empty_served')} />
                 </div>
               )}
             </div>

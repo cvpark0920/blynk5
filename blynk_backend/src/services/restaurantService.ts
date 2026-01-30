@@ -255,9 +255,11 @@ export class RestaurantService {
             labelKo: chip.labelKo,
             labelVn: chip.labelVn,
             labelEn: chip.labelEn,
+            labelZh: chip.labelZh,
             messageKo: chip.messageKo,
             messageVn: chip.messageVn,
             messageEn: chip.messageEn,
+            messageZh: chip.messageZh,
             displayOrder: chip.displayOrder,
             isActive: chip.isActive,
           };

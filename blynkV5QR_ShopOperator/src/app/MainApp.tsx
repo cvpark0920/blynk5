@@ -373,11 +373,7 @@ export function MainApp() {
   }, [restaurantId, isAuthenticated]);
 
   const playRequestAlert = useCallback((tableNumber: number, message: string) => {
-    const chatMessage = language === 'ko'
-      ? `테이블 ${tableNumber}에서 요청: ${message}`
-      : language === 'vn'
-      ? `Bàn ${tableNumber} yêu cầu: ${message}`
-      : `Table ${tableNumber} request: ${message}`;
+    const chatMessage = t('msg.request_table').replace('{number}', String(tableNumber)).replace('{message}', message);
     toast.info(chatMessage);
     if (!isSoundEnabledRef.current) {
       console.info('[SSE] request alert skipped: sound disabled');
@@ -395,7 +391,7 @@ export function MainApp() {
     notificationAudioRef.current.play().catch((error) => {
       console.error('[SSE] request alert play failed', error);
     });
-  }, [isSoundUnlocked, language]);
+  }, [isSoundUnlocked, t]);
 
   const pollChatRequests = useCallback(async () => {
     if (requestAlertInFlightRef.current || !restaurantId || !isAuthenticated) {
@@ -419,6 +415,8 @@ export function MainApp() {
           ? latestRequest.textKo || ''
           : language === 'vn'
           ? latestRequest.textVn || ''
+          : language === 'zh'
+          ? (latestRequest as { textZh?: string }).textZh || latestRequest.textEn || ''
           : latestRequest.textEn || '';
         if (!lastNotifiedId) {
           requestAlertLastIdRef.current.set(sessionId, latestRequest.id);
@@ -493,7 +491,7 @@ export function MainApp() {
         setIsSoundUnlocked(false);
         isSoundUnlockedRef.current = false;
         console.warn('[SSE] sound unlock failed');
-        toast.error('알림음 활성화에 실패했습니다. 브라우저 설정을 확인해 주세요.');
+        toast.error(t('settings.sound_activate_failed'));
         return false;
       }
     }
@@ -530,11 +528,7 @@ export function MainApp() {
           setCustomerRequestData({
             tableNumber: orderTableNumber,
             requestType: 'order',
-            message: language === 'ko' 
-              ? '새 주문이 들어왔습니다.'
-              : language === 'vn'
-              ? 'Có đơn hàng mới.'
-              : 'New order received.',
+            message: t('msg.new_order'),
           });
           setCustomerRequestModalOpen(true);
           
@@ -584,11 +578,7 @@ export function MainApp() {
         const paymentAmount = event.totalAmount || 0;
         const paymentMethod = event.paymentMethod || '';
         const amountFormatted = paymentAmount.toLocaleString('vi-VN');
-        toast.success(
-          t('msg.payment_confirmed') 
-            ? `${t('msg.payment_confirmed')} - 테이블 ${paymentTableNumber} (${amountFormatted}₫)` 
-            : `테이블 ${paymentTableNumber}에서 결제 완료 (${amountFormatted}₫)`
-        );
+        toast.success(`${t('msg.payment_confirmed')} - ${t('table.number')} ${paymentTableNumber} (${amountFormatted}₫)`);
         break;
 
       case 'chat:new':
@@ -631,11 +621,7 @@ export function MainApp() {
           setCustomerRequestData({
             tableNumber: displayTableNumber,
             requestType: isRequest ? 'request' : 'chat',
-            message: messageText || (language === 'ko' 
-              ? '새 메시지가 도착했습니다.'
-              : language === 'vn'
-              ? 'Có tin nhắn mới.'
-              : 'New message received.'),
+            message: messageText || t('msg.new_message'),
           });
           setCustomerRequestModalOpen(true);
           
@@ -654,9 +640,9 @@ export function MainApp() {
             setShowSoundUnlockPrompt(true);
             if (!soundUnlockToastShownRef.current) {
               soundUnlockToastShownRef.current = true;
-              toast.info('알림음을 활성화하려면 눌러주세요.', {
+              toast.info(t('settings.sound_activate_prompt'), {
                 action: {
-                  label: '알림음 활성화',
+                  label: t('settings.sound_activate'),
                   onClick: async () => {
                     const unlocked = await unlockSound();
                     if (unlocked) {
@@ -785,33 +771,33 @@ export function MainApp() {
 
   const enablePushNotifications = useCallback(async () => {
     if (!restaurantId) {
-      throw new Error('식당 정보가 필요합니다.');
+      throw new Error(t('push.restaurant_required'));
     }
     if (!checkPushSupported()) {
-      throw new Error('이 브라우저는 푸시 알림을 지원하지 않습니다.');
+      throw new Error(t('push.browser_not_supported'));
     }
     
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      throw new Error('알림 권한이 필요합니다.');
+      throw new Error(t('push.permission_required'));
     }
     
     const keyResult = await apiClient.getVapidPublicKey();
     const publicKey = keyResult.success ? keyResult.data?.publicKey : null;
     if (!publicKey) {
-      throw new Error('VAPID 공개 키를 불러올 수 없습니다.');
+      throw new Error(t('push.vapid_failed'));
     }
     
     const subscription = await subscribeToPush(publicKey);
     await apiClient.subscribePush(restaurantId, subscription);
     setIsPushEnabled(true);
-    toast.success('푸시 알림이 활성화되었습니다.');
+    toast.success(t('push.enabled'));
     await unlockSound();
-  }, [restaurantId, unlockSound]);
+  }, [restaurantId, unlockSound, t]);
 
   const disablePushNotifications = useCallback(async () => {
     if (!checkPushSupported()) {
-      toast.error('이 브라우저는 푸시 알림을 지원하지 않습니다.');
+      toast.error(t('push.browser_not_supported'));
       return;
     }
     setIsDisablingPush(true);
@@ -819,19 +805,19 @@ export function MainApp() {
       const subscription = await unsubscribeFromPush();
       if (!subscription) {
         setIsPushEnabled(false);
-        toast.success('알림이 비활성화되었습니다.');
+        toast.success(t('push.disabled'));
         return;
       }
       await apiClient.unsubscribePush(subscription.endpoint);
       setIsPushEnabled(false);
-      toast.success('알림이 비활성화되었습니다.');
+      toast.success(t('push.disabled'));
     } catch (error: any) {
       console.error('Failed to disable push notifications:', error);
-      toast.error(error.message || '알림 비활성화에 실패했습니다.');
+      toast.error(error.message || t('push.disable_failed'));
     } finally {
       setIsDisablingPush(false);
     }
-  }, []);
+  }, [t]);
 
   const enableNotifications = useCallback(async () => {
     setIsEnablingPush(true);
@@ -849,7 +835,7 @@ export function MainApp() {
       
       // Web Push는 선택적 기능으로 처리 (실패해도 알림음은 활성화됨)
       if (!checkPushSupported()) {
-        toast.success('알림음이 활성화되었습니다.');
+        toast.success(t('push.sound_enabled'));
         setIsEnablingPush(false);
         return;
       }
@@ -868,16 +854,16 @@ export function MainApp() {
           console.warn('Web Push 활성화 실패 (알림음은 활성화됨):', pushError);
         }
         // 사용자에게는 알림음이 활성화되었다는 메시지만 표시
-        toast.success('알림음이 활성화되었습니다.');
+        toast.success(t('push.sound_enabled'));
       }
     } catch (error: any) {
       console.error('Failed to enable notifications:', error);
       setIsSoundEnabled(false);
-      toast.error(error.message || '알림 활성화에 실패했습니다.');
+      toast.error(error.message || t('push.enable_failed'));
     } finally {
       setIsEnablingPush(false);
     }
-  }, [enablePushNotifications, restaurantId]);
+  }, [enablePushNotifications, restaurantId, t]);
 
   const disableNotifications = useCallback(async () => {
     setIsDisablingPush(true);
@@ -898,11 +884,11 @@ export function MainApp() {
     } catch (error: any) {
       console.error('Failed to disable notifications:', error);
       setIsSoundEnabled(true);
-      toast.error(error.message || '알림 비활성화에 실패했습니다.');
+      toast.error(error.message || t('push.disable_failed'));
     } finally {
       setIsDisablingPush(false);
     }
-  }, [disablePushNotifications, restaurantId]);
+  }, [disablePushNotifications, restaurantId, t]);
 
   const toggleSoundNotifications = useCallback(async () => {
     if (isSoundEnabled) {
@@ -914,17 +900,17 @@ export function MainApp() {
 
   const testNotificationSound = useCallback(async () => {
     if (!resolvedNotificationSoundUrl || !notificationAudioRef.current) {
-      toast.error('알림음이 설정되어 있지 않습니다.');
+      toast.error(t('settings.sound_not_set'));
       return;
     }
     if (window.location.protocol === 'https:' && resolvedNotificationSoundUrl.startsWith('http://')) {
-      toast.error('HTTPS에서는 http 알림음이 차단됩니다. https로 업로드해 주세요.');
+      toast.error(t('settings.sound_https_blocked'));
       return;
     }
     if (!isSoundUnlocked) {
       const unlocked = await unlockSound();
       if (!unlocked) {
-        toast.error('알림음을 활성화해주세요.');
+        toast.error(t('settings.sound_please_enable'));
         return;
       }
     }
@@ -933,9 +919,9 @@ export function MainApp() {
       await notificationAudioRef.current.play();
     } catch (error) {
       console.error('Failed to play notification sound:', error);
-      toast.error('알림음 재생에 실패했습니다. 브라우저 설정을 확인해 주세요.');
+      toast.error(t('settings.sound_play_failed'));
     }
-  }, [isSoundUnlocked, resolvedNotificationSoundUrl, unlockSound]);
+  }, [isSoundUnlocked, resolvedNotificationSoundUrl, unlockSound, t]);
 
   const loadTables = async (): Promise<Table[] | null> => {
     if (!restaurantId) return;
@@ -1077,36 +1063,20 @@ export function MainApp() {
             return true;
           }
           
-          // Include orders from tables that are ordering or dining
-          // This ensures orders are shown even if sessionId is not yet updated
+          // ordering/dining 테이블: 현재 세션 주문만 포함 (테이블 초기화 후 이전 고객 주문 제외)
           if (table.status === 'ordering' || table.status === 'dining') {
-            // Include recent orders (within 2 hours) to handle timing issues
             const orderAge = Date.now() - order.timestamp.getTime();
-            const twoHours = 2 * 60 * 60 * 1000;
-            const included = orderAge < twoHours;
-            console.info('[loadOrders] Order check (table status)', {
-              orderId: order.id,
-              tableId: order.tableId,
-              tableStatus: table.status,
-              orderAge,
-              included,
-              sessionId: order.sessionId,
-              tableCurrentSessionId: table.currentSessionId,
-            });
-            return included;
+            const oneMinute = 1 * 60 * 1000;
+            // 현재 세션 주문이거나, 세션 미동기화로 매우 최근(1분) 주문만
+            if (order.sessionId && order.sessionId === table.currentSessionId) return true;
+            if (!order.sessionId && orderAge < oneMinute && table.currentSessionId) return true;
+            return false;
           }
           
-          // Include very recent orders (within 5 minutes) even if table status is not ordering/dining
-          // This handles the case where order was just created but table status hasn't updated yet
+          // 세션 갱신 지연 시 매우 최근(5분) 주문만 허용
           const orderAge = Date.now() - order.timestamp.getTime();
           const fiveMinutes = 5 * 60 * 1000;
-          if (orderAge < fiveMinutes) {
-            console.info('[loadOrders] Order included (very recent order)', {
-              orderId: order.id,
-              tableId: order.tableId,
-              tableStatus: table.status,
-              orderAge,
-            });
+          if (orderAge < fiveMinutes && table.currentSessionId && (!order.sessionId || order.sessionId === table.currentSessionId)) {
             return true;
           }
           
@@ -1210,7 +1180,7 @@ export function MainApp() {
           {showSoundUnlockPrompt && (
             <div className="sticky top-0 z-30 px-4 pt-3">
               <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
-                <div>알림음이 잠겨 있어 재생되지 않습니다. 아래 버튼을 눌러 활성화해 주세요.</div>
+                <div>{t('settings.sound_locked_message')}</div>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1223,14 +1193,14 @@ export function MainApp() {
                     }}
                     className="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-700"
                   >
-                    알림음 활성화
+                    {t('settings.sound_activate')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowSoundUnlockPrompt(false)}
                     className="rounded-md border border-amber-300 px-3 py-1 text-amber-900 hover:bg-amber-100"
                   >
-                    닫기
+                    {t('table.detail.close')}
                   </button>
                 </div>
               </div>

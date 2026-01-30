@@ -4,7 +4,7 @@ import { X, ArrowRight, Play } from 'lucide-react';
 import { MenuItem } from '../../types';
 import { CurrencyDisplay } from '../CurrencyDisplay';
 
-type LangType = 'ko' | 'vn' | 'en';
+type LangType = 'ko' | 'vn' | 'en' | 'zh';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -14,13 +14,13 @@ interface EventModalProps {
 }
 
 const UI_TEXT = {
-  title: { ko: '이벤트', vn: 'Sự kiện', en: 'Events' },
-  promoTitle: { ko: '이번 달 프로모션', vn: 'Khuyến mãi tháng này', en: 'This Month Promo' },
-  promoDesc: { ko: '모든 쌀국수 메뉴 10% 할인', vn: 'Giảm 10% cho tất cả các món Phở', en: '10% OFF all Pho' },
-  newMenu: { ko: '새로운 메뉴', vn: 'Món mới', en: 'New Arrivals' },
-  popularMenu: { ko: '인기 메뉴', vn: 'Món phổ biến', en: 'Popular Items' },
-  youtubeTitle: { ko: '브랜드 스토리', vn: 'Câu chuyện thương hiệu', en: 'Brand Story' },
-  viewDetails: { ko: '더 보기', vn: 'Xem thêm', en: 'View More' },
+  title: { ko: '이벤트', vn: 'Sự kiện', en: 'Events', zh: '活动' },
+  promoTitle: { ko: '이번 달 프로모션', vn: 'Khuyến mãi tháng này', en: 'This Month Promo', zh: '本月优惠' },
+  promoDesc: { ko: '모든 쌀국수 메뉴 10% 할인', vn: 'Giảm 10% cho tất cả các món Phở', en: '10% OFF all Pho', zh: '所有河粉类菜单享10%折扣' },
+  newMenu: { ko: '새로운 메뉴', vn: 'Món mới', en: 'New Arrivals', zh: '新品尝鲜' },
+  popularMenu: { ko: '인기 메뉴', vn: 'Món phổ biến', en: 'Popular Items', zh: '人气推荐' },
+  youtubeTitle: { ko: '브랜드 스토리', vn: 'Câu chuyện thương hiệu', en: 'Brand Story', zh: '品牌故事' },
+  viewDetails: { ko: '더 보기', vn: 'Xem thêm', en: 'View More', zh: '查看更多' },
 };
 
 export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, menuItems }) => {
@@ -29,8 +29,8 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
   const popularItems = menuItems.slice(2, 4);
   const dragControls = useDragControls();
 
-  const getLocalizedName = (item: any) => lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : (item.nameEN || item.nameKO);
-  const getLocalizedDesc = (item: any) => lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : (item.descriptionEN || item.descriptionKO);
+  const getLocalizedName = (item: any) => lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+  const getLocalizedDesc = (item: any) => lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : lang === 'zh' ? (item.descriptionZH || item.descriptionEN || item.descriptionKO) : (item.descriptionEN || item.descriptionKO);
 
   return (
     <AnimatePresence>

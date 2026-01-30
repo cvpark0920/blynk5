@@ -25,7 +25,7 @@ import { SSEClient, SSEEvent } from '../../lib/sseClient';
 import { toast } from 'sonner';
 import { getTranslation } from '../i18n/translations';
 
-type LangType = 'ko' | 'vn' | 'en';
+type LangType = 'ko' | 'vn' | 'en' | 'zh';
 
 const getApiBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
@@ -83,6 +83,7 @@ const convertBackendMenuItem = (item: BackendMenuItem, category: string, categor
               labelKO: opt.nameKo,
               labelVN: opt.nameVn,
               labelEN: opt.nameEn,
+              labelZH: (opt as any).nameZh,
               priceVND: opt.priceVnd,
             }))
           : [])
@@ -94,6 +95,7 @@ const convertBackendMenuItem = (item: BackendMenuItem, category: string, categor
     nameKO: item.nameKo,
     nameVN: item.nameVn,
     nameEN: item.nameEn,
+    nameZH: (item as any).nameZh,
     priceVND: item.priceVnd,
     category: category as 'food' | 'drink' | 'dessert', // 하위 호환성을 위해 유지
     categoryId: categoryId, // 실제 카테고리 ID 추가
@@ -101,6 +103,7 @@ const convertBackendMenuItem = (item: BackendMenuItem, category: string, categor
     descriptionKO: item.descriptionKo,
     descriptionVN: item.descriptionVn,
     descriptionEN: item.descriptionEn,
+    descriptionZH: (item as any).descriptionZh,
     options: options.length > 0 ? options : undefined,
   };
 };
@@ -231,21 +234,70 @@ export const BlynkApp: React.FC = () => {
             console.log('🔄 [QuickChips] Loading quick chips for restaurant:', restaurantId);
             const quickChipsResponse = await apiClient.getQuickChips(restaurantId, 'CUSTOMER_REQUEST');
             console.log('🔄 [QuickChips] API response:', quickChipsResponse);
+            // 디버깅: API 응답의 첫 번째 칩 확인
+            if (quickChipsResponse.success && quickChipsResponse.data && quickChipsResponse.data.length > 0) {
+              console.log('🔍 [QuickChips] First chip from API:', {
+                id: quickChipsResponse.data[0].id,
+                labelKo: quickChipsResponse.data[0].labelKo,
+                labelZh: (quickChipsResponse.data[0] as any).labelZh,
+                labelEn: quickChipsResponse.data[0].labelEn,
+                allKeys: Object.keys(quickChipsResponse.data[0]),
+              });
+            }
             
             if (quickChipsResponse.success && quickChipsResponse.data) {
               // Convert backend format to frontend format
-              const convertedChips: QuickChip[] = quickChipsResponse.data.map((chip) => ({
-                id: chip.id,
-                templateKey: chip.templateKey || undefined,
-                icon: chip.icon,
-                labelKO: chip.labelKo,
-                labelVN: chip.labelVn,
-                labelEN: chip.labelEn,
-                action: 'message' as const,
-                messageKO: chip.messageKo,
-                messageVN: chip.messageVn,
-                messageEN: chip.messageEn,
-              }));
+              const convertedChips: QuickChip[] = quickChipsResponse.data.map((chip: { labelZh?: string; messageZh?: string; [k: string]: unknown }, index: number) => {
+                // labelZh/messageZh 추출 (camelCase와 snake_case 모두 지원)
+                const rawLabelZh = chip.labelZh ?? (chip as { label_zh?: string }).label_zh;
+                const rawMessageZh = chip.messageZh ?? (chip as { message_zh?: string }).message_zh;
+                
+                // 디버깅: 첫 번째 칩의 데이터 확인
+                if (index === 0) {
+                  console.log('🔍 [QuickChips] Raw API chip (index 0):', {
+                    id: chip.id,
+                    labelKo: chip.labelKo,
+                    labelZh: chip.labelZh,
+                    label_zh: (chip as { label_zh?: string }).label_zh,
+                    rawLabelZh: rawLabelZh,
+                    labelEn: chip.labelEn,
+                    hasLabelZh: 'labelZh' in chip,
+                    allKeys: Object.keys(chip),
+                  });
+                }
+                
+                // labelZh/messageZh가 유효한 문자열이면 사용, 아니면 undefined
+                const labelZH = rawLabelZh && typeof rawLabelZh === 'string' && rawLabelZh.trim() ? rawLabelZh.trim() : undefined;
+                const messageZH = rawMessageZh && typeof rawMessageZh === 'string' && rawMessageZh.trim() ? rawMessageZh.trim() : undefined;
+                
+                const converted = {
+                  id: chip.id,
+                  templateKey: chip.templateKey || undefined,
+                  icon: chip.icon,
+                  labelKO: chip.labelKo,
+                  labelVN: chip.labelVn,
+                  labelEN: chip.labelEn,
+                  labelZH: labelZH,
+                  action: 'message' as const,
+                  messageKO: chip.messageKo,
+                  messageVN: chip.messageVn,
+                  messageEN: chip.messageEn,
+                  messageZH: messageZH,
+                };
+                
+                // 디버깅: 첫 번째 칩의 변환 결과 확인
+                if (index === 0) {
+                  console.log('🔍 [QuickChips] Converted chip (index 0):', {
+                    labelKO: converted.labelKO,
+                    labelZH: converted.labelZH,
+                    labelEN: converted.labelEN,
+                    rawLabelZh: rawLabelZh,
+                    labelZHResult: labelZH,
+                  });
+                }
+                
+                return converted;
+              });
               console.log('✅ [QuickChips] Converted chips:', convertedChips.length, 'chips');
               setQuickChips(convertedChips);
             } else {
@@ -506,6 +558,7 @@ export const BlynkApp: React.FC = () => {
                         labelKO: opt.option.nameKo || '',
                         labelVN: opt.option.nameVn || '',
                         labelEN: opt.option.nameEn,
+                        labelZH: (opt.option as any).nameZh,
                         priceVND: (opt.option.priceVnd !== undefined && opt.option.priceVnd !== null) ? opt.option.priceVnd : 0,
                       }))
                       .filter(opt => opt.id) // 유효한 옵션만 필터링
@@ -520,6 +573,7 @@ export const BlynkApp: React.FC = () => {
                             labelKO: opt.nameKo,
                             labelVN: opt.nameVn,
                             labelEN: opt.nameEn,
+                            labelZH: (opt as any).nameZh,
                             priceVND: (opt.priceVnd !== undefined && opt.priceVnd !== null) ? opt.priceVnd : 0,
                           }))
                         : [])
@@ -539,6 +593,7 @@ export const BlynkApp: React.FC = () => {
                   nameKO: backendMenuItem.nameKo,
                   nameVN: backendMenuItem.nameVn,
                   nameEN: backendMenuItem.nameEn,
+                  nameZH: (backendMenuItem as any).nameZh,
                   priceVND: priceVND,
                   category: 'food', // 기본값, 실제로는 categoryId로 확인 필요
                   imageQuery: backendMenuItem.imageUrl || '',
@@ -746,20 +801,27 @@ export const BlynkApp: React.FC = () => {
   };
 
   const handleQuickAction = async (chip: QuickChip) => {
-    if (!sessionId || chip.action !== 'message' || !chip.messageKO || !chip.messageVN) return;
+    const hasMessage = chip.messageKO || chip.messageVN || chip.messageEN || chip.messageZH;
+    if (!sessionId || chip.action !== 'message' || !hasMessage) return;
 
     // "요청" 접두사 제거 (메시지 시작 부분의 "요청" 제거)
     const removeRequestPrefix = (text: string): string => {
       return text.replace(/^요청\s+/, '').trim();
     };
 
+    // 채팅 API는 textKo, textVn, textEn만 지원. zh일 때는 textEn에 messageZH 전달
+    const textForZh = chip.messageZH ? removeRequestPrefix(chip.messageZH) : (chip.messageEN ? removeRequestPrefix(chip.messageEN) : undefined);
+    const textKo = chip.messageKO ? removeRequestPrefix(chip.messageKO) : (userLang === 'zh' ? textForZh : undefined);
+    const textVn = chip.messageVN ? removeRequestPrefix(chip.messageVN) : (userLang === 'zh' ? textForZh : undefined);
+    const textEn = chip.messageEN ? removeRequestPrefix(chip.messageEN) : (userLang === 'zh' ? textForZh : undefined);
+
     try {
       const response = await apiClient.sendMessage({
         sessionId,
         senderType: 'USER',
-        textKo: removeRequestPrefix(chip.messageKO),
-        textVn: removeRequestPrefix(chip.messageVN),
-        textEn: chip.messageEN ? removeRequestPrefix(chip.messageEN) : undefined,
+        textKo: textKo ?? '',
+        textVn: textVn ?? '',
+        textEn: textEn ?? undefined,
         messageType: 'REQUEST',
       });
 
@@ -897,6 +959,7 @@ export const BlynkApp: React.FC = () => {
             labelKO: opt.option?.nameKo,
             labelVN: opt.option?.nameVn,
             labelEN: opt.option?.nameEn,
+            labelZH: (opt.option as any)?.nameZh,
             priceVND: opt.price,
             quantity: opt.quantity,
           })) || [];
@@ -907,6 +970,7 @@ export const BlynkApp: React.FC = () => {
             nameKO: orderItem.menuItem?.nameKo || cartItem?.nameKO,
             nameVN: orderItem.menuItem?.nameVn || cartItem?.nameVN,
             nameEN: orderItem.menuItem?.nameEn || cartItem?.nameEN,
+            nameZH: (orderItem.menuItem as any)?.nameZh || cartItem?.nameZH,
             imageQuery: orderItem.menuItem?.imageUrl || cartItem?.imageQuery,
             imageUrl: orderItem.menuItem?.imageUrl || cartItem?.imageQuery,
             quantity: orderItem.quantity,
@@ -1023,13 +1087,13 @@ export const BlynkApp: React.FC = () => {
 
   // 로딩 및 에러 상태 처리
   if (sessionLoading) {
-    return <LoadingScreen />;
+    return <LoadingScreen lang={userLang} />;
   }
 
   if (sessionError) {
     return (
       <ErrorPage
-        title={userLang === 'ko' ? '세션을 불러올 수 없습니다' : userLang === 'vn' ? 'Không thể tải phiên' : 'Failed to load session'}
+        title={getTranslation('error.sessionLoadFailed', userLang)}
         message={sessionError}
         onRetry={refreshSession}
       />
@@ -1039,8 +1103,8 @@ export const BlynkApp: React.FC = () => {
   if (!sessionId) {
     return (
       <ErrorPage
-        title={userLang === 'ko' ? '세션이 없습니다' : userLang === 'vn' ? 'Không có phiên' : 'No session'}
-        message={userLang === 'ko' ? '세션을 생성할 수 없습니다.' : userLang === 'vn' ? 'Không thể tạo phiên.' : 'Cannot create session.'}
+        title={getTranslation('error.noSession', userLang)}
+        message={getTranslation('error.cannotCreateSession', userLang)}
       />
     );
   }
@@ -1078,8 +1142,8 @@ export const BlynkApp: React.FC = () => {
           onClick={dismissCoachMark}
         >
           <div className="bg-card px-5 py-3 rounded-2xl relative shadow-xl mb-4 text-center max-w-[250px] animate-bounce cursor-pointer">
-            <p className="font-bold text-foreground text-sm">여기서 주문을 시작하세요!</p>
-            <p className="text-xs text-muted-foreground mt-0.5">터치하면 메뉴가 열립니다</p>
+            <p className="font-bold text-foreground text-sm">{getTranslation('coachMark.title', userLang)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{getTranslation('coachMark.subtitle', userLang)}</p>
             {/* Arrow */}
             <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-card rotate-45 transform border-r border-b border-border"></div>
           </div>
@@ -1123,6 +1187,9 @@ export const BlynkApp: React.FC = () => {
               <DropdownMenuItem onClick={() => setUserLang('vn')} className="font-medium text-xs">
                 Tiếng Việt (VN)
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setUserLang('zh')} className="font-medium text-xs">
+                中文 (ZH)
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -1154,7 +1221,7 @@ export const BlynkApp: React.FC = () => {
         <div className="text-center py-4">
            <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
              {new Date().toLocaleDateString(
-               userLang === 'ko' ? 'ko-KR' : userLang === 'vn' ? 'vi-VN' : 'en-US'
+               userLang === 'ko' ? 'ko-KR' : userLang === 'vn' ? 'vi-VN' : userLang === 'zh' ? 'zh-CN' : 'en-US'
              )}
            </span>
         </div>

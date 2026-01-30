@@ -25,6 +25,7 @@ import * as LucideIcons from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '../../../lib/api';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ICON_OPTIONS = [
   'MessageSquare', 'Reply', 'Coffee', 'Utensils', 'UtensilsCrossed', 'Droplets', 'Water', 'Wifi', 'Music', 'Volume2',
@@ -46,9 +47,11 @@ interface QuickChip {
   labelKo: string;
   labelVn: string;
   labelEn?: string;
+  labelZh?: string;
   messageKo?: string;
   messageVn?: string;
   messageEn?: string;
+  messageZh?: string;
   displayOrder: number;
   isActive: boolean;
 }
@@ -77,6 +80,7 @@ function useIsDesktop() {
 }
 
 export function QuickChipsManagement() {
+  const { t } = useLanguage();
   const { shopRestaurantId: restaurantId } = useUnifiedAuth();
   const isDesktop = useIsDesktop();
   const [activeTab, setActiveTab] = useState<'customer' | 'staff'>('customer');
@@ -95,9 +99,11 @@ export function QuickChipsManagement() {
     labelKo: '',
     labelVn: '',
     labelEn: '',
+    labelZh: '',
     messageKo: '',
     messageVn: '',
     messageEn: '',
+    messageZh: '',
     displayOrder: 0,
     isActive: true,
   });
@@ -112,6 +118,19 @@ export function QuickChipsManagement() {
         apiClient.getQuickChipTemplates(currentType, false),
         apiClient.getRestaurantQuickChips(restaurantId, currentType, true),
       ]);
+
+      // 디버깅: API 응답 확인
+      if (templateResponse.success && templateResponse.data && templateResponse.data.length > 0) {
+        console.log('🔍 QuickChip Template API Response (first item):', {
+          labelKo: templateResponse.data[0].labelKo,
+          labelZh: templateResponse.data[0].labelZh,
+          messageKo: templateResponse.data[0].messageKo,
+          messageZh: templateResponse.data[0].messageZh,
+          hasLabelZh: 'labelZh' in templateResponse.data[0],
+          hasMessageZh: 'messageZh' in templateResponse.data[0],
+          allKeys: Object.keys(templateResponse.data[0]),
+        });
+      }
 
       if (templateResponse.success && templateResponse.data) {
         setTemplates(templateResponse.data);
@@ -136,6 +155,14 @@ export function QuickChipsManagement() {
   useEffect(() => {
     refreshChips();
   }, [restaurantId, currentType]);
+
+  // 다이얼로그가 열릴 때 formData가 올바르게 설정되었는지 확인
+  useEffect(() => {
+    if (isDialogOpen) {
+      console.log('🔍 Dialog opened, formData.labelZh:', formData.labelZh);
+      console.log('🔍 Dialog opened, formData.messageZh:', formData.messageZh);
+    }
+  }, [isDialogOpen, formData.labelZh, formData.messageZh]);
 
   const mergedTemplates = useMemo(() => {
     const overrideMap = new Map<string, QuickChip>();
@@ -180,9 +207,11 @@ export function QuickChipsManagement() {
       labelKo: '',
       labelVn: '',
       labelEn: '',
+      labelZh: '',
       messageKo: '',
       messageVn: '',
       messageEn: '',
+      messageZh: '',
       displayOrder: 0,
       isActive: true,
     });
@@ -190,60 +219,94 @@ export function QuickChipsManagement() {
   };
 
   const openOverrideDialog = (template: QuickChip, override?: QuickChip) => {
+    // 디버깅: 템플릿 데이터 확인
+    console.log('🔍 openOverrideDialog - template:', {
+      labelKo: template.labelKo,
+      labelZh: template.labelZh,
+      messageKo: template.messageKo,
+      messageZh: template.messageZh,
+      hasLabelZh: 'labelZh' in template,
+      hasMessageZh: 'messageZh' in template,
+    });
+
     if (override) {
       setEditingMode('edit');
       setEditingChip(override);
       setBaseTemplate(template);
-      setFormData({
+      // 오버라이드가 있으면 오버라이드 값을 사용하되, 없으면 템플릿 값을 fallback으로 사용
+      const overrideFormData = {
         templateKey: buildTemplateKey(override.templateKey, override.icon, override.labelKo),
         icon: override.icon,
         labelKo: override.labelKo,
         labelVn: override.labelVn,
-        labelEn: override.labelEn || '',
-        messageKo: override.messageKo || '',
-        messageVn: override.messageVn || '',
-        messageEn: override.messageEn || '',
+        labelEn: override.labelEn ?? template.labelEn ?? '',
+        labelZh: override.labelZh ?? template.labelZh ?? '',
+        messageKo: override.messageKo ?? template.messageKo ?? '',
+        messageVn: override.messageVn ?? template.messageVn ?? '',
+        messageEn: override.messageEn ?? template.messageEn ?? '',
+        messageZh: override.messageZh ?? template.messageZh ?? '',
         displayOrder: override.displayOrder,
         isActive: override.isActive,
-      });
+      };
+      console.log('🔍 Override exists - override.labelZh:', override.labelZh, 'template.labelZh:', template.labelZh);
+      console.log('🔍 Override formData.labelZh:', overrideFormData.labelZh);
+      console.log('🔍 Override formData.messageZh:', overrideFormData.messageZh);
+      setFormData(overrideFormData);
+      setTimeout(() => {
+        setIsDialogOpen(true);
+      }, 0);
     } else {
       setEditingMode('override');
       setEditingChip(null);
       setBaseTemplate(template);
-      setFormData({
+      console.log('🔍 Setting formData with template.labelZh:', template.labelZh);
+      const newFormData = {
         templateKey: buildTemplateKey(template.templateKey, template.icon, template.labelKo),
         icon: template.icon,
         labelKo: template.labelKo,
         labelVn: template.labelVn,
         labelEn: template.labelEn || '',
+        labelZh: template.labelZh ?? '',
         messageKo: template.messageKo || '',
         messageVn: template.messageVn || '',
         messageEn: template.messageEn || '',
+        messageZh: template.messageZh ?? '',
         displayOrder: template.displayOrder,
         isActive: true,
-      });
+      };
+      console.log('🔍 New formData.labelZh:', newFormData.labelZh);
+      console.log('🔍 New formData.messageZh:', newFormData.messageZh);
+      setFormData(newFormData);
+      setTimeout(() => {
+        setIsDialogOpen(true);
+      }, 0);
     }
-
-    setIsDialogOpen(true);
   };
 
   const openEditDialog = (chip: QuickChip) => {
     setEditingMode('edit');
     setEditingChip(chip);
     setBaseTemplate(null);
-    setFormData({
+    const editFormData = {
       templateKey: buildTemplateKey(chip.templateKey, chip.icon, chip.labelKo),
       icon: chip.icon,
       labelKo: chip.labelKo,
       labelVn: chip.labelVn,
-      labelEn: chip.labelEn || '',
-      messageKo: chip.messageKo || '',
-      messageVn: chip.messageVn || '',
-      messageEn: chip.messageEn || '',
+      labelEn: chip.labelEn ?? '',
+      labelZh: chip.labelZh ?? '',
+      messageKo: chip.messageKo ?? '',
+      messageVn: chip.messageVn ?? '',
+      messageEn: chip.messageEn ?? '',
+      messageZh: chip.messageZh ?? '',
       displayOrder: chip.displayOrder,
       isActive: chip.isActive,
-    });
-    setIsDialogOpen(true);
+    };
+    console.log('🔍 Edit formData.labelZh:', editFormData.labelZh);
+    console.log('🔍 Edit formData.messageZh:', editFormData.messageZh);
+    setFormData(editFormData);
+    setTimeout(() => {
+      setIsDialogOpen(true);
+    }, 0);
   };
 
   const handleSave = async () => {
@@ -261,9 +324,11 @@ export function QuickChipsManagement() {
           labelKo: formData.labelKo,
           labelVn: formData.labelVn,
           labelEn: formData.labelEn || undefined,
+          labelZh: formData.labelZh || undefined,
           messageKo: formData.messageKo || undefined,
           messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
+          messageZh: formData.messageZh || undefined,
           displayOrder: formData.displayOrder,
           isActive: formData.isActive,
         });
@@ -277,9 +342,11 @@ export function QuickChipsManagement() {
           labelKo: formData.labelKo,
           labelVn: formData.labelVn,
           labelEn: formData.labelEn || undefined,
+          labelZh: formData.labelZh || undefined,
           messageKo: formData.messageKo || undefined,
           messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
+          messageZh: formData.messageZh || undefined,
           displayOrder: formData.displayOrder,
           isActive: formData.isActive,
         });
@@ -333,9 +400,11 @@ export function QuickChipsManagement() {
             labelKo: template.labelKo,
             labelVn: template.labelVn,
             labelEn: template.labelEn,
+            labelZh: template.labelZh,
             messageKo: template.messageKo,
             messageVn: template.messageVn,
             messageEn: template.messageEn,
+            messageZh: template.messageZh,
             displayOrder: template.displayOrder,
             isActive: false,
           });
@@ -415,7 +484,7 @@ export function QuickChipsManagement() {
         </ScrollArea>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-2">
           <Label htmlFor="labelKo" className="text-sm font-medium text-foreground">
             라벨 (한국어) *
@@ -449,9 +518,29 @@ export function QuickChipsManagement() {
             className="bg-input-background border-input"
           />
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor="labelZh" className="text-sm font-medium text-foreground">
+            라벨 (중국어)
+          </Label>
+          <Input
+            id="labelZh"
+            value={formData.labelZh ?? ''}
+            onChange={(e) => {
+              console.log('🔍 labelZh onChange:', e.target.value);
+              setFormData({ ...formData, labelZh: e.target.value });
+            }}
+            onFocus={() => console.log('🔍 labelZh onFocus, current formData.labelZh:', formData.labelZh)}
+            className="bg-input-background border-input"
+          />
+          {process.env.NODE_ENV === 'development' && (
+            <div className="text-xs text-muted-foreground">
+              Debug: formData.labelZh = "{formData.labelZh}" (type: {typeof formData.labelZh})
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-2">
           <Label htmlFor="messageKo" className="text-sm font-medium text-foreground">
             메시지 (한국어)
@@ -484,6 +573,26 @@ export function QuickChipsManagement() {
             onChange={(e) => setFormData({ ...formData, messageEn: e.target.value })}
             className="bg-input-background border-input"
           />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="messageZh" className="text-sm font-medium text-foreground">
+            메시지 (중국어)
+          </Label>
+          <Input
+            id="messageZh"
+            value={formData.messageZh ?? ''}
+            onChange={(e) => {
+              console.log('🔍 messageZh onChange:', e.target.value);
+              setFormData({ ...formData, messageZh: e.target.value });
+            }}
+            onFocus={() => console.log('🔍 messageZh onFocus, current formData.messageZh:', formData.messageZh)}
+            className="bg-input-background border-input"
+          />
+          {process.env.NODE_ENV === 'development' && (
+            <div className="text-xs text-muted-foreground">
+              Debug: formData.messageZh = "{formData.messageZh}" (type: {typeof formData.messageZh})
+            </div>
+          )}
         </div>
       </div>
 
@@ -565,6 +674,9 @@ export function QuickChipsManagement() {
                                 <div className="mt-2 space-y-1">
                                   <div className="font-medium break-words">{displayChip.labelKo}</div>
                                   <div className="text-sm text-muted-foreground break-words">{displayChip.labelVn}</div>
+                                {displayChip.labelZh && (
+                                  <div className="text-sm text-muted-foreground break-words">{displayChip.labelZh}</div>
+                                )}
                                 {displayChip.messageKo && (
                                   <div className="text-xs text-muted-foreground break-words">
                                     메시지: {displayChip.messageKo}
@@ -687,10 +799,15 @@ export function QuickChipsManagement() {
               </SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto px-6 py-5">
+              {isDialogOpen && (
+                <div className="mb-2 text-xs text-muted-foreground">
+                  Debug: formData.labelZh = "{formData.labelZh}", messageZh = "{formData.messageZh}"
+                </div>
+              )}
               {formContent}
             </div>
             <div className="px-6 py-5 border-t border-zinc-100 flex items-center gap-3 justify-end bg-white">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>취소</Button>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{t('btn.cancel')}</Button>
               <Button onClick={handleSave}>저장</Button>
             </div>
           </SheetContent>
@@ -713,10 +830,10 @@ export function QuickChipsManagement() {
             </div>
             <div className="px-4 py-4 border-t border-zinc-100 flex items-center gap-3 bg-white">
               <Button variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
-                취소
+                {t('btn.cancel')}
               </Button>
               <Button className="flex-1" onClick={handleSave}>
-                저장
+                {t('btn.save')}
               </Button>
             </div>
           </DrawerContent>

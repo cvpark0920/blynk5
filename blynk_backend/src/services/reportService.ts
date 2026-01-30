@@ -114,7 +114,7 @@ export class ReportService {
     const todayOrders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
+        status: { in: [OrderStatus.SERVED, OrderStatus.DELIVERED, OrderStatus.PAID] },
         createdAt: {
           gte: todayStart,
           lt: todayEnd,
@@ -134,7 +134,7 @@ export class ReportService {
     const yesterdayOrders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
+        status: { in: [OrderStatus.SERVED, OrderStatus.DELIVERED, OrderStatus.PAID] },
         createdAt: {
           gte: yesterdayStart,
           lt: yesterdayEnd,
@@ -191,7 +191,7 @@ export class ReportService {
       const dayOrders = await prisma.order.findMany({
         where: {
           restaurantId,
-          status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
+          status: { in: [OrderStatus.SERVED, OrderStatus.DELIVERED, OrderStatus.PAID] },
           createdAt: {
             gte: date,
             lt: dateEnd,
@@ -282,7 +282,7 @@ export class ReportService {
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
+        status: { in: [OrderStatus.SERVED, OrderStatus.DELIVERED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
@@ -354,7 +354,7 @@ export class ReportService {
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
+        status: { in: [OrderStatus.SERVED, OrderStatus.DELIVERED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
@@ -453,7 +453,7 @@ export class ReportService {
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
+        status: { in: [OrderStatus.SERVED, OrderStatus.DELIVERED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
@@ -576,7 +576,7 @@ export class ReportService {
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.SERVED, OrderStatus.PAID] },
+        status: { in: [OrderStatus.SERVED, OrderStatus.DELIVERED, OrderStatus.PAID] },
         createdAt: {
           gte: periodStart,
           lt: periodEnd,

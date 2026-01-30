@@ -15,6 +15,23 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ chips, onChipClick }
   const getLabel = (chip: QuickChip): string => {
     if (lang === 'ko') return chip.labelKO;
     if (lang === 'vn') return chip.labelVN;
+    if (lang === 'zh') {
+      // labelZH가 있으면 사용, 없으면 영어, 그것도 없으면 한국어
+      const zh = chip.labelZH;
+      // 디버깅: 첫 번째 칩만 로그 출력
+      if (chips[0]?.id === chip.id) {
+        console.log('🔍 [QuickActions] getLabel for zh:', {
+          chipId: chip.id,
+          labelZH: chip.labelZH,
+          labelEN: chip.labelEN,
+          labelKO: chip.labelKO,
+          hasLabelZH: 'labelZH' in chip,
+          willReturn: zh && zh.trim() ? zh : (chip.labelEN || chip.labelKO),
+        });
+      }
+      if (zh && zh.trim()) return zh;
+      return chip.labelEN || chip.labelKO;
+    }
     return chip.labelEN || chip.labelKO;
   };
 

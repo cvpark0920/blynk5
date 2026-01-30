@@ -56,7 +56,7 @@ export function QRCodeModal({
   bankInfo,
 }: QRCodeModalProps) {
   const debugLog = (..._args: unknown[]) => {};
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const isDesktop = useIsDesktop();
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -98,7 +98,7 @@ export function QRCodeModal({
       // First, get bank BIN code from bank name
       const banksResponse = await apiClient.getBanks();
       if (!banksResponse.success || !banksResponse.data) {
-        throw new Error('은행 목록을 불러올 수 없습니다.');
+        throw new Error(t('qr.bank_list_failed'));
       }
 
       const banks = banksResponse.data;
@@ -109,13 +109,13 @@ export function QRCodeModal({
           bankName: bankInfo.bankName,
           availableBanks: banks.map((b: any) => b.shortName),
         });
-        throw new Error(`은행 정보를 찾을 수 없습니다: ${bankInfo.bankName}`);
+        throw new Error(t('qr.bank_not_found').replace('{name}', bankInfo.bankName));
       }
 
       // Validate account number format
       if (!bankInfo.accountNumber || bankInfo.accountNumber.trim() === '') {
         console.error('Account number is empty:', bankInfo);
-        throw new Error('계좌번호가 올바르지 않습니다.');
+        throw new Error(t('qr.account_invalid'));
       }
 
       // Generate QR code
@@ -137,7 +137,7 @@ export function QRCodeModal({
         // Only include amount if it's a valid number greater than 0
         amount: validAmount > 0 ? validAmount : undefined,
         // Include table number in memo
-        memo: language === 'ko' ? `테이블 ${tableNumber}` : language === 'vn' ? `Bàn ${tableNumber}` : `Table ${tableNumber}`,
+        memo: t('table.management.table_label').replace('{number}', String(tableNumber)),
       });
 
       debugLog('QR API Response:', {
@@ -148,7 +148,7 @@ export function QRCodeModal({
       });
 
       if (!qrResponse.success || !qrResponse.data) {
-        throw new Error(qrResponse.error?.message || 'QR 코드 생성에 실패했습니다.');
+        throw new Error(qrResponse.error?.message || t('qr.generate_failed'));
       }
 
       // Handle different response formats
@@ -168,24 +168,24 @@ export function QRCodeModal({
           debugLog('QR URL extracted (qrDataURL):', qrUrl);
         } else {
           console.error('Unexpected QR response format:', qrResponse.data);
-          throw new Error('QR 코드 응답 형식이 올바르지 않습니다.');
+          throw new Error(t('qr.response_invalid'));
         }
       } else {
         console.error('Invalid QR response data type:', typeof qrResponse.data);
-        throw new Error('QR 코드 응답 형식이 올바르지 않습니다.');
+        throw new Error(t('qr.response_invalid'));
       }
 
       // Validate URL format
       if (!qrUrl || (!qrUrl.startsWith('http://') && !qrUrl.startsWith('https://') && !qrUrl.startsWith('data:'))) {
         console.error('Invalid QR URL format:', qrUrl);
-        throw new Error('유효하지 않은 QR 코드 URL 형식입니다.');
+        throw new Error(t('qr.url_invalid'));
       }
 
       debugLog('Final QR URL to display:', qrUrl);
       setQrCodeUrl(qrUrl);
     } catch (error: any) {
       console.error('Failed to generate QR code:', error);
-      toast.error(error.message || 'QR 코드 생성에 실패했습니다.');
+      toast.error(error.message || t('qr.generate_failed'));
     } finally {
       setIsLoading(false);
     }
@@ -193,7 +193,7 @@ export function QRCodeModal({
 
   const handleDownloadQR = async () => {
     if (!qrCodeUrl) {
-      toast.error('QR 코드가 없습니다.');
+      toast.error(t('qr.no_qr'));
       return;
     }
 
@@ -209,10 +209,10 @@ export function QRCodeModal({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast.success(language === 'ko' ? 'QR 코드가 다운로드되었습니다.' : language === 'vn' ? 'Mã QR đã được tải xuống.' : 'QR code downloaded.');
+      toast.success(t('qr.download_success'));
     } catch (error) {
       console.error('Failed to download QR code:', error);
-      toast.error(language === 'ko' ? 'QR 코드 다운로드에 실패했습니다.' : language === 'vn' ? 'Không thể tải mã QR.' : 'Failed to download QR code.');
+      toast.error(t('qr.download_failed'));
     }
   };
 
@@ -220,11 +220,11 @@ export function QRCodeModal({
     try {
       await navigator.clipboard.writeText(bankInfo.accountNumber);
       setCopied(true);
-      toast.success(language === 'ko' ? '계좌번호가 복사되었습니다.' : language === 'vn' ? 'Số tài khoản đã được sao chép.' : 'Account number copied.');
+      toast.success(t('qr.copy_account_success'));
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('Failed to copy account number:', error);
-      toast.error(language === 'ko' ? '계좌번호 복사에 실패했습니다.' : language === 'vn' ? 'Không thể sao chép số tài khoản.' : 'Failed to copy account number.');
+      toast.error(t('qr.copy_account_failed'));
     }
   };
 
@@ -273,7 +273,7 @@ export function QRCodeModal({
           <div className="w-64 h-64 bg-zinc-100 rounded-xl flex items-center justify-center">
             <div className="text-center text-zinc-400">
               <QrCode size={48} className="mx-auto mb-2" />
-              <p className="text-sm">QR 코드를 생성할 수 없습니다.</p>
+              <p className="text-sm">{t('qr.cannot_generate')}</p>
             </div>
           </div>
         )}
@@ -283,7 +283,7 @@ export function QRCodeModal({
       <div className="bg-white border border-zinc-100 rounded-xl p-6 space-y-4">
         <div className="text-center space-y-2">
           <div className="text-sm text-zinc-500">
-            {language === 'ko' ? '입금 계좌' : language === 'vn' ? 'Tài khoản nhận tiền' : 'Deposit Account'}
+            {t('qr.deposit_account')}
           </div>
           <div className="text-lg font-bold text-zinc-900">
             {bankInfo.bankName}
@@ -295,7 +295,7 @@ export function QRCodeModal({
             <button
               onClick={handleCopyAccountNumber}
               className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors"
-              title={language === 'ko' ? '계좌번호 복사' : language === 'vn' ? 'Sao chép số tài khoản' : 'Copy account number'}
+              title={t('qr.copy_account_title')}
             >
               {copied ? (
                 <Check size={16} className="text-green-600" />
@@ -305,11 +305,11 @@ export function QRCodeModal({
             </button>
           </div>
           <div className="text-sm text-zinc-400">
-            {language === 'ko' ? `예금주: ${bankInfo.accountHolder}` : language === 'vn' ? `Chủ tài khoản: ${bankInfo.accountHolder}` : `Account Holder: ${bankInfo.accountHolder}`}
+            {t('qr.account_holder')}: {bankInfo.accountHolder}
           </div>
           <div className="pt-2 border-t border-zinc-100">
             <div className="text-xs text-zinc-500 mb-1">
-              {language === 'ko' ? '입금 금액' : language === 'vn' ? 'Số tiền cần chuyển' : 'Transfer Amount'}
+              {t('qr.transfer_amount')}
             </div>
             <div className="text-xl font-bold text-blue-600">
               {formatPriceVND(validAmount)}
@@ -321,23 +321,11 @@ export function QRCodeModal({
       {/* Instructions */}
       <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-4 space-y-2 text-sm text-zinc-600">
         <p className="font-medium">
-          {language === 'ko' ? '고객 안내' : language === 'vn' ? 'Hướng dẫn khách hàng' : 'Customer Instructions'}
+          {t('qr.customer_instructions')}
         </p>
         <ul className="space-y-1 list-disc list-inside">
-          <li>
-            {language === 'ko' 
-              ? 'QR 코드를 스캔하거나 계좌번호를 복사하여 입금해주세요.'
-              : language === 'vn'
-              ? 'Vui lòng quét mã QR hoặc sao chép số tài khoản để chuyển tiền.'
-              : 'Please scan the QR code or copy the account number to transfer.'}
-          </li>
-          <li>
-            {language === 'ko'
-              ? '정확한 금액을 입금해주세요.'
-              : language === 'vn'
-              ? 'Vui lòng chuyển đúng số tiền.'
-              : 'Please transfer the exact amount.'}
-          </li>
+          <li>{t('qr.scan_instruction')}</li>
+          <li>{t('qr.exact_amount')}</li>
         </ul>
       </div>
     </div>
@@ -358,14 +346,14 @@ export function QRCodeModal({
             className="w-full"
           >
             <Download size={18} className="mr-2" />
-            {language === 'ko' ? 'QR 코드 다운로드' : language === 'vn' ? 'Tải mã QR' : 'Download QR Code'}
+            {t('qr.download_btn')}
           </Button>
         )}
         <Button
           onClick={onClose}
           className="w-full bg-zinc-900 hover:bg-zinc-800"
         >
-          {language === 'ko' ? '닫기' : language === 'vn' ? 'Đóng' : 'Close'}
+          {t('qr.close')}
         </Button>
       </div>
     </div>
@@ -377,7 +365,7 @@ export function QRCodeModal({
         <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-zinc-100 shrink-0">
             <DialogTitle className="text-xl font-bold text-zinc-900">
-              {language === 'ko' ? '계좌이체 QR 코드' : language === 'vn' ? 'Mã QR chuyển khoản' : 'Bank Transfer QR Code'}
+              {t('qr.bank_transfer_title')}
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -392,7 +380,7 @@ export function QRCodeModal({
     <Drawer open={isOpen} onOpenChange={onClose}>
       <DrawerContent className="h-[90vh] flex flex-col">
         <DrawerTitle className="px-6 pt-6 pb-4 border-b border-zinc-100 text-xl font-bold text-zinc-900 shrink-0">
-          {language === 'ko' ? '계좌이체 QR 코드' : language === 'vn' ? 'Mã QR chuyển khoản' : 'Bank Transfer QR Code'}
+          {t('qr.bank_transfer_title')}
         </DrawerTitle>
         <div className="flex-1 min-h-0 flex flex-col">
           {content}

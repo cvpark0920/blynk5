@@ -88,6 +88,7 @@ export const getBanks = async (
 };
 
 // Get quick chips (public API - no authentication required)
+// restaurantId가 있으면 중앙 템플릿 + 상점 오버라이드 병합 목록 반환 (중국어 등 중앙 템플릿 zh 적용)
 export const getQuickChipsPublic = async (
   req: Request,
   res: Response,
@@ -100,7 +101,7 @@ export const getQuickChipsPublic = async (
       : undefined;
 
     const chips = restaurantId
-      ? await quickChipService.getRestaurantQuickChips(restaurantId as string, parsedType, false)
+      ? await quickChipService.getMergedQuickChips(restaurantId as string, parsedType, false)
       : await quickChipService.getQuickChips(null, parsedType, false);
     
     res.json({ success: true, data: chips });

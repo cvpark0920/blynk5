@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BlynkApp } from './components/BlynkApp';
 import { SessionProvider } from './context/SessionContext';
 import { LanguageProvider } from './i18n/LanguageContext';
+import { getTranslation, getLangFromNavigator } from './i18n/translations';
 import { Toaster } from './components/ui/sonner';
 import { getSubdomain } from '../../../src/utils/subdomain';
 
@@ -65,8 +66,9 @@ export default function CustomerApp() {
     }
   }, [legacyRestaurantId, legacyTableNumberStr, subdomain]);
   
-  // Render content based on URL
+  // Render content based on URL (lang for messages outside LanguageProvider tree)
   const renderContent = () => {
+    const fallbackLang = getLangFromNavigator();
     // 서브도메인 기반 또는 기존 형식으로 restaurantId와 tableNumber가 있는 경우
     if (restaurantId && effectiveTableNumberStr) {
       const tableNumberInt = parseInt(effectiveTableNumberStr, 10);
@@ -74,8 +76,8 @@ export default function CustomerApp() {
         return (
           <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">잘못된 테이블 번호입니다</h1>
-              <p className="text-gray-500">올바른 QR 코드로 접근해주세요.</p>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">{getTranslation('app.invalidTableNumber', fallbackLang)}</h1>
+              <p className="text-gray-500">{getTranslation('app.useCorrectQR', fallbackLang)}</p>
             </div>
           </div>
         );
@@ -94,7 +96,7 @@ export default function CustomerApp() {
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-4 text-gray-600">로딩 중...</p>
+            <p className="mt-4 text-gray-600">{getTranslation('app.loading', fallbackLang)}</p>
           </div>
         </div>
       );
@@ -104,8 +106,8 @@ export default function CustomerApp() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">잘못된 링크입니다</h1>
-          <p className="text-gray-500">올바른 QR 코드로 접근해주세요.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{getTranslation('app.invalidLink', fallbackLang)}</h1>
+          <p className="text-gray-500">{getTranslation('app.useCorrectQR', fallbackLang)}</p>
         </div>
       </div>
     );

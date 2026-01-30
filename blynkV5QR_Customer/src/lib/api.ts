@@ -79,6 +79,7 @@ export interface MenuOption {
   nameKo: string;
   nameVn: string;
   nameEn?: string;
+  nameZh?: string;
   priceVnd: number;
 }
 
@@ -88,6 +89,7 @@ export interface MenuOptionGroup {
   nameKo: string;
   nameVn: string;
   nameEn?: string;
+  nameZh?: string;
   minSelect: number;
   maxSelect: number;
   options: MenuOption[];
@@ -100,9 +102,11 @@ export interface MenuItem {
   nameKo: string;
   nameVn: string;
   nameEn?: string;
+  nameZh?: string;
   descriptionKo?: string;
   descriptionVn?: string;
   descriptionEn?: string;
+  descriptionZh?: string;
   priceVnd: number;
   imageUrl?: string;
   isSoldOut: boolean;
@@ -116,6 +120,7 @@ export interface MenuCategory {
   nameKo: string;
   nameVn: string;
   nameEn?: string;
+  nameZh?: string;
   displayOrder: number;
   menuItems: MenuItem[];
 }
@@ -341,9 +346,11 @@ class ApiClient {
     labelKo: string;
     labelVn: string;
     labelEn?: string;
+    labelZh?: string;
     messageKo?: string;
     messageVn?: string;
     messageEn?: string;
+    messageZh?: string;
     displayOrder: number;
     isActive: boolean;
   }>>> {

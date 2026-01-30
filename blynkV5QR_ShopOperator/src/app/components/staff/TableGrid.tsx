@@ -60,8 +60,8 @@ interface TableGridProps {
   orders: Order[];
   setTables: React.Dispatch<React.SetStateAction<Table[]>>;
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
-  onOrdersReload?: () => void;
-  onTablesReload?: () => void; // 테이블 목록 재로드를 위한 콜백 추가
+  onOrdersReload?: (tablesOverride?: Table[] | null) => void | Promise<void>;
+  onTablesReload?: () => Promise<Table[] | null>; // 테이블 목록 재로드, 반환값으로 주문 필터에 사용
   menu?: Array<{ id: string; name: string; imageUrl?: string }>; // Optional menu for image display
   onChatNew?: (handler: (tableId: number, sessionId: string, sender?: string, messageType?: string) => Promise<void>) => void; // 채팅 메시지 수신 시 호출되는 핸들러 등록 콜백
   onChatRead?: (handler: (sessionId: string, lastReadMessageId: string) => Promise<void>) => void; // 채팅 읽음 상태 변경 시 호출되는 핸들러 등록 콜백
@@ -94,7 +94,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
   const [tableRequestStatus, setTableRequestStatus] = useState<Map<number, boolean>>(new Map());
   const [tableUnreadChatCount, setTableUnreadChatCount] = useState<Map<number, number>>(new Map());
   const [statusFilter, setStatusFilter] = useState<'all' | 'empty' | 'ordering' | 'dining' | 'cleaning'>('all');
-  const [quickReplies, setQuickReplies] = useState<Array<{ labelKo: string; labelVn: string; labelEn?: string; messageKo?: string; messageVn?: string; messageEn?: string }>>([]);
+  const [quickReplies, setQuickReplies] = useState<Array<{ labelKo: string; labelVn: string; labelEn?: string; labelZh?: string; messageKo?: string; messageVn?: string; messageEn?: string; messageZh?: string }>>([]);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [selectedTableForQR, setSelectedTableForQR] = useState<{ tableNumber: number; qrCodeUrl: string } | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -604,9 +604,11 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
             labelKo: chip.labelKo,
             labelVn: chip.labelVn,
             labelEn: chip.labelEn,
+            labelZh: chip.labelZh,
             messageKo: chip.messageKo || chip.labelKo,
             messageVn: chip.messageVn || chip.labelVn,
             messageEn: chip.messageEn || chip.labelEn,
+            messageZh: chip.messageZh || chip.labelZh,
           }));
           setQuickReplies(replies);
         } else {
@@ -687,6 +689,10 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         textVn = message;
         textKo = message;
         textEn = message;
+      } else if (language === 'zh') {
+        textEn = message;
+        textKo = message;
+        textVn = message;
       } else {
         textEn = message;
         textKo = message;
@@ -874,37 +880,24 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
             return orderAge < oneMinute && !!selectedTable.currentSessionId;
           }
           
-          // If table has an active session, prioritize showing orders from that session
-          // But also show recent orders without sessionId (for orders created before sessionId is set)
+          // If table has an active session, show ONLY orders from that session
+          // (테이블 초기화 후 이전 고객 주문이 새 고객 주문과 함께 보이지 않도록)
           if (selectedTable.currentSessionId) {
-            // If order has sessionId, it must match the table's currentSessionId
             if (o.sessionId && o.sessionId === selectedTable.currentSessionId) {
               return true;
             }
-            // If order doesn't have sessionId but is recent, show it
-            // This handles the case where order was created before sessionId was set
-            if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
-              return orderAge < twoHours;
+            // 세션 ID가 아직 안 붙은 매우 최근 주문만 허용 (주문 직후 동기화 지연 대비)
+            if (!o.sessionId && orderAge < oneMinute) {
+              return true;
             }
-            // Very recent orders (within 5 minutes) are always shown for non-empty tables
+            return false;
+          }
+          
+          // 테이블에 활성 세션이 없는데 ordering/dining인 경우 (세션 갱신 지연 시 최근 주문만)
+          if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
             return orderAge < fiveMinutes;
           }
           
-          // If no active session but table is ordering/dining, show orders that match the table
-          // This handles the case where order was just created but table's currentSessionId hasn't been updated yet
-          if (selectedTable.status === 'ordering' || selectedTable.status === 'dining') {
-            // Show recent orders (within 2 hours) that match this table
-            return orderAge < twoHours;
-          }
-          
-          // Very recent orders (within 5 minutes) are always shown
-          // This ensures customer orders are visible immediately after creation
-          if (orderAge < fiveMinutes) {
-            return true;
-          }
-          
-          // If no active session and table is not ordering/dining, don't show old orders
-          // This prevents showing orders from previous customers when a new customer sits down
           return false;
         })
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
@@ -917,9 +910,9 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
 
     // If dining status, open checkout sheet instead of directly changing to cleaning
     if (selectedTable.status === 'dining') {
-      // Check if there are served orders
+      // Check if there are served or delivered orders (eligible for checkout)
       const servedOrdersForTable = orders.filter(
-        o => o.tableId === selectedTable.id && o.status === 'served'
+        o => o.tableId === selectedTable.id && (o.status === 'served' || o.status === 'delivered')
       );
       
       if (servedOrdersForTable.length > 0) {
@@ -1012,11 +1005,9 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
       const result = await apiClient.resetTable(selectedTable.tableId);
       
       if (result.success) {
-        // Reload tables from backend to get accurate state
-        if (onTablesReload) {
-          await onTablesReload();
-        } else {
-          // Fallback: Update local state if reload callback is not available
+        // Reload tables from backend to get new currentSessionId
+        const freshTables = onTablesReload ? await onTablesReload() : null;
+        if (!onTablesReload) {
           setTables(prev => prev.map(t => 
             t.id === selectedTable.id 
               ? { ...t, status: 'empty', guests: 0, totalAmount: 0, orderTime: undefined }
@@ -1024,34 +1015,21 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
           ));
         }
 
-        // Reload orders to remove orders from reset table
-        // This ensures the orders array doesn't contain stale data for empty tables
+        // Reload orders using fresh tables so 이전 세션 주문이 목록에 남지 않음
         if (onOrdersReload) {
-          await onOrdersReload();
+          await onOrdersReload(freshTables ?? undefined);
         }
 
         // Close detail panel since table is now empty
         setIsDetailOpen(false);
 
-        toast.success(
-          language === 'ko'
-            ? `테이블 ${selectedTable.id}이(가) 공석으로 초기화되었습니다.`
-            : language === 'vn'
-            ? `Bàn ${selectedTable.id} đã được đặt lại về trạng thái trống.`
-            : `Table ${selectedTable.id} has been reset to empty.`
-        );
+        toast.success(t('table.reset.success').replace('{id}', String(selectedTable.id)));
       } else {
         throw new Error(result.error?.message || 'Failed to reset table');
       }
     } catch (error: unknown) {
       console.error('Error resetting table:', error);
-      toast.error(
-        language === 'ko'
-          ? '테이블 초기화에 실패했습니다.'
-          : language === 'vn'
-          ? 'Không thể đặt lại bàn.'
-          : 'Failed to reset table.'
-      );
+      toast.error(t('table.reset.failed'));
     }
   };
 
@@ -1187,6 +1165,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     const pendingOrders = tableOrdersForStatus.filter((o: any) => o.status === 'pending');
     const cookingOrders = tableOrdersForStatus.filter((o: any) => o.status === 'cooking');
     const servedOrders = tableOrdersForStatus.filter((o: any) => o.status === 'served');
+    const deliveredOrders = tableOrdersForStatus.filter((o: any) => o.status === 'delivered');
     const paidOrders = tableOrdersForStatus.filter((o: any) => o.status === 'paid');
     
     let statusLabel = '';
@@ -1196,13 +1175,12 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
       statusLabel = t('payment.status.completed') || '결제완료';
     } else if (cookingOrders.length > 0) {
       statusLabel = t('order.status.cooking') || '조리중';
-    } else if (servedOrders.length > 0 && paidOrders.length === 0) {
-      // 서빙완료 - 서빙 완료된 주문이 있고 결제가 완료되지 않은 경우 (ORDERING 또는 DINING 상태)
+    } else if ((servedOrders.length > 0 || deliveredOrders.length > 0) && paidOrders.length === 0) {
+      // 서빙완료 - 조리/서빙 완료된 주문이 있고 결제가 완료되지 않은 경우
       statusLabel = t('order.status.served') || '서빙완료';
     } else if (selectedTable.status === 'dining' && paidOrders.length === 0) {
-      // 서빙완료 - DINING 상태이고 결제가 완료되지 않은 경우 (서빙 완료 주문이 없어도)
       statusLabel = t('order.status.served') || '서빙완료';
-    } else if (selectedTable.status === 'ordering' && pendingOrders.length === 0 && tableOrdersForStatus.length > 0 && (cookingOrders.length > 0 || servedOrders.length > 0 || paidOrders.length > 0)) {
+    } else if (selectedTable.status === 'ordering' && pendingOrders.length === 0 && tableOrdersForStatus.length > 0 && (cookingOrders.length > 0 || servedOrders.length > 0 || deliveredOrders.length > 0 || paidOrders.length > 0)) {
       statusLabel = t('order.status.completed') || '주문완료';
     } else if (selectedTable.status === 'ordering') {
       statusLabel = t('status.ordering') || '주문중';
@@ -1447,6 +1425,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
               const pendingOrders = tableOrders.filter(o => o.status === 'pending');
               const cookingOrders = tableOrders.filter(o => o.status === 'cooking');
               const servedOrders = tableOrders.filter(o => o.status === 'served');
+              const deliveredOrders = tableOrders.filter(o => o.status === 'delivered');
               const paidOrders = tableOrders.filter(o => o.status === 'paid');
               const pendingOrdersCount = pendingOrders.length;
               
@@ -1499,8 +1478,8 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   textColor: 'text-white',
                   icon: <ChefHat size={11} />
                 };
-              } else if (servedOrders.length > 0 && paidOrders.length === 0) {
-                // 서빙완료 - 서빙 완료된 주문이 있고 결제가 완료되지 않은 경우 (ORDERING 또는 DINING 상태)
+              } else if ((servedOrders.length > 0 || deliveredOrders.length > 0) && paidOrders.length === 0) {
+                // 서빙완료 - 조리/서빙 완료된 주문이 있고 결제가 완료되지 않은 경우
                 tableStatusBadge = {
                   label: t('order.status.served') || '서빙완료',
                   color: 'zinc',
@@ -1510,7 +1489,6 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   icon: <CircleCheck size={11} />
                 };
               } else if (table.status === 'dining' && paidOrders.length === 0) {
-                // 서빙완료 - DINING 상태이고 결제가 완료되지 않은 경우 (서빙 완료 주문이 없어도)
                 tableStatusBadge = {
                   label: t('order.status.served') || '서빙완료',
                   color: 'zinc',
@@ -1519,7 +1497,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   textColor: 'text-white',
                   icon: <CircleCheck size={11} />
                 };
-              } else if (table.status === 'ordering' && pendingOrders.length === 0 && tableOrders.length > 0 && cookingOrders.length > 0) {
+              } else if (table.status === 'ordering' && pendingOrders.length === 0 && tableOrders.length > 0 && (cookingOrders.length > 0 || servedOrders.length > 0 || deliveredOrders.length > 0)) {
                 // 주문완료 - 주문이 있고 조리 중인 상태
                 tableStatusBadge = {
                   label: t('order.status.completed') || '주문완료',
@@ -1577,7 +1555,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                         setIsQRModalOpen(true);
                       }}
                       className="absolute top-2 right-2 z-10 p-1.5 bg-white/90 hover:bg-white border border-zinc-200 rounded-lg shadow-sm transition-all hover:shadow-md group/qr"
-                      title={language === 'ko' ? 'QR 코드 보기' : language === 'vn' ? 'Xem mã QR' : 'View QR Code'}
+                      title={t('qr.view_title')}
                     >
                       <QrCode size={14} className="text-zinc-600 group-hover/qr:text-zinc-900" />
                     </button>
@@ -1588,7 +1566,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     onClick={() => {
                       if (!isClickable) {
                         // Show message that only empty tables can be selected
-                        toast.info('공석인 테이블만 선택할 수 있습니다.');
+                        toast.info(t('table.detail.select_empty_only'));
                         return;
                       }
                       if (isSeatingTarget) {
@@ -1885,28 +1863,18 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {language === 'ko' 
-                ? '테이블 초기화'
-                : language === 'vn'
-                ? 'Đặt lại bàn'
-                : 'Reset Table'}
+              {t('table.reset.title')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedTable && (
-                language === 'ko' 
-                  ? `테이블 ${selectedTable.id}을(를) 공석으로 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
-                  : language === 'vn'
-                  ? `Bạn có chắc chắn muốn đặt lại bàn ${selectedTable.id} về trạng thái trống? Hành động này không thể hoàn tác.`
-                  : `Are you sure you want to reset table ${selectedTable.id} to empty? This action cannot be undone.`
-              )}
+              {selectedTable && t('table.reset.description').replace('{id}', String(selectedTable.id))}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>
-              {language === 'ko' ? '취소' : language === 'vn' ? 'Hủy' : 'Cancel'}
+              {t('btn.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleResetTableConfirm} className="bg-zinc-900 hover:bg-zinc-800">
-              {language === 'ko' ? '초기화' : language === 'vn' ? 'Đặt lại' : 'Reset'}
+              {t('table.reset.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2293,7 +2261,7 @@ function DetailBody({
                               )[0];
                               const paymentTime = mostRecentPayment.timestamp;
                               
-                              const paymentMethod = language === 'ko' ? '계좌이체' : language === 'vn' ? 'Chuyển khoản' : 'Bank Transfer';
+                              const paymentMethod = t('checkout.bank_transfer');
                               
                               return (
                                 <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 space-y-3">
@@ -2346,12 +2314,14 @@ function DetailBody({
                                                         order.status === 'pending' ? 'bg-primary/10 text-primary' :
                                                         order.status === 'cooking' ? 'bg-accent/10 text-accent-foreground' :
                                                         order.status === 'served' ? 'bg-muted text-muted-foreground' :
+                                                        order.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-700' :
                                                         order.status === 'paid' ? 'bg-secondary/10 text-secondary-foreground' :
                                                         'bg-muted text-muted-foreground'
                                                     }`}>
                                                         {order.status === 'pending' ? t('order.status.pending') || '주문중' :
                                                          order.status === 'cooking' ? t('order.status.cooking') || '조리중' :
-                                                         order.status === 'served' ? t('order.status.served') || '서빙완료' :
+                                                         order.status === 'served' ? (t('feed.tab.served') || '조리완료') :
+                                                         order.status === 'delivered' ? (t('btn.serve') || '서빙완료') :
                                                          order.status === 'paid' ? t('order.status.paid') || '결제 완료' : 
                                                          order.status}
                                                     </span>
@@ -2427,12 +2397,17 @@ function DetailBody({
                                                             disabled={updatingOrderId === order.id}
                                                             className="w-full h-9 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                                         >
-                                                            <CircleCheck size={13}/> {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.mark_served')}
+                                                            <CircleCheck size={13}/> {updatingOrderId === order.id ? t('order.status.updating') : (t('feed.tab.served') || '조리완료')}
                                                         </button>
                                                     )}
                                                     {order.status === 'served' && (
                                                         <div className="w-full h-9 bg-muted text-muted-foreground text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 border border-border">
                                                             <CircleCheck size={13} className="text-muted-foreground"/> {t('order.status.payment_pending') || '결제 대기 중'}
+                                                        </div>
+                                                    )}
+                                                    {order.status === 'delivered' && (
+                                                        <div className="w-full h-9 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 border border-emerald-200">
+                                                            <CircleCheck size={13}/> {t('order.status.payment_pending') || '결제 대기 중'}
                                                         </div>
                                                     )}
                                                 </div>
@@ -2555,7 +2530,7 @@ function DetailBody({
                                 className="flex-1 h-9 bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5"
                             >
                                 <RotateCcw size={13} />
-                                {language === 'ko' ? '초기화' : language === 'vn' ? 'Đặt lại' : 'Reset'}
+                                {t('table.reset.confirm')}
                             </button>
                         )}
                         <button 

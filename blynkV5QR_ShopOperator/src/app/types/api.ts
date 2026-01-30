@@ -1,7 +1,7 @@
 // Backend API Response Types
 
 export type BackendTableStatus = 'EMPTY' | 'ORDERING' | 'DINING' | 'CLEANING';
-export type BackendOrderStatus = 'PENDING' | 'COOKING' | 'SERVED' | 'PAID' | 'CANCELLED';
+export type BackendOrderStatus = 'PENDING' | 'COOKING' | 'SERVED' | 'DELIVERED' | 'PAID' | 'CANCELLED';
 export type BackendWaitingStatus = 'WAITING' | 'NOTIFIED' | 'SEATED' | 'CANCELLED';
 export type BackendStaffRole = 'OWNER' | 'MANAGER' | 'KITCHEN' | 'HALL' | 'STAFF';
 export type BackendStaffStatus = 'ACTIVE' | 'INACTIVE' | 'PENDING';
@@ -76,6 +76,7 @@ export interface BackendMenuCategory {
   nameKo: string;
   nameVn: string;
   nameEn?: string | null;
+  nameZh?: string | null;
   displayOrder: number;
   menuItems?: BackendMenuItem[];
 }
@@ -88,9 +89,11 @@ export interface BackendMenuItem {
   nameKo: string;
   nameVn: string;
   nameEn?: string | null;
+  nameZh?: string | null;
   descriptionKo?: string | null;
   descriptionVn?: string | null;
   descriptionEn?: string | null;
+  descriptionZh?: string | null;
   priceVnd: number;
   imageUrl?: string | null;
   isSoldOut: boolean;
@@ -105,6 +108,7 @@ export interface BackendMenuOptionGroup {
   nameKo: string;
   nameVn: string;
   nameEn?: string | null;
+  nameZh?: string | null;
   minSelect: number;
   maxSelect: number;
   options?: BackendMenuOption[];
@@ -117,6 +121,7 @@ export interface BackendMenuOption {
   nameKo: string;
   nameVn: string;
   nameEn?: string | null;
+  nameZh?: string | null;
   priceVnd: number;
 }
 

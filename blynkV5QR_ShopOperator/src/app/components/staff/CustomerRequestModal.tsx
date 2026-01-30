@@ -32,18 +32,18 @@ export function CustomerRequestModal({
       case 'order':
         return {
           icon: <ShoppingCart className="h-8 w-8 text-primary" />,
-          title: t('modal.request.order') || (language === 'ko' ? '새 주문' : language === 'vn' ? 'Đơn hàng mới' : 'New Order'),
+          title: t('modal.request.order') || (language === 'ko' ? '새 주문' : language === 'vn' ? 'Đơn hàng mới' : language === 'zh' ? '新订单' : 'New Order'),
         };
       case 'request':
         return {
           icon: <BellRing className="h-8 w-8 text-primary" />,
-          title: t('modal.request.title') || (language === 'ko' ? '고객 요청' : language === 'vn' ? 'Yêu cầu khách hàng' : 'Customer Request'),
+          title: t('modal.request.title') || (language === 'ko' ? '고객 요청' : language === 'vn' ? 'Yêu cầu khách hàng' : language === 'zh' ? '客户请求' : 'Customer Request'),
         };
       case 'chat':
       default:
         return {
           icon: <MessageSquare className="h-8 w-8 text-primary" />,
-          title: t('modal.request.message') || (language === 'ko' ? '메시지' : language === 'vn' ? 'Tin nhắn' : 'Message'),
+          title: t('modal.request.message') || (language === 'ko' ? '메시지' : language === 'vn' ? 'Tin nhắn' : language === 'zh' ? '消息' : 'Message'),
         };
     }
   };
@@ -55,10 +55,12 @@ export function CustomerRequestModal({
       ? `테이블 ${tableNumber}`
       : language === 'vn'
       ? `Bàn ${tableNumber}`
+      : language === 'zh'
+      ? `桌位 ${tableNumber}`
       : `Table ${tableNumber}`;
 
-  const confirmLabel = t('modal.request.confirm') || (language === 'ko' ? '확인' : language === 'vn' ? 'Xác nhận' : 'Confirm');
-  const viewTableLabel = t('modal.request.view_table') || (language === 'ko' ? '테이블 보기' : language === 'vn' ? 'Xem bàn' : 'View Table');
+  const confirmLabel = t('modal.request.confirm') || (language === 'ko' ? '확인' : language === 'vn' ? 'Xác nhận' : language === 'zh' ? '确认' : 'Confirm');
+  const viewTableLabel = t('modal.request.view_table') || (language === 'ko' ? '테이블 보기' : language === 'vn' ? 'Xem bàn' : language === 'zh' ? '查看桌位' : 'View Table');
 
   const handleTableOpen = () => {
     const numericTableNumber = typeof tableNumber === 'string' ? Number(tableNumber) : tableNumber;

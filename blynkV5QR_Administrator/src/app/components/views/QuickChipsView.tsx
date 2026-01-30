@@ -75,9 +75,11 @@ interface QuickChip {
   labelKo: string;
   labelVn: string;
   labelEn?: string;
+  labelZh?: string;
   messageKo?: string;
   messageVn?: string;
   messageEn?: string;
+  messageZh?: string;
   displayOrder: number;
   isActive: boolean;
   createdAt: string;
@@ -97,9 +99,11 @@ export function QuickChipsView() {
     labelKo: '',
     labelVn: '',
     labelEn: '',
+    labelZh: '',
     messageKo: '',
     messageVn: '',
     messageEn: '',
+    messageZh: '',
     isActive: true,
   });
 
@@ -141,9 +145,11 @@ export function QuickChipsView() {
         labelKo: chip.labelKo,
         labelVn: chip.labelVn,
         labelEn: chip.labelEn || '',
+        labelZh: chip.labelZh || '',
         messageKo: chip.messageKo || '',
         messageVn: chip.messageVn || '',
         messageEn: chip.messageEn || '',
+        messageZh: chip.messageZh || '',
         isActive: chip.isActive,
       });
     } else {
@@ -154,9 +160,11 @@ export function QuickChipsView() {
         labelKo: '',
         labelVn: '',
         labelEn: '',
+        labelZh: '',
         messageKo: '',
         messageVn: '',
         messageEn: '',
+        messageZh: '',
         isActive: true,
       });
     }
@@ -179,9 +187,11 @@ export function QuickChipsView() {
           labelKo: formData.labelKo,
           labelVn: formData.labelVn,
           labelEn: formData.labelEn || undefined,
+          labelZh: formData.labelZh || undefined,
           messageKo: formData.messageKo || undefined,
           messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
+          messageZh: formData.messageZh || undefined,
           isActive: formData.isActive,
         });
         toast.success('상용구가 수정되었습니다.');
@@ -193,9 +203,11 @@ export function QuickChipsView() {
           labelKo: formData.labelKo,
           labelVn: formData.labelVn,
           labelEn: formData.labelEn || undefined,
+          labelZh: formData.labelZh || undefined,
           messageKo: formData.messageKo || undefined,
           messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
+          messageZh: formData.messageZh || undefined,
           isActive: formData.isActive,
         });
         toast.success('상용구가 생성되었습니다.');
@@ -271,7 +283,7 @@ export function QuickChipsView() {
       </div>
 
       {/* Labels */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-2">
           <Label htmlFor="labelKo">라벨 (한국어) *</Label>
           <Input
@@ -299,10 +311,19 @@ export function QuickChipsView() {
             placeholder="예: Water please"
           />
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor="labelZh">라벨 (중국어)</Label>
+          <Input
+            id="labelZh"
+            value={formData.labelZh}
+            onChange={(e) => setFormData({ ...formData, labelZh: e.target.value })}
+            placeholder="예: 请给我水"
+          />
+        </div>
       </div>
 
       {/* Messages */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-2">
           <Label htmlFor="messageKo">메시지 (한국어)</Label>
           <Input
@@ -328,6 +349,15 @@ export function QuickChipsView() {
             value={formData.messageEn}
             onChange={(e) => setFormData({ ...formData, messageEn: e.target.value })}
             placeholder="Message sent to customer"
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="messageZh">메시지 (중국어)</Label>
+          <Input
+            id="messageZh"
+            value={formData.messageZh}
+            onChange={(e) => setFormData({ ...formData, messageZh: e.target.value })}
+            placeholder="发送给客户的消息"
           />
         </div>
       </div>
@@ -407,6 +437,9 @@ export function QuickChipsView() {
                               <div className="mt-2 space-y-1">
                                 <div className="font-medium break-words">{chip.labelKo}</div>
                                 <div className="text-sm text-muted-foreground break-words">{chip.labelVn}</div>
+                                {chip.labelZh && (
+                                  <div className="text-sm text-muted-foreground break-words">{chip.labelZh}</div>
+                                )}
                                 {chip.messageKo && (
                                   <div className="text-xs text-muted-foreground break-words">
                                     메시지: {chip.messageKo}
