@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
@@ -11,121 +8,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  CUSTOMER
-  ADMIN
-  PLATFORM_ADMIN
-}
-
-enum TableStatus {
-  EMPTY
-  ORDERING
-  DINING
-  CLEANING
-}
-
-enum SessionStatus {
-  ACTIVE
-  ENDED
-  CANCELLED
-}
-
-enum OrderStatus {
-  PENDING
-  COOKING
-  SERVED
-  DELIVERED   // 서빙완료 (음식 전달) — 결제 전
-  PAID        // 결제 완료
-  CANCELLED
-}
-
-enum StaffRole {
-  OWNER
-  MANAGER
-  KITCHEN
-  HALL
-  STAFF
-}
-
-enum StaffStatus {
-  ACTIVE
-  INACTIVE
-  PENDING
-}
-
-enum WaitingStatus {
-  WAITING
-  NOTIFIED
-  SEATED
-  CANCELLED
-}
-
-enum MessageType {
-  TEXT
-  ORDER
-  REQUEST
-  IMAGE
-}
-
-enum SenderType {
-  USER
-  STAFF
-  SYSTEM
-}
-
-enum NotificationType {
-  ORDER_NEW
-  ORDER_STATUS_CHANGED
-  CHAT_NEW
-  PAYMENT_CONFIRMED
-  WATER_REQUEST
-  CUSTOMER_REQUEST
-  SHIFT_ALERT
-}
-
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String?  @map("password_hash")
-  role         UserRole @default(CUSTOMER)
-  name         String?
-  avatarUrl    String?  @map("avatar_url")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  ownedRestaurants Restaurant[] @relation("RestaurantOwner")
+  id                             String                   @id @default(cuid())
+  email                          String                   @unique
+  passwordHash                   String?                  @map("password_hash")
+  role                           UserRole                 @default(CUSTOMER)
+  createdAt                      DateTime                 @default(now()) @map("created_at")
+  updatedAt                      DateTime                 @updatedAt @map("updated_at")
+  avatarUrl                      String?                  @map("avatar_url")
+  name                           String?
+  chatReadStatuses               ChatReadStatus[]
   deviceRegistrationCodesCreated DeviceRegistrationCode[]
-  chatReadStatuses ChatReadStatus[]
+  ownedRestaurants               Restaurant[]             @relation("RestaurantOwner")
 
   @@map("users")
 }
 
 model Restaurant {
-  id         String   @id @default(cuid())
-  nameKo     String   @map("name_ko")
-  nameVn     String   @map("name_vn")
-  nameEn     String?  @map("name_en")
-  ownerId    String   @map("owner_id")
-  qrCode     String   @unique @map("qr_code")
-  subdomain  String?  @unique @map("subdomain")
-  status     String   @default("active")
-  settings   Json?    @default("{}")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  owner         User           @relation("RestaurantOwner", fields: [ownerId], references: [id])
-  tables        Table[]
-  categories    MenuCategory[]
-  staff         Staff[]
-  sessions      Session[]
-  orders        Order[]
-  waitingList   WaitingList[]
-  notifications Notification[]
-  quickChips    QuickChip[]
+  id                      String                   @id @default(cuid())
+  nameKo                  String                   @map("name_ko")
+  nameVn                  String                   @map("name_vn")
+  nameEn                  String?                  @map("name_en")
+  ownerId                 String                   @map("owner_id")
+  qrCode                  String                   @unique @map("qr_code")
+  status                  String                   @default("active")
+  settings                Json?                    @default("{}")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  subdomain               String?                  @unique @map("subdomain")
+  chatReadStatuses        ChatReadStatus[]
   deviceRegistrationCodes DeviceRegistrationCode[]
-  deviceTokens DeviceToken[]
-  pushSubscriptions PushSubscription[]
-  chatReadStatuses ChatReadStatus[]
+  deviceTokens            DeviceToken[]
+  categories              MenuCategory[]
+  notifications           Notification[]
+  orders                  Order[]
+  promotions              Promotion[]
+  quickChips              QuickChip[]
+  pushSubscriptions       PushSubscription[]
+  owner                   User                     @relation("RestaurantOwner", fields: [ownerId], references: [id])
+  sessions                Session[]
+  staff                   Staff[]
+  tables                  Table[]
+  waitingList             WaitingList[]
 
   @@index([subdomain])
   @@map("restaurants")
@@ -137,16 +61,15 @@ model Table {
   tableNumber      Int         @map("table_number")
   floor            Int         @default(1)
   capacity         Int         @default(4)
-  isActive         Boolean     @default(true) @map("is_active")
   qrCode           String      @unique @map("qr_code")
   status           TableStatus @default(EMPTY)
   currentSessionId String?     @map("current_session_id")
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  sessions   Session[]
-  orders     Order[]
+  isActive         Boolean     @default(true) @map("is_active")
+  orders           Order[]
+  sessions         Session[]
+  restaurant       Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
   @@index([qrCode])
@@ -154,19 +77,18 @@ model Table {
 }
 
 model Session {
-  id           String        @id @default(cuid())
-  tableId      String        @map("table_id")
-  restaurantId String        @map("restaurant_id")
-  status       SessionStatus @default(ACTIVE)
-  guestCount   Int           @default(1) @map("guest_count")
-  startedAt    DateTime      @default(now()) @map("started_at")
-  endedAt      DateTime?     @map("ended_at")
-
-  table        Table         @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orders       Order[]
-  chatMessages ChatMessage[]
+  id               String           @id @default(cuid())
+  tableId          String           @map("table_id")
+  restaurantId     String           @map("restaurant_id")
+  status           SessionStatus    @default(ACTIVE)
+  guestCount       Int              @default(1) @map("guest_count")
+  startedAt        DateTime         @default(now()) @map("started_at")
+  endedAt          DateTime?        @map("ended_at")
+  chatMessages     ChatMessage[]
   chatReadStatuses ChatReadStatus[]
+  orders           Order[]
+  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table            Table            @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   @@index([tableId])
   @@index([restaurantId])
@@ -175,45 +97,46 @@ model Session {
 }
 
 model MenuCategory {
-  id           String   @id @default(cuid())
-  restaurantId String   @map("restaurant_id")
-  nameKo       String   @map("name_ko")
-  nameVn       String   @map("name_vn")
-  nameEn       String?  @map("name_en")
-  nameZh       String?  @map("name_zh")
-  displayOrder Int      @default(0) @map("display_order")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  menuItems  MenuItem[]
+  id           String     @id @default(cuid())
+  restaurantId String     @map("restaurant_id")
+  nameKo       String     @map("name_ko")
+  nameVn       String     @map("name_vn")
+  nameEn       String?    @map("name_en")
+  nameZh       String?    @map("name_zh")
+  nameRu       String?    @map("name_ru")
+  displayOrder Int        @default(0) @map("display_order")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems    MenuItem[]
 
   @@index([restaurantId])
   @@map("menu_categories")
 }
 
 model MenuItem {
-  id            String   @id @default(cuid())
-  categoryId    String   @map("category_id")
-  restaurantId  String   @map("restaurant_id")
-  nameKo        String   @map("name_ko")
-  nameVn        String   @map("name_vn")
-  nameEn        String?  @map("name_en")
-  nameZh        String?  @map("name_zh")
-  descriptionKo String?  @map("description_ko")
-  descriptionVn String?  @map("description_vn")
-  descriptionEn String?  @map("description_en")
-  descriptionZh String?  @map("description_zh")
-  priceVnd      Int      @map("price_vnd")
-  imageUrl      String?  @map("image_url")
-  isSoldOut     Boolean  @default(false) @map("is_sold_out")
-  displayOrder  Int      @default(0) @map("display_order")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  category     MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  optionGroups MenuOptionGroup[]
-  orderItems   OrderItem[]
+  id            String            @id @default(cuid())
+  categoryId    String            @map("category_id")
+  restaurantId  String            @map("restaurant_id")
+  nameKo        String            @map("name_ko")
+  nameVn        String            @map("name_vn")
+  nameEn        String?           @map("name_en")
+  nameZh        String?           @map("name_zh")
+  nameRu        String?           @map("name_ru")
+  descriptionKo String?           @map("description_ko")
+  descriptionVn String?           @map("description_vn")
+  descriptionEn String?           @map("description_en")
+  descriptionZh String?           @map("description_zh")
+  descriptionRu String?           @map("description_ru")
+  priceVnd      Int               @map("price_vnd")
+  imageUrl      String?           @map("image_url")
+  isSoldOut     Boolean           @default(false) @map("is_sold_out")
+  displayOrder  Int               @default(0) @map("display_order")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  category      MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  optionGroups  MenuOptionGroup[]
+  orderItems    OrderItem[]
 
   @@index([categoryId])
   @@index([restaurantId])
@@ -221,35 +144,35 @@ model MenuItem {
 }
 
 model MenuOptionGroup {
-  id         String   @id @default(cuid())
-  menuItemId String   @map("menu_item_id")
-  nameKo     String   @map("name_ko")
-  nameVn     String   @map("name_vn")
-  nameEn     String?  @map("name_en")
-  nameZh     String?  @map("name_zh")
-  minSelect  Int      @default(0) @map("min_select")
-  maxSelect  Int      @default(1) @map("max_select")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  menuItem MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  options  MenuOption[]
+  id         String       @id @default(cuid())
+  menuItemId String       @map("menu_item_id")
+  nameKo     String       @map("name_ko")
+  nameVn     String       @map("name_vn")
+  nameEn     String?      @map("name_en")
+  nameZh     String?      @map("name_zh")
+  nameRu     String?      @map("name_ru")
+  minSelect  Int          @default(0) @map("min_select")
+  maxSelect  Int          @default(1) @map("max_select")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  menuItem   MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options    MenuOption[]
 
   @@index([menuItemId])
   @@map("menu_option_groups")
 }
 
 model MenuOption {
-  id            String   @id @default(cuid())
-  optionGroupId String   @map("option_group_id")
-  nameKo        String   @map("name_ko")
-  nameVn        String   @map("name_vn")
-  nameEn        String?  @map("name_en")
-  nameZh        String?  @map("name_zh")
-  priceVnd      Int      @default(0) @map("price_vnd")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
+  id               String            @id @default(cuid())
+  optionGroupId    String            @map("option_group_id")
+  nameKo           String            @map("name_ko")
+  nameVn           String            @map("name_vn")
+  nameEn           String?           @map("name_en")
+  nameZh           String?           @map("name_zh")
+  nameRu           String?           @map("name_ru")
+  priceVnd         Int               @default(0) @map("price_vnd")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
   optionGroup      MenuOptionGroup   @relation(fields: [optionGroupId], references: [id], onDelete: Cascade)
   orderItemOptions OrderItemOption[]
 
@@ -266,11 +189,10 @@ model Order {
   totalAmount  Int         @map("total_amount")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
-
-  session    Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  table      Table       @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  items      OrderItem[]
+  items        OrderItem[]
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  session      Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  table        Table       @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([tableId])
@@ -280,52 +202,51 @@ model Order {
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
-  orderId    String   @map("order_id")
-  menuItemId String   @map("menu_item_id")
-  quantity   Int      @default(1)
-  unitPrice  Int      @map("unit_price")
-  totalPrice Int      @map("total_price")
-  notes      Json?    @default("[]")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  order    Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem MenuItem          @relation(fields: [menuItemId], references: [id])
-  options  OrderItemOption[]
+  id         String            @id @default(cuid())
+  orderId    String            @map("order_id")
+  menuItemId String            @map("menu_item_id")
+  quantity   Int               @default(1)
+  unitPrice  Int               @map("unit_price")
+  totalPrice Int               @map("total_price")
+  notes      Json?             @default("[]")
+  createdAt  DateTime          @default(now()) @map("created_at")
+  options    OrderItemOption[]
+  menuItem   MenuItem          @relation(fields: [menuItemId], references: [id])
+  order      Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@map("order_items")
 }
 
 model OrderItemOption {
-  id          String   @id @default(cuid())
-  orderItemId String   @map("order_item_id")
-  optionId    String   @map("option_id")
-  quantity    Int      @default(1)
-  price       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  orderItem OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  option    MenuOption @relation(fields: [optionId], references: [id])
+  id          String     @id @default(cuid())
+  orderItemId String     @map("order_item_id")
+  optionId    String     @map("option_id")
+  quantity    Int        @default(1)
+  price       Int        @default(0)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  option      MenuOption @relation(fields: [optionId], references: [id])
+  orderItem   OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
   @@index([orderItemId])
   @@map("order_item_options")
 }
 
 model ChatMessage {
-  id          String      @id @default(cuid())
-  sessionId   String      @map("session_id")
-  senderType  SenderType  @map("sender_type")
-  textKo      String?     @map("text_ko")
-  textVn      String?     @map("text_vn")
-  textEn      String?     @map("text_en")
-  detectedLanguage String? @map("detected_language")
-  messageType MessageType @map("message_type")
-  imageUrl    String?     @map("image_url")
-  metadata    Json?       @default("{}")
-  createdAt   DateTime    @default(now()) @map("created_at")
-
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id               String      @id @default(cuid())
+  sessionId        String      @map("session_id")
+  senderType       SenderType  @map("sender_type")
+  textKo           String?     @map("text_ko")
+  textVn           String?     @map("text_vn")
+  textEn           String?     @map("text_en")
+  textZh           String?     @map("text_zh")
+  textRu           String?     @map("text_ru")
+  messageType      MessageType @map("message_type")
+  imageUrl         String?     @map("image_url")
+  metadata         Json?       @default("{}")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  detectedLanguage String?     @map("detected_language")
+  session          Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([createdAt])
@@ -333,19 +254,18 @@ model ChatMessage {
 }
 
 model ChatReadStatus {
-  id               String   @id @default(cuid())
-  userId           String   @map("user_id")
-  staffId          String?  @map("staff_id")
-  sessionId        String   @map("session_id")
-  restaurantId     String   @map("restaurant_id")
-  lastReadMessageId String  @map("last_read_message_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  staff      Staff?     @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  session    Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id                String     @id @default(cuid())
+  userId            String     @map("user_id")
+  staffId           String?    @map("staff_id")
+  sessionId         String     @map("session_id")
+  restaurantId      String     @map("restaurant_id")
+  lastReadMessageId String     @map("last_read_message_id")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  restaurant        Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  session           Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  staff             Staff?     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, sessionId])
   @@index([restaurantId])
@@ -355,25 +275,24 @@ model ChatReadStatus {
 }
 
 model Staff {
-  id           String      @id @default(cuid())
-  restaurantId String      @map("restaurant_id")
-  name         String
-  email        String?
-  role         StaffRole   @default(STAFF)
-  status       StaffStatus @default(PENDING)
-  isDevice     Boolean     @default(false) @map("is_device")
-  deviceId     String?     @map("device_id")
-  phone        String?
-  avatarUrl    String?     @map("avatar_url")
-  joinedAt     DateTime    @default(now()) @map("joined_at")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  deviceTokens DeviceToken[]
+  id                      String                   @id @default(cuid())
+  restaurantId            String                   @map("restaurant_id")
+  name                    String
+  email                   String?
+  role                    StaffRole                @default(STAFF)
+  status                  StaffStatus              @default(PENDING)
+  phone                   String?
+  avatarUrl               String?                  @map("avatar_url")
+  joinedAt                DateTime                 @default(now()) @map("joined_at")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  deviceId                String?                  @map("device_id")
+  isDevice                Boolean                  @default(false) @map("is_device")
+  chatReadStatuses        ChatReadStatus[]
   deviceRegistrationCodes DeviceRegistrationCode[]
-  pushSubscriptions PushSubscription[]
-  chatReadStatuses ChatReadStatus[]
+  deviceTokens            DeviceToken[]
+  pushSubscriptions       PushSubscription[]
+  restaurant              Restaurant               @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
   @@index([email])
@@ -383,21 +302,20 @@ model Staff {
 }
 
 model DeviceRegistrationCode {
-  id              String    @id @default(cuid())
-  restaurantId    String    @map("restaurant_id")
-  staffId         String    @map("staff_id")
-  code            String    @unique
+  id              String     @id @default(cuid())
+  restaurantId    String     @map("restaurant_id")
+  code            String     @unique
   role            StaffRole
   label           String?
-  expiresAt       DateTime  @map("expires_at")
-  usedAt          DateTime? @map("used_at")
-  usedByDeviceId  String?   @map("used_by_device_id")
-  createdByUserId String    @map("created_by_user_id")
-  createdAt       DateTime  @default(now()) @map("created_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  expiresAt       DateTime   @map("expires_at")
+  usedAt          DateTime?  @map("used_at")
+  usedByDeviceId  String?    @map("used_by_device_id")
+  createdByUserId String     @map("created_by_user_id")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  staffId         String     @map("staff_id")
+  createdBy       User       @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  staff           Staff      @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
   @@index([staffId])
@@ -406,43 +324,22 @@ model DeviceRegistrationCode {
 }
 
 model DeviceToken {
-  id           String   @id @default(cuid())
-  restaurantId String   @map("restaurant_id")
-  staffId      String   @map("staff_id")
-  deviceId     String   @map("device_id")
-  tokenHash    String   @map("token_hash")
+  id           String     @id @default(cuid())
+  restaurantId String     @map("restaurant_id")
+  staffId      String     @map("staff_id")
+  deviceId     String     @map("device_id")
+  tokenHash    String     @map("token_hash")
   label        String?
-  issuedAt     DateTime @default(now()) @map("issued_at")
-  lastUsedAt   DateTime? @map("last_used_at")
-  revokedAt    DateTime? @map("revoked_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  issuedAt     DateTime   @default(now()) @map("issued_at")
+  lastUsedAt   DateTime?  @map("last_used_at")
+  revokedAt    DateTime?  @map("revoked_at")
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  staff        Staff      @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@unique([restaurantId, deviceId])
   @@index([restaurantId])
   @@index([staffId])
   @@map("device_tokens")
-}
-
-model PushSubscription {
-  id           String   @id @default(cuid())
-  restaurantId String   @map("restaurant_id")
-  staffId      String?  @map("staff_id")
-  endpoint     String   @unique
-  p256dh       String
-  auth         String
-  userAgent    String?  @map("user_agent")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  lastSeenAt   DateTime? @map("last_seen_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  staff Staff? @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  @@index([restaurantId])
-  @@index([staffId])
-  @@map("push_subscriptions")
 }
 
 model WaitingList {
@@ -456,8 +353,7 @@ model WaitingList {
   timestamp    DateTime      @default(now())
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
   @@index([status])
@@ -505,8 +401,7 @@ model Notification {
   isRead        Boolean          @default(false) @map("is_read")
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
   @@index([isRead])
@@ -532,36 +427,157 @@ model Bank {
   @@map("banks")
 }
 
-enum QuickChipType {
-  CUSTOMER_REQUEST
-  STAFF_RESPONSE
-}
-
 model QuickChip {
   id           String        @id @default(cuid())
   restaurantId String?       @map("restaurant_id")
   type         QuickChipType
-  templateKey  String?       @map("template_key")
   icon         String
   labelKo      String        @map("label_ko")
   labelVn      String        @map("label_vn")
   labelEn      String?       @map("label_en")
   labelZh      String?       @map("label_zh")
+  labelRu      String?       @map("label_ru")
   messageKo    String?       @map("message_ko")
   messageVn    String?       @map("message_vn")
   messageEn    String?       @map("message_en")
   messageZh    String?       @map("message_zh")
+  messageRu    String?       @map("message_ru")
   displayOrder Int           @default(0) @map("display_order")
   isActive     Boolean       @default(true) @map("is_active")
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
-
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  templateKey  String?       @map("template_key")
+  restaurant   Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
   @@index([type])
   @@index([displayOrder])
-  @@index([templateKey])
-  @@unique([restaurantId, type, templateKey])
   @@map("quick_chips")
+}
+
+model Promotion {
+  id              String     @id @default(cuid())
+  restaurantId    String     @map("restaurant_id")
+  titleKo         String     @map("title_ko")
+  titleVn         String     @map("title_vn")
+  titleEn         String?    @map("title_en")
+  titleZh         String?    @map("title_zh")
+  titleRu         String?    @map("title_ru")
+  descriptionKo   String?    @map("description_ko")
+  descriptionVn   String?    @map("description_vn")
+  descriptionEn   String?    @map("description_en")
+  descriptionZh   String?    @map("description_zh")
+  descriptionRu   String?    @map("description_ru")
+  imageUrl        String?    @map("image_url")
+  discountPercent Int?       @map("discount_percent")
+  startDate       DateTime   @map("start_date")
+  endDate         DateTime   @map("end_date")
+  displayOrder    Int        @default(0) @map("display_order")
+  isActive        Boolean    @default(true) @map("is_active")
+  showOnLoad      Boolean    @default(false) @map("show_on_load")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([startDate, endDate])
+  @@index([isActive])
+  @@map("promotions")
+}
+
+model PushSubscription {
+  id           String    @id @default(cuid())
+  restaurantId String    @map("restaurant_id")
+  staffId      String?   @map("staff_id")
+  endpoint     String    @unique
+  p256dh       String
+  auth         String
+  userAgent    String?   @map("user_agent")
+  lastSeenAt   DateTime  @default(now()) @map("last_seen_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  staff        Staff?    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([staffId])
+  @@index([endpoint])
+  @@map("push_subscriptions")
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  PLATFORM_ADMIN
+}
+
+enum TableStatus {
+  EMPTY
+  ORDERING
+  DINING
+  CLEANING
+}
+
+enum SessionStatus {
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  COOKING
+  SERVED
+  DELIVERED
+  CANCELLED
+  PAID
+}
+
+enum StaffRole {
+  OWNER
+  MANAGER
+  STAFF
+  KITCHEN
+  HALL
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum WaitingStatus {
+  WAITING
+  NOTIFIED
+  SEATED
+  CANCELLED
+}
+
+enum MessageType {
+  TEXT
+  ORDER
+  REQUEST
+  IMAGE
+}
+
+enum SenderType {
+  USER
+  STAFF
+  SYSTEM
+}
+
+enum NotificationType {
+  ORDER_NEW
+  ORDER_STATUS_CHANGED
+  CHAT_NEW
+  PAYMENT_CONFIRMED
+  WATER_REQUEST
+  SHIFT_ALERT
+  CUSTOMER_REQUEST
+}
+
+enum QuickChipType {
+  CUSTOMER_REQUEST
+  STAFF_RESPONSE
 }

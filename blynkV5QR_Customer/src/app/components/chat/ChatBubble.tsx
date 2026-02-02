@@ -11,10 +11,11 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
   const [showTranslation, setShowTranslation] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
-  const getTextByLanguage = (lang: 'ko' | 'vn' | 'en' | 'zh') => {
+  const getTextByLanguage = (lang: 'ko' | 'vn' | 'en' | 'zh' | 'ru') => {
     if (lang === 'ko') return message.textKO || '';
     if (lang === 'vn') return message.textVN || '';
-    if (lang === 'zh') return message.textEN || message.textKO || '';
+    if (lang === 'zh') return message.textZH || message.textEN || message.textKO || '';
+    if (lang === 'ru') return message.textRU || message.textEN || message.textKO || '';
     return message.textEN || message.textKO || '';
   };
 
@@ -34,6 +35,9 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
       break;
     case 'zh':
       dateFormatLocale = 'zh-CN';
+      break;
+    case 'ru':
+      dateFormatLocale = 'ru-RU';
       break;
     case 'ko':
     default:
@@ -158,8 +162,8 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
                 {getTranslation('chat.orderDetails', userLang)}
               </div>
               {itemsToDisplay.map((item: any, idx: number) => {
-                const itemName = userLang === 'ko' ? item.nameKO : userLang === 'vn' ? item.nameVN : userLang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-                const itemSub = userLang === 'vn' ? (item.nameEN || item.nameKO) : userLang === 'zh' ? item.nameVN : item.nameVN;
+                const itemName = userLang === 'ko' ? item.nameKO : userLang === 'vn' ? item.nameVN : userLang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : userLang === 'ru' ? (item.nameRU || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+                const itemSub = userLang === 'vn' ? (item.nameEN || item.nameKO) : userLang === 'zh' ? item.nameVN : userLang === 'ru' ? item.nameVN : item.nameVN;
                 const imageUrl = item.imageQuery || item.imageUrl || '';
                 // unitPrice는 순수 메뉴 항목의 단가, totalPrice는 옵션을 포함한 총액
                 const unitPrice = item.unitPrice || 0; // 순수 메뉴 항목 단가

@@ -54,6 +54,12 @@ import {
   deleteRestaurantQuickChip,
   reorderRestaurantQuickChips,
 } from '../controllers/staffQuickChipController';
+import {
+  getPromotions,
+  createPromotion,
+  updatePromotion,
+  deletePromotion,
+} from '../controllers/promotionController';
 
 const router = Router();
 
@@ -120,5 +126,11 @@ router.delete('/restaurant/:restaurantId/staff/:staffId', deleteStaff);
 router.post('/restaurant/:restaurantId/device-registration-codes', createDeviceRegistrationCode);
 router.get('/restaurant/:restaurantId/device-tokens', getDeviceTokens);
 router.post('/restaurant/:restaurantId/device-tokens/:deviceTokenId/revoke', revokeDeviceToken);
+
+// Promotion routes (OWNER/MANAGER only, checked in controller)
+router.get('/restaurant/:restaurantId/promotions', getPromotions);
+router.post('/restaurant/:restaurantId/promotions', createPromotion);
+router.put('/restaurant/:restaurantId/promotions/:promotionId', updatePromotion);
+router.delete('/restaurant/:restaurantId/promotions/:promotionId', deletePromotion);
 
 export default router;

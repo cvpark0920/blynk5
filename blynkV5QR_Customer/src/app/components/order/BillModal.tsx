@@ -249,8 +249,8 @@ export const BillModal: React.FC<BillModalProps> = ({
                               </div>
                               <div className="flex-1">
                                 {(() => {
-                                  const itemName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-                                  const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : item.nameVN;
+                                  const itemName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : lang === 'ru' ? (item.nameRU || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+                                  const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : lang === 'ru' ? item.nameVN : item.nameVN;
                                   return (
                                     <>
                                       <div className="font-medium text-foreground leading-tight">{itemName}</div>

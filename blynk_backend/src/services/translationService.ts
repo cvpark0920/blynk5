@@ -1,4 +1,4 @@
-type SupportedLanguage = 'ko' | 'vn' | 'en';
+type SupportedLanguage = 'ko' | 'vn' | 'en' | 'ru' | 'zh';
 
 const DEEPL_FREE_ENDPOINT = 'https://api-free.deepl.com/v2/translate';
 const DEEPL_PRO_ENDPOINT = 'https://api.deepl.com/v2/translate';
@@ -9,6 +9,10 @@ const toDeepLLang = (lang: SupportedLanguage) => {
       return 'KO';
     case 'vn':
       return 'VI';
+    case 'ru':
+      return 'RU';
+    case 'zh':
+      return 'ZH';
     case 'en':
     default:
       return 'EN';
@@ -21,6 +25,10 @@ const fromDeepLLang = (lang: string | undefined): SupportedLanguage | null => {
       return 'ko';
     case 'VI':
       return 'vn';
+    case 'RU':
+      return 'ru';
+    case 'ZH':
+      return 'zh';
     case 'EN':
       return 'en';
     default:

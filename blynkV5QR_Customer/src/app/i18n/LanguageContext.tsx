@@ -12,7 +12,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [lang, setLangState] = useState<LangType>(() => {
     // 초기값: localStorage 또는 브라우저 언어
     const savedLang = localStorage.getItem('blynk_user_lang') as LangType;
-    if (savedLang && ['ko', 'vn', 'en', 'zh'].includes(savedLang)) {
+    if (savedLang && ['ko', 'vn', 'en', 'zh', 'ru'].includes(savedLang)) {
       return savedLang;
     }
     
@@ -21,6 +21,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (browserLang.includes('ko')) return 'ko';
     if (browserLang.includes('vi')) return 'vn';
     if (browserLang.includes('zh')) return 'zh';
+    if (browserLang.includes('ru')) return 'ru';
     return 'en';
   });
 
@@ -34,7 +35,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'blynk_user_lang' && e.newValue) {
         const newLang = e.newValue as LangType;
-        if (['ko', 'vn', 'en', 'zh'].includes(newLang)) {
+        if (['ko', 'vn', 'en', 'zh', 'ru'].includes(newLang)) {
           setLangState(newLang);
         }
       }

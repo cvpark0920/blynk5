@@ -6,6 +6,7 @@ import { QuickActions } from './chat/QuickActions';
 import { MenuModal } from './menu/MenuModal';
 import { BillModal } from './order/BillModal';
 import { EventModal } from './event/EventModal';
+import { PromotionPopup } from './promotion/PromotionPopup';
 import { LanguageSelector } from './intro/LanguageSelector';
 import { LoadingScreen } from './LoadingScreen';
 import { ErrorPage } from './ErrorPage';
@@ -20,12 +21,12 @@ import {
 } from './ui/dropdown-menu';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useSession } from '../context/SessionContext';
-import { apiClient, Menu, MenuItem as BackendMenuItem, ChatMessage as BackendChatMessage, Restaurant } from '../../lib/api';
+import { apiClient, Menu, MenuItem as BackendMenuItem, ChatMessage as BackendChatMessage, Restaurant, Promotion } from '../../lib/api';
 import { SSEClient, SSEEvent } from '../../lib/sseClient';
 import { toast } from 'sonner';
 import { getTranslation } from '../i18n/translations';
 
-type LangType = 'ko' | 'vn' | 'en' | 'zh';
+type LangType = 'ko' | 'vn' | 'en' | 'zh' | 'ru';
 
 const getApiBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
@@ -64,6 +65,8 @@ const convertBackendMessage = (msg: BackendChatMessage): ChatMessage => {
     textKO: msg.textKo || '',
     textVN: msg.textVn || '',
     textEN: msg.textEn,
+    textZH: msg.textZH,
+    textRU: msg.textRU,
     detectedLanguage: msg.detectedLanguage ?? null,
     timestamp: new Date(msg.createdAt),
     type: msg.messageType === 'TEXT' ? 'text' : msg.messageType === 'IMAGE' ? 'image' : msg.messageType === 'ORDER' ? 'order' : 'request',
@@ -84,6 +87,7 @@ const convertBackendMenuItem = (item: BackendMenuItem, category: string, categor
               labelVN: opt.nameVn,
               labelEN: opt.nameEn,
               labelZH: (opt as any).nameZh,
+              labelRU: (opt as any).nameRu,
               priceVND: opt.priceVnd,
             }))
           : [])
@@ -96,12 +100,14 @@ const convertBackendMenuItem = (item: BackendMenuItem, category: string, categor
     nameVN: item.nameVn,
     nameEN: item.nameEn,
     nameZH: (item as any).nameZh,
+    nameRU: (item as any).nameRu,
     priceVND: item.priceVnd,
     category: category as 'food' | 'drink' | 'dessert', // 하위 호환성을 위해 유지
     categoryId: categoryId, // 실제 카테고리 ID 추가
     imageQuery: item.imageUrl || '',
     descriptionKO: item.descriptionKo,
     descriptionVN: item.descriptionVn,
+    descriptionRU: (item as any).descriptionRu,
     descriptionEN: item.descriptionEn,
     descriptionZH: (item as any).descriptionZh,
     options: options.length > 0 ? options : undefined,
@@ -127,6 +133,9 @@ export const BlynkApp: React.FC = () => {
   const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [sessionOrders, setSessionOrders] = useState<CartItem[]>([]);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [showPromotionPopup, setShowPromotionPopup] = useState(false);
+  const [currentPromotion, setCurrentPromotion] = useState<Promotion | null>(null);
   
   // Coach mark state
   const [showCoachMark, setShowCoachMark] = useState(false);
@@ -176,6 +185,50 @@ export const BlynkApp: React.FC = () => {
     };
 
     loadRestaurant();
+  }, [restaurantId, sessionLoading]);
+
+  // 프로모션 로드
+  useEffect(() => {
+    if (!restaurantId || sessionLoading) return;
+
+    const loadPromotions = async () => {
+      try {
+        const response = await apiClient.getPromotions(restaurantId);
+        if (response.success && response.data) {
+          setPromotions(response.data);
+          
+          // 로딩 시 팝업으로 표시할 프로모션 확인
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const todayStr = today.toISOString().split('T')[0];
+          
+          const popupPromotions = response.data.filter(promo => {
+            if (!promo.showOnLoad || !promo.isActive) return false;
+            
+            const startDate = new Date(promo.startDate);
+            const endDate = new Date(promo.endDate);
+            endDate.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
+            
+            if (now < startDate || now > endDate) return false;
+            
+            // 오늘 하루 안보이기 체크
+            const hiddenKey = `promotion_hidden_${promo.id}_${todayStr}`;
+            return !localStorage.getItem(hiddenKey);
+          });
+          
+          // displayOrder 순서대로 정렬하고 첫 번째 프로모션 표시
+          if (popupPromotions.length > 0) {
+            const sortedPromotions = popupPromotions.sort((a, b) => a.displayOrder - b.displayOrder);
+            setCurrentPromotion(sortedPromotions[0]);
+            setShowPromotionPopup(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load promotions:', error);
+      }
+    };
+
+    loadPromotions();
   }, [restaurantId, sessionLoading]);
 
   // 메뉴 로드
@@ -247,10 +300,12 @@ export const BlynkApp: React.FC = () => {
             
             if (quickChipsResponse.success && quickChipsResponse.data) {
               // Convert backend format to frontend format
-              const convertedChips: QuickChip[] = quickChipsResponse.data.map((chip: { labelZh?: string; messageZh?: string; [k: string]: unknown }, index: number) => {
-                // labelZh/messageZh 추출 (camelCase와 snake_case 모두 지원)
+              const convertedChips: QuickChip[] = quickChipsResponse.data.map((chip: { labelZh?: string; messageZh?: string; labelRu?: string; messageRu?: string; [k: string]: unknown }, index: number) => {
+                // labelZh/messageZh/labelRu/messageRu 추출 (camelCase와 snake_case 모두 지원)
                 const rawLabelZh = chip.labelZh ?? (chip as { label_zh?: string }).label_zh;
                 const rawMessageZh = chip.messageZh ?? (chip as { message_zh?: string }).message_zh;
+                const rawLabelRu = chip.labelRu ?? (chip as { label_ru?: string }).label_ru;
+                const rawMessageRu = chip.messageRu ?? (chip as { message_ru?: string }).message_ru;
                 
                 // 디버깅: 첫 번째 칩의 데이터 확인
                 if (index === 0) {
@@ -266,9 +321,11 @@ export const BlynkApp: React.FC = () => {
                   });
                 }
                 
-                // labelZh/messageZh가 유효한 문자열이면 사용, 아니면 undefined
+                // labelZh/messageZh/labelRu/messageRu가 유효한 문자열이면 사용, 아니면 undefined
                 const labelZH = rawLabelZh && typeof rawLabelZh === 'string' && rawLabelZh.trim() ? rawLabelZh.trim() : undefined;
                 const messageZH = rawMessageZh && typeof rawMessageZh === 'string' && rawMessageZh.trim() ? rawMessageZh.trim() : undefined;
+                const labelRU = rawLabelRu && typeof rawLabelRu === 'string' && rawLabelRu.trim() ? rawLabelRu.trim() : undefined;
+                const messageRU = rawMessageRu && typeof rawMessageRu === 'string' && rawMessageRu.trim() ? rawMessageRu.trim() : undefined;
                 
                 const converted = {
                   id: chip.id,
@@ -278,11 +335,13 @@ export const BlynkApp: React.FC = () => {
                   labelVN: chip.labelVn,
                   labelEN: chip.labelEn,
                   labelZH: labelZH,
+                  labelRU: labelRU,
                   action: 'message' as const,
                   messageKO: chip.messageKo,
                   messageVN: chip.messageVn,
                   messageEN: chip.messageEn,
                   messageZH: messageZH,
+                  messageRU: messageRU,
                 };
                 
                 // 디버깅: 첫 번째 칩의 변환 결과 확인
@@ -801,7 +860,7 @@ export const BlynkApp: React.FC = () => {
   };
 
   const handleQuickAction = async (chip: QuickChip) => {
-    const hasMessage = chip.messageKO || chip.messageVN || chip.messageEN || chip.messageZH;
+    const hasMessage = chip.messageKO || chip.messageVN || chip.messageEN || chip.messageZH || chip.messageRU;
     if (!sessionId || chip.action !== 'message' || !hasMessage) return;
 
     // "요청" 접두사 제거 (메시지 시작 부분의 "요청" 제거)
@@ -809,19 +868,48 @@ export const BlynkApp: React.FC = () => {
       return text.replace(/^요청\s+/, '').trim();
     };
 
-    // 채팅 API는 textKo, textVn, textEn만 지원. zh일 때는 textEn에 messageZH 전달
-    const textForZh = chip.messageZH ? removeRequestPrefix(chip.messageZH) : (chip.messageEN ? removeRequestPrefix(chip.messageEN) : undefined);
-    const textKo = chip.messageKO ? removeRequestPrefix(chip.messageKO) : (userLang === 'zh' ? textForZh : undefined);
-    const textVn = chip.messageVN ? removeRequestPrefix(chip.messageVN) : (userLang === 'zh' ? textForZh : undefined);
-    const textEn = chip.messageEN ? removeRequestPrefix(chip.messageEN) : (userLang === 'zh' ? textForZh : undefined);
+    // 선택된 언어에 따라 적절한 메시지 선택
+    let textKo = '';
+    let textVn = '';
+    let textEn: string | undefined = undefined;
+    let textZh: string | undefined = undefined;
+    let textRu: string | undefined = undefined;
+
+    if (userLang === 'ko') {
+      // 한국어 선택 시: 한국어 메시지 사용, 없으면 영어, 그것도 없으면 베트남어
+      textKo = chip.messageKO ? removeRequestPrefix(chip.messageKO) : 
+               (chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
+               (chip.messageVN ? removeRequestPrefix(chip.messageVN) : ''));
+    } else if (userLang === 'vn') {
+      // 베트남어 선택 시: 베트남어 메시지 사용, 없으면 영어, 그것도 없으면 한국어
+      textVn = chip.messageVN ? removeRequestPrefix(chip.messageVN) : 
+               (chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
+               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : ''));
+    } else if (userLang === 'zh') {
+      // 중국어 선택 시: 중국어 메시지 전달
+      textZh = chip.messageZH ? removeRequestPrefix(chip.messageZH) : 
+               (chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
+               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined));
+    } else if (userLang === 'ru') {
+      // 러시아어 선택 시: 러시아어 메시지 전달
+      textRu = chip.messageRU ? removeRequestPrefix(chip.messageRU) : 
+               (chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
+               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined));
+    } else {
+      // 영어 선택 시: 영어 메시지 사용, 없으면 한국어
+      textEn = chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
+               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined);
+    }
 
     try {
       const response = await apiClient.sendMessage({
         sessionId,
         senderType: 'USER',
-        textKo: textKo ?? '',
-        textVn: textVn ?? '',
-        textEn: textEn ?? undefined,
+        textKo,
+        textVn,
+        textEn,
+        textZh,
+        textRu,
         messageType: 'REQUEST',
       });
 
@@ -879,6 +967,8 @@ export const BlynkApp: React.FC = () => {
         textKo: userLang === 'ko' ? messageText : '',
         textVn: userLang === 'vn' ? messageText : '',
         textEn: userLang === 'en' ? messageText : undefined,
+        textZh: userLang === 'zh' ? messageText : undefined,
+        textRu: userLang === 'ru' ? messageText : undefined,
         messageType: previewImage ? 'IMAGE' : 'TEXT',
         imageUrl: previewImage || undefined,
       });
@@ -1177,18 +1267,21 @@ export const BlynkApp: React.FC = () => {
                 {userLang.toUpperCase()}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[120px]">
-              <DropdownMenuItem onClick={() => setUserLang('ko')} className="font-medium text-xs">
-                한국어 (KO)
+            <DropdownMenuContent align="end" className="w-[140px]">
+              <DropdownMenuItem onClick={() => setUserLang('ko')} className="font-medium text-xs focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">
+                🇰🇷 한국어
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setUserLang('en')} className="font-medium text-xs">
-                English (EN)
+              <DropdownMenuItem onClick={() => setUserLang('en')} className="font-medium text-xs focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">
+                🇺🇸 English
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setUserLang('vn')} className="font-medium text-xs">
-                Tiếng Việt (VN)
+              <DropdownMenuItem onClick={() => setUserLang('vn')} className="font-medium text-xs focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">
+                🇻🇳 Tiếng Việt
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setUserLang('zh')} className="font-medium text-xs">
-                中文 (ZH)
+              <DropdownMenuItem onClick={() => setUserLang('zh')} className="font-medium text-xs focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">
+                🇨🇳 简体中文
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setUserLang('ru')} className="font-medium text-xs focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">
+                🇷🇺 Русский
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1293,7 +1386,7 @@ export const BlynkApp: React.FC = () => {
              setIsEventOpen(true);
              if (showCoachMark) dismissCoachMark();
            }}
-          className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'event' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'} ${showCoachMark ? 'opacity-30' : ''}`}
+           className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'event' ? 'text-purple-600' : 'text-purple-400'} ${showCoachMark ? 'opacity-30' : ''}`}
          >
            <motion.div
              animate={{
@@ -1339,7 +1432,7 @@ export const BlynkApp: React.FC = () => {
              setIsBillOpen(true);
              if (showCoachMark) dismissCoachMark();
            }}
-          className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'bill' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'} ${showCoachMark ? 'opacity-30' : ''}`}
+          className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${activeTab === 'bill' ? 'text-blue-600' : 'text-blue-400'} ${showCoachMark ? 'opacity-30' : ''}`}
          >
            <Receipt size={22} strokeWidth={activeTab === 'bill' ? 2.5 : 2} />
            <span className="text-[10px] font-medium">{getTranslation('tabs.bill', userLang)}</span>
@@ -1382,7 +1475,30 @@ export const BlynkApp: React.FC = () => {
         }}
         lang={userLang}
         menuItems={menuItems}
+        promotions={promotions}
       />
+      {currentPromotion && (
+        <PromotionPopup
+          isOpen={showPromotionPopup}
+          onClose={() => {
+            setShowPromotionPopup(false);
+            setCurrentPromotion(null);
+          }}
+          onHideToday={() => {
+            if (currentPromotion) {
+              const now = new Date();
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const todayStr = today.toISOString().split('T')[0];
+              const hiddenKey = `promotion_hidden_${currentPromotion.id}_${todayStr}`;
+              localStorage.setItem(hiddenKey, 'true');
+            }
+            setShowPromotionPopup(false);
+            setCurrentPromotion(null);
+          }}
+          promotion={currentPromotion}
+          lang={userLang}
+        />
+      )}
       </div>
     </>
   );

@@ -32,6 +32,7 @@ export class MenuService {
     nameVn: string;
     nameEn?: string;
     nameZh?: string;
+    nameRu?: string;
     displayOrder: number;
   }) {
     return prisma.menuCategory.create({
@@ -44,6 +45,7 @@ export class MenuService {
     nameVn?: string;
     nameEn?: string;
     nameZh?: string;
+    nameRu?: string;
     displayOrder?: number;
   }) {
     return prisma.menuCategory.update({
@@ -65,10 +67,12 @@ export class MenuService {
     nameVn: string;
     nameEn?: string;
     nameZh?: string;
+    nameRu?: string;
     descriptionKo?: string;
     descriptionVn?: string;
     descriptionEn?: string;
     descriptionZh?: string;
+    descriptionRu?: string;
     priceVnd: number;
     imageUrl?: string;
     displayOrder: number;
@@ -77,6 +81,7 @@ export class MenuService {
       nameVn: string;
       nameEn?: string;
       nameZh?: string;
+      nameRu?: string;
       minSelect: number;
       maxSelect: number;
       options: Array<{
@@ -84,6 +89,7 @@ export class MenuService {
         nameVn: string;
         nameEn?: string;
         nameZh?: string;
+        nameRu?: string;
         priceVnd: number;
       }>;
     }>;
@@ -99,6 +105,7 @@ export class MenuService {
             nameVn: og.nameVn,
             nameEn: og.nameEn,
             nameZh: og.nameZh,
+            nameRu: og.nameRu,
             minSelect: og.minSelect,
             maxSelect: og.maxSelect,
             options: {
@@ -107,6 +114,7 @@ export class MenuService {
                 nameVn: opt.nameVn,
                 nameEn: opt.nameEn,
                 nameZh: opt.nameZh,
+                nameRu: opt.nameRu,
                 priceVnd: opt.priceVnd,
               })),
             },
@@ -129,10 +137,12 @@ export class MenuService {
     nameVn?: string;
     nameEn?: string;
     nameZh?: string;
+    nameRu?: string;
     descriptionKo?: string;
     descriptionVn?: string;
     descriptionEn?: string;
     descriptionZh?: string;
+    descriptionRu?: string;
     priceVnd?: number;
     imageUrl?: string;
     isSoldOut?: boolean;
@@ -142,6 +152,7 @@ export class MenuService {
       nameVn: string;
       nameEn?: string;
       nameZh?: string;
+      nameRu?: string;
       minSelect: number;
       maxSelect: number;
       options: Array<{
@@ -149,6 +160,7 @@ export class MenuService {
         nameVn: string;
         nameEn?: string;
         nameZh?: string;
+        nameRu?: string;
         priceVnd: number;
       }>;
     }>;
@@ -185,6 +197,7 @@ export class MenuService {
               nameVn: og.nameVn,
               nameEn: og.nameEn,
               nameZh: og.nameZh,
+              nameRu: og.nameRu,
               minSelect: og.minSelect,
               maxSelect: og.maxSelect,
               options: {
@@ -193,6 +206,7 @@ export class MenuService {
                   nameVn: opt.nameVn,
                   nameEn: opt.nameEn,
                   nameZh: opt.nameZh,
+                  nameRu: opt.nameRu,
                   priceVnd: opt.priceVnd,
                 })),
               },

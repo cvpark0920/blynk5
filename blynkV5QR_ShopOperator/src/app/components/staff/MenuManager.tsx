@@ -55,6 +55,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
   const [newCategoryNameVn, setNewCategoryNameVn] = useState('');
   const [newCategoryNameEn, setNewCategoryNameEn] = useState('');
   const [newCategoryNameZh, setNewCategoryNameZh] = useState('');
+  const [newCategoryNameRu, setNewCategoryNameRu] = useState('');
 
   // Load menu and categories from API on mount
   useEffect(() => {
@@ -120,6 +121,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
         nameVn: newCategoryNameVn.trim(),
         nameEn: newCategoryNameEn.trim() || undefined,
         nameZh: newCategoryNameZh.trim() || undefined,
+        nameRu: newCategoryNameRu.trim() || undefined,
         displayOrder: categories.length,
       };
 
@@ -134,6 +136,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
         setNewCategoryNameVn('');
         setNewCategoryNameEn('');
         setNewCategoryNameZh('');
+        setNewCategoryNameRu('');
         setIsCategorySheetOpen(false);
         toast.success(t('msg.cat_added'));
       } else {
@@ -148,7 +151,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
     }
   };
 
-  const handleUpdateCategory = async (id: string, data: { nameKo: string; nameVn: string; nameEn?: string; nameZh?: string }) => {
+  const handleUpdateCategory = async (id: string, data: { nameKo: string; nameVn: string; nameEn?: string; nameZh?: string; nameRu?: string }) => {
     if (!restaurantId) {
       toast.error('식당 ID가 필요합니다.');
       return;
@@ -291,11 +294,13 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       nameVn: '',
       nameEn: '',
       nameZh: '',
+      nameRu: '',
       description: '',
       descriptionKo: '',
       descriptionVn: '',
       descriptionEn: '',
       descriptionZh: '',
+      descriptionRu: '',
       price: 0,
       isSoldOut: false,
       optionGroups: []
@@ -313,10 +318,12 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
       nameVn: backendItem?.nameVn || item.name,
       nameEn: backendItem?.nameEn || '',
       nameZh: backendItem?.nameZh || '',
+      nameRu: backendItem?.nameRu || '',
       descriptionKo: backendItem?.descriptionKo || item.description || '',
       descriptionVn: backendItem?.descriptionVn || item.description || '',
       descriptionEn: backendItem?.descriptionEn || '',
       descriptionZh: backendItem?.descriptionZh || '',
+      descriptionRu: backendItem?.descriptionRu || '',
       // 옵션 그룹도 다국어 필드 추가
       optionGroups: item.optionGroups.map((og: any) => {
         const backendOg = backendItem?.optionGroups?.find((bog: any) => bog.id === og.id);
@@ -326,6 +333,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
           nameVn: backendOg?.nameVn || og.name,
           nameEn: backendOg?.nameEn || '',
           nameZh: backendOg?.nameZh || '',
+          nameRu: backendOg?.nameRu || '',
           options: og.options.map((opt: any) => {
             const backendOpt = backendOg?.options?.find((bopt: any) => bopt.id === opt.id);
             return {
@@ -334,6 +342,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
               nameVn: backendOpt?.nameVn || opt.name,
               nameEn: backendOpt?.nameEn || '',
               nameZh: backendOpt?.nameZh || '',
+              nameRu: backendOpt?.nameRu || '',
             };
           }),
         };
@@ -367,10 +376,12 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
         nameVn,
         nameEn: (editingItem as any).nameEn?.trim() || undefined,
         nameZh: (editingItem as any).nameZh?.trim() || undefined,
+        nameRu: (editingItem as any).nameRu?.trim() || undefined,
         descriptionKo: (editingItem as any).descriptionKo?.trim() || undefined,
         descriptionVn: (editingItem as any).descriptionVn?.trim() || undefined,
         descriptionEn: (editingItem as any).descriptionEn?.trim() || undefined,
         descriptionZh: (editingItem as any).descriptionZh?.trim() || undefined,
+        descriptionRu: (editingItem as any).descriptionRu?.trim() || undefined,
         priceVnd: editingItem.price || 0,
         imageUrl: editingItem.imageUrl || undefined,
         isSoldOut: editingItem.isSoldOut || false,
@@ -380,6 +391,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
           nameVn: og.nameVn?.trim() || og.name || '',
           nameEn: og.nameEn?.trim() || undefined,
           nameZh: og.nameZh?.trim() || undefined,
+          nameRu: og.nameRu?.trim() || undefined,
           minSelect: og.minSelect || 0,
           maxSelect: og.maxSelect || 1,
           options: og.options.map((opt: any) => ({
@@ -387,6 +399,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
             nameVn: opt.nameVn?.trim() || opt.name || '',
             nameEn: opt.nameEn?.trim() || undefined,
             nameZh: opt.nameZh?.trim() || undefined,
+            nameRu: opt.nameRu?.trim() || undefined,
             priceVnd: opt.price || 0,
           })),
         })),
@@ -625,6 +638,8 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
               setNewCategoryNameEn={setNewCategoryNameEn}
               newCategoryNameZh={newCategoryNameZh}
               setNewCategoryNameZh={setNewCategoryNameZh}
+              newCategoryNameRu={newCategoryNameRu}
+              setNewCategoryNameRu={setNewCategoryNameRu}
               handleAddCategory={handleAddCategory} 
               onClose={() => setIsCategorySheetOpen(false)}
               t={t}
@@ -656,6 +671,8 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
               setNewCategoryNameEn={setNewCategoryNameEn}
               newCategoryNameZh={newCategoryNameZh}
               setNewCategoryNameZh={setNewCategoryNameZh}
+              newCategoryNameRu={newCategoryNameRu}
+              setNewCategoryNameRu={setNewCategoryNameRu}
               handleAddCategory={handleAddCategory} 
               onClose={() => setIsCategorySheetOpen(false)}
               t={t}
@@ -728,6 +745,8 @@ function CategoryManagerContent({
   setNewCategoryNameEn,
   newCategoryNameZh,
   setNewCategoryNameZh,
+  newCategoryNameRu,
+  setNewCategoryNameRu,
   handleAddCategory, 
   onClose, 
   t, 
@@ -739,6 +758,7 @@ function CategoryManagerContent({
     const [editingCategoryNameVn, setEditingCategoryNameVn] = useState('');
     const [editingCategoryNameEn, setEditingCategoryNameEn] = useState('');
     const [editingCategoryNameZh, setEditingCategoryNameZh] = useState('');
+    const [editingCategoryNameRu, setEditingCategoryNameRu] = useState('');
 
     const startEdit = (cat: any) => {
         setEditingCategoryId(cat.id);
@@ -749,12 +769,14 @@ function CategoryManagerContent({
           setEditingCategoryNameVn(backendCat.nameVn || '');
           setEditingCategoryNameEn(backendCat.nameEn || '');
           setEditingCategoryNameZh(backendCat.nameZh || '');
+          setEditingCategoryNameRu(backendCat.nameRu || '');
         } else {
           // 백엔드 데이터가 없으면 현재 표시된 이름 사용
           setEditingCategoryNameKo(cat.name || '');
           setEditingCategoryNameVn(cat.name || '');
           setEditingCategoryNameEn(cat.name || '');
           setEditingCategoryNameZh(cat.name || '');
+          setEditingCategoryNameRu(cat.name || '');
         }
     };
 
@@ -764,6 +786,7 @@ function CategoryManagerContent({
         setEditingCategoryNameVn('');
         setEditingCategoryNameEn('');
         setEditingCategoryNameZh('');
+        setEditingCategoryNameRu('');
     };
 
     const saveEdit = async () => {
@@ -773,12 +796,14 @@ function CategoryManagerContent({
                 nameVn: editingCategoryNameVn.trim(),
                 nameEn: editingCategoryNameEn.trim() || undefined,
                 nameZh: editingCategoryNameZh.trim() || undefined,
+                nameRu: editingCategoryNameRu.trim() || undefined,
             });
             setEditingCategoryId(null);
             setEditingCategoryNameKo('');
             setEditingCategoryNameVn('');
             setEditingCategoryNameEn('');
             setEditingCategoryNameZh('');
+            setEditingCategoryNameRu('');
         }
     };
 
@@ -827,6 +852,15 @@ function CategoryManagerContent({
                                   onChange={(e) => setEditingCategoryNameZh(e.target.value)}
                                   className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
                                   placeholder="중국어"
+                              />
+                            </div>
+                            <div className="grid gap-1">
+                              <label className="text-xs text-zinc-500">러시아어</label>
+                              <Input 
+                                  value={editingCategoryNameRu}
+                                  onChange={(e) => setEditingCategoryNameRu(e.target.value)}
+                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
+                                  placeholder="러시아어"
                               />
                             </div>
                           </div>
@@ -939,6 +973,15 @@ function CategoryManagerContent({
                                 className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
                             />
                         </div>
+                        <div className="grid gap-2">
+                            <label className="text-xs font-medium text-zinc-500">라벨 (러시아어)</label>
+                            <Input 
+                                placeholder="예: Еда"
+                                value={newCategoryNameRu}
+                                onChange={(e) => setNewCategoryNameRu(e.target.value)}
+                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
+                            />
+                        </div>
                         <button 
                             onClick={handleAddCategory}
                             disabled={isLoading || !newCategoryNameKo.trim() || !newCategoryNameVn.trim()}
@@ -1005,6 +1048,14 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                             placeholder="예: 番茄意大利面"
                                         />
                                     </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">러시아어</label>
+                                        <Input 
+                                            value={(editingItem as any).nameRu || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, nameRu: e.target.value})}
+                                            placeholder="예: Томатная паста"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                             <div className="grid gap-3">
@@ -1046,6 +1097,16 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                             value={(editingItem as any).descriptionZh || ''} 
                                             onChange={(e) => setEditingItem({...editingItem, descriptionZh: e.target.value})}
                                             placeholder="菜品描述"
+                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                                            rows={2}
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <label className="text-xs text-zinc-500">러시아어</label>
+                                        <textarea 
+                                            value={(editingItem as any).descriptionRu || ''} 
+                                            onChange={(e) => setEditingItem({...editingItem, descriptionRu: e.target.value})}
+                                            placeholder="Описание блюда"
                                             className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                                             rows={2}
                                         />
@@ -1172,9 +1233,14 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                             <h3 className="text-sm font-bold text-zinc-900">{t('menu.options_addons')}</h3>
                             <button 
                                 onClick={() => {
-                                    const newGroup: MenuOptionGroup = {
+                                    const newGroup: any = {
                                         id: `grp-${Date.now()}`,
                                         name: t('menu.new_group'),
+                                        nameKo: '',
+                                        nameVn: '',
+                                        nameEn: '',
+                                        nameZh: '',
+                                        nameRu: '',
                                         minSelect: 0,
                                         maxSelect: 1,
                                         options: []
@@ -1236,6 +1302,16 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                                     }}
                                                     className="bg-white text-xs"
                                                     placeholder="중국어"
+                                                />
+                                                <Input 
+                                                    value={group.nameRu || ''}
+                                                    onChange={(e) => {
+                                                        const newGroups = [...editingItem.optionGroups];
+                                                        newGroups[groupIdx].nameRu = e.target.value;
+                                                        setEditingItem({...editingItem, optionGroups: newGroups});
+                                                    }}
+                                                    className="bg-white text-xs"
+                                                    placeholder="러시아어"
                                                 />
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -1319,6 +1395,16 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                                         placeholder="중국어"
                                                         className="h-8 text-xs bg-white"
                                                     />
+                                                    <Input 
+                                                        value={opt.nameRu || ''}
+                                                        onChange={(e) => {
+                                                            const newGroups = [...editingItem.optionGroups];
+                                                            newGroups[groupIdx].options[optIdx].nameRu = e.target.value;
+                                                            setEditingItem({...editingItem, optionGroups: newGroups});
+                                                        }}
+                                                        placeholder="러시아어"
+                                                        className="h-8 text-xs bg-white"
+                                                    />
                                                 </div>
                                                 <Input 
                                                     type="number"
@@ -1349,6 +1435,11 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                                                 newGroups[groupIdx].options.push({
                                                     id: `opt-${Date.now()}-${Math.random()}`,
                                                     name: '',
+                                                    nameKo: '',
+                                                    nameVn: '',
+                                                    nameEn: '',
+                                                    nameZh: '',
+                                                    nameRu: '',
                                                     price: 0
                                                 });
                                                 setEditingItem({...editingItem, optionGroups: newGroups});

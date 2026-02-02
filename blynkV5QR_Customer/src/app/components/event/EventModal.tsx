@@ -3,34 +3,64 @@ import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { X, ArrowRight, Play } from 'lucide-react';
 import { MenuItem } from '../../types';
 import { CurrencyDisplay } from '../CurrencyDisplay';
+import { Promotion } from '../../../lib/api';
 
-type LangType = 'ko' | 'vn' | 'en' | 'zh';
+type LangType = 'ko' | 'vn' | 'en' | 'zh' | 'ru';
 
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
   lang: LangType;
   menuItems: MenuItem[];
+  promotions?: Promotion[];
 }
 
 const UI_TEXT = {
-  title: { ko: '이벤트', vn: 'Sự kiện', en: 'Events', zh: '活动' },
-  promoTitle: { ko: '이번 달 프로모션', vn: 'Khuyến mãi tháng này', en: 'This Month Promo', zh: '本月优惠' },
-  promoDesc: { ko: '모든 쌀국수 메뉴 10% 할인', vn: 'Giảm 10% cho tất cả các món Phở', en: '10% OFF all Pho', zh: '所有河粉类菜单享10%折扣' },
-  newMenu: { ko: '새로운 메뉴', vn: 'Món mới', en: 'New Arrivals', zh: '新品尝鲜' },
-  popularMenu: { ko: '인기 메뉴', vn: 'Món phổ biến', en: 'Popular Items', zh: '人气推荐' },
-  youtubeTitle: { ko: '브랜드 스토리', vn: 'Câu chuyện thương hiệu', en: 'Brand Story', zh: '品牌故事' },
-  viewDetails: { ko: '더 보기', vn: 'Xem thêm', en: 'View More', zh: '查看更多' },
+  title: { ko: '이벤트', vn: 'Sự kiện', en: 'Events', zh: '活动', ru: 'События' },
+  promoTitle: { ko: '이번 달 프로모션', vn: 'Khuyến mãi tháng này', en: 'This Month Promo', zh: '本月优惠', ru: 'Акция этого месяца' },
+  promoDesc: { ko: '모든 쌀국수 메뉴 10% 할인', vn: 'Giảm 10% cho tất cả các món Phở', en: '10% OFF all Pho', zh: '所有河粉类菜单享10%折扣', ru: 'Скидка 10% на все блюда Фо' },
+  newMenu: { ko: '새로운 메뉴', vn: 'Món mới', en: 'New Arrivals', zh: '新品尝鲜', ru: 'Новинки' },
+  popularMenu: { ko: '인기 메뉴', vn: 'Món phổ biến', en: 'Popular Items', zh: '人气推荐', ru: 'Популярные блюда' },
+  youtubeTitle: { ko: '브랜드 스토리', vn: 'Câu chuyện thương hiệu', en: 'Brand Story', zh: '品牌故事', ru: 'История бренда' },
+  viewDetails: { ko: '더 보기', vn: 'Xem thêm', en: 'View More', zh: '查看更多', ru: 'Подробнее' },
 };
 
-export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, menuItems }) => {
+export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, menuItems, promotions = [] }) => {
   // 처음 2개를 새 메뉴로, 다음 2개를 인기 메뉴로 표시 (실제로는 백엔드에서 관리)
   const newItems = menuItems.slice(0, 2);
   const popularItems = menuItems.slice(2, 4);
   const dragControls = useDragControls();
 
-  const getLocalizedName = (item: any) => lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-  const getLocalizedDesc = (item: any) => lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : lang === 'zh' ? (item.descriptionZH || item.descriptionEN || item.descriptionKO) : (item.descriptionEN || item.descriptionKO);
+  const getLocalizedName = (item: any) => {
+    if (lang === 'ko') return item.nameKO;
+    if (lang === 'vn') return item.nameVN;
+    if (lang === 'zh') return item.nameZH || item.nameEN || item.nameKO;
+    if (lang === 'ru') return item.nameRU || item.nameEN || item.nameKO;
+    return item.nameEN || item.nameKO;
+  };
+  const getLocalizedDesc = (item: any) => {
+    if (lang === 'ko') return item.descriptionKO;
+    if (lang === 'vn') return item.descriptionVN;
+    if (lang === 'zh') return item.descriptionZH || item.descriptionEN || item.descriptionKO;
+    if (lang === 'ru') return item.descriptionRU || item.descriptionEN || item.descriptionKO;
+    return item.descriptionEN || item.descriptionKO;
+  };
+
+  const getPromotionTitle = (promo: Promotion) => {
+    if (lang === 'ko') return promo.titleKo;
+    if (lang === 'vn') return promo.titleVn;
+    if (lang === 'zh') return promo.titleZh || promo.titleEn || promo.titleKo;
+    if (lang === 'ru') return (promo as any).titleRu || promo.titleEn || promo.titleKo;
+    return promo.titleEn || promo.titleKo;
+  };
+
+  const getPromotionDescription = (promo: Promotion) => {
+    if (lang === 'ko') return promo.descriptionKo;
+    if (lang === 'vn') return promo.descriptionVn;
+    if (lang === 'zh') return promo.descriptionZh || promo.descriptionEn || promo.descriptionKo;
+    if (lang === 'ru') return (promo as any).descriptionRu || promo.descriptionEn || promo.descriptionKo;
+    return promo.descriptionEn || promo.descriptionKo;
+  };
 
   return (
     <AnimatePresence>
@@ -80,23 +110,55 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
             <div className="flex-1 overflow-y-auto pb-safe scroll-smooth">
               <div className="flex flex-col gap-10 pb-10">
                 
-                {/* Promotion Section - Hero Style */}
-                <div className="px-6 mt-2">
-                  <div className="relative aspect-[4/3] w-full rounded-3xl overflow-hidden group cursor-pointer">
-                    <img 
-                      src="https://images.unsplash.com/photo-1758709187839-7b181ce8968a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhc2lhbiUyMGZvb2QlMjBwcm9tb3Rpb24lMjBiYW5uZXJ8ZW58MXx8fHwxNzY3MTU1MTcwfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                      alt="Promotion"
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-6">
-                      <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider mb-3 w-fit">
-                        PROMO
+                {/* Promotions Section */}
+                {promotions.length > 0 ? (
+                  <div className="px-6 mt-2 space-y-4">
+                    {promotions.map((promo) => (
+                      <div key={promo.id} className="relative aspect-[4/3] w-full rounded-3xl overflow-hidden group cursor-pointer">
+                        {promo.imageUrl ? (
+                          <img 
+                            src={promo.imageUrl}
+                            alt={getPromotionTitle(promo)}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-6">
+                          <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider mb-3 w-fit">
+                            {promo.discountPercent ? `${promo.discountPercent}% 할인` : 'PROMO'}
+                          </div>
+                          <h3 className="text-white font-bold text-3xl leading-tight mb-2 tracking-tight">
+                            {getPromotionTitle(promo)}
+                          </h3>
+                          {getPromotionDescription(promo) && (
+                            <p className="text-white/90 text-sm font-medium">
+                              {getPromotionDescription(promo)}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <h3 className="text-white font-bold text-3xl leading-tight mb-2 tracking-tight">{UI_TEXT.promoTitle[lang]}</h3>
-                      <p className="text-white/90 text-sm font-medium">{UI_TEXT.promoDesc[lang]}</p>
+                    ))}
+                  </div>
+                ) : (
+                  /* Fallback: Default promotion section if no promotions */
+                  <div className="px-6 mt-2">
+                    <div className="relative aspect-[4/3] w-full rounded-3xl overflow-hidden group cursor-pointer">
+                      <img 
+                        src="https://images.unsplash.com/photo-1758709187839-7b181ce8968a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhc2lhbiUyMGZvb2QlMjBwcm9tb3Rpb24lMjBiYW5uZXJ8ZW58MXx8fHwxNzY3MTU1MTcwfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
+                        alt="Promotion"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-6">
+                        <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider mb-3 w-fit">
+                          PROMO
+                        </div>
+                        <h3 className="text-white font-bold text-3xl leading-tight mb-2 tracking-tight">{UI_TEXT.promoTitle[lang]}</h3>
+                        <p className="text-white/90 text-sm font-medium">{UI_TEXT.promoDesc[lang]}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* New Menu - Minimal Horizontal Scroll */}
                 <div className="pl-6">

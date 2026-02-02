@@ -5,22 +5,42 @@ import { BackendChatMessage } from '../../types/api';
 
 interface ChatBubbleProps {
   message: BackendChatMessage;
-  language: 'ko' | 'vn' | 'en' | 'zh';
+  language: 'ko' | 'vn' | 'en' | 'zh' | 'ru';
   tableNumber?: number;
 }
 
-const getMessageText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh'): string => {
+const getMessageText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh' | 'ru'): string => {
   if (language === 'ko') return message.textKo || message.textEn || message.textVn || '';
   if (language === 'vn') return message.textVn || message.textEn || message.textKo || '';
-  if (language === 'zh') return (message as { textZh?: string }).textZh || message.textEn || message.textKo || '';
+  if (language === 'zh') return message.textZh || message.textEn || message.textKo || message.textVn || '';
+  if (language === 'ru') return message.textRu || message.textEn || message.textKo || message.textVn || '';
   return message.textEn || message.textKo || message.textVn || '';
 };
 
-const getTranslatedText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh'): string => {
-  if (language === 'ko') return message.textVn || message.textEn || '';
-  if (language === 'vn') return message.textKo || message.textEn || '';
-  if (language === 'zh') return message.textEn || message.textKo || '';
-  return message.textKo || message.textVn || '';
+const getTranslatedText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh' | 'ru'): string => {
+  if (language === 'ko') {
+    // 상점앱이 한국어일 때: 다른 언어 메시지의 한국어 번역 반환
+    // 러시아어 메시지는 백엔드에서 textKo에 번역되어 저장됨
+    return message.textKo || message.textVn || message.textEn || '';
+  }
+  if (language === 'vn') {
+    // 상점앱이 베트남어일 때: 다른 언어 메시지의 베트남어 번역 반환
+    // 러시아어 메시지는 백엔드에서 textVn에 번역되어 저장됨
+    return message.textVn || message.textKo || message.textEn || '';
+  }
+  if (language === 'zh') {
+    // 상점앱이 중국어일 때: 다른 언어 메시지의 영어 또는 한국어 반환
+    // 러시아어 메시지는 textEn에 원문이 저장되어 있음
+    return message.textEn || message.textKo || '';
+  }
+  if (language === 'ru') {
+    // 상점앱이 러시아어일 때: 다른 언어 메시지를 러시아어로 번역 (현재는 원문 사용)
+    // TODO: 백엔드에서 러시아어 번역 지원 시 업데이트 필요
+    return message.textEn || message.textKo || message.textVn || '';
+  }
+  // 영어일 때: 다른 언어 메시지의 영어 번역 반환
+  // 러시아어 메시지는 textEn에 원문이 저장되어 있음
+  return message.textEn || message.textKo || message.textVn || '';
 };
 
 
@@ -49,7 +69,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
     hasTranslation;
   const displayTranslatedText = translatedText || messageText;
   const timeText = new Intl.DateTimeFormat(
-    language === 'vn' ? 'vi-VN' : language === 'en' ? 'en-US' : language === 'zh' ? 'zh-CN' : 'ko-KR',
+    language === 'vn' ? 'vi-VN' : language === 'en' ? 'en-US' : language === 'zh' ? 'zh-CN' : language === 'ru' ? 'ru-RU' : 'ko-KR',
     { hour: '2-digit', minute: '2-digit' },
   ).format(new Date(message.createdAt));
 
@@ -124,11 +144,13 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
             const orderPrefixVn = 'Đặt món:';
             const orderPrefixEn = 'Order:';
             const orderPrefixZh = '点餐:';
+            const orderPrefixRu = 'Заказ:';
             
             const getOrderPrefix = () => {
               if (language === 'ko') return orderPrefixKo;
               if (language === 'vn') return orderPrefixVn;
               if (language === 'zh') return orderPrefixZh;
+              if (language === 'ru') return orderPrefixRu;
               return orderPrefixEn;
             };
             
@@ -192,7 +214,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                             {selectedOptions.length > 0 && (
                               <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-muted/30">
                                 {selectedOptions.map((opt: any, i: number) => {
-                                  const optLabel = language === 'ko' ? opt.labelKO : language === 'vn' ? opt.labelVN : language === 'zh' ? (opt.labelZH || opt.labelEN || opt.labelKO) : (opt.labelEN || opt.labelKO);
+                                  const optLabel = language === 'ko' ? opt.labelKO : language === 'vn' ? opt.labelVN : language === 'zh' ? (opt.labelZH || opt.labelEN || opt.labelKO) : language === 'ru' ? (opt.labelRU || opt.labelEN || opt.labelKO) : (opt.labelEN || opt.labelKO);
                                   const optPrice = opt.priceVND || opt.price || 0;
                                   const optQuantity = opt.quantity || 1;
                                   return (

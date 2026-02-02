@@ -10,6 +10,7 @@ import {
   BackendSalesHistoryEntry,
   BackendNotification,
   BackendChatMessage,
+  BackendPromotion,
 } from '../app/types/api';
 
 const normalizeApiBaseUrl = (rawUrl: string): string => {
@@ -586,14 +587,14 @@ class ApiClient {
     });
   }
 
-  async createCategory(restaurantId: string, data: { nameKo: string; nameVn: string; nameEn?: string; displayOrder: number }) {
+  async createCategory(restaurantId: string, data: { nameKo: string; nameVn: string; nameEn?: string; nameZh?: string; nameRu?: string; displayOrder: number }) {
     return this.request<any>(`/api/staff/menu/categories?restaurantId=${restaurantId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateCategory(restaurantId: string, categoryId: string, data: { nameKo?: string; nameVn?: string; nameEn?: string; displayOrder?: number }) {
+  async updateCategory(restaurantId: string, categoryId: string, data: { nameKo?: string; nameVn?: string; nameEn?: string; nameZh?: string; nameRu?: string; displayOrder?: number }) {
     return this.request<any>(`/api/staff/menu/categories/${categoryId}?restaurantId=${restaurantId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -850,10 +851,12 @@ class ApiClient {
     labelVn: string;
     labelEn?: string;
     labelZh?: string;
+    labelRu?: string;
     messageKo?: string;
     messageVn?: string;
     messageEn?: string;
     messageZh?: string;
+    messageRu?: string;
     displayOrder?: number;
     isActive?: boolean;
   }) {
@@ -873,10 +876,12 @@ class ApiClient {
       labelVn?: string;
       labelEn?: string;
       labelZh?: string;
+      labelRu?: string;
       messageKo?: string;
       messageVn?: string;
       messageEn?: string;
       messageZh?: string;
+      messageRu?: string;
       displayOrder?: number;
       isActive?: boolean;
     }
@@ -897,6 +902,67 @@ class ApiClient {
     return this.request(`/api/staff/quick-chips/reorder?restaurantId=${encodeURIComponent(restaurantId)}`, {
       method: 'POST',
       body: JSON.stringify({ ids }),
+    });
+  }
+
+  // Promotion methods
+  async getPromotions(restaurantId: string) {
+    return this.request<BackendPromotion[]>(`/api/staff/restaurant/${restaurantId}/promotions`);
+  }
+
+  async createPromotion(restaurantId: string, data: {
+    titleKo: string;
+    titleVn: string;
+    titleEn?: string;
+    titleZh?: string;
+    titleRu?: string;
+    descriptionKo?: string;
+    descriptionVn?: string;
+    descriptionEn?: string;
+    descriptionZh?: string;
+    descriptionRu?: string;
+    imageUrl?: string;
+    discountPercent?: number;
+    startDate: string;
+    endDate: string;
+    displayOrder?: number;
+    isActive?: boolean;
+    showOnLoad?: boolean;
+  }) {
+    return this.request<BackendPromotion>(`/api/staff/restaurant/${restaurantId}/promotions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePromotion(restaurantId: string, promotionId: string, data: {
+    titleKo?: string;
+    titleVn?: string;
+    titleEn?: string;
+    titleZh?: string;
+    titleRu?: string;
+    descriptionKo?: string;
+    descriptionVn?: string;
+    descriptionEn?: string;
+    descriptionZh?: string;
+    descriptionRu?: string;
+    imageUrl?: string;
+    discountPercent?: number;
+    startDate?: string;
+    endDate?: string;
+    displayOrder?: number;
+    isActive?: boolean;
+    showOnLoad?: boolean;
+  }) {
+    return this.request<BackendPromotion>(`/api/staff/restaurant/${restaurantId}/promotions/${promotionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePromotion(restaurantId: string, promotionId: string) {
+    return this.request(`/api/staff/restaurant/${restaurantId}/promotions/${promotionId}`, {
+      method: 'DELETE',
     });
   }
 }

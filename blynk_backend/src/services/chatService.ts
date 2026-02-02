@@ -12,6 +12,8 @@ export class ChatService {
     textKo?: string;
     textVn?: string;
     textEn?: string;
+    textZh?: string;
+    textRu?: string;
     messageType: MessageType;
     imageUrl?: string;
     metadata?: any;
@@ -34,7 +36,7 @@ export class ChatService {
         });
       }
     }
-    const rawText = data.textKo || data.textVn || data.textEn || '';
+    const rawText = data.textKo || data.textVn || data.textEn || data.textZh || data.textRu || '';
     const detectedLanguage =
       data.senderType === 'SYSTEM'
         ? null
@@ -45,16 +47,24 @@ export class ChatService {
     let textKo = data.textKo;
     let textVn = data.textVn;
     let textEn = data.textEn;
+    let textZh = data.textZh;
+    let textRu = data.textRu;
 
     if (rawText && detectedLanguage && (data.messageType === 'TEXT' || data.messageType === 'REQUEST')) {
+      // 원문 텍스트 결정
       const sourceText =
         detectedLanguage === 'ko'
           ? data.textKo || rawText
           : detectedLanguage === 'vn'
           ? data.textVn || rawText
+          : detectedLanguage === 'zh'
+          ? data.textZh || rawText
+          : detectedLanguage === 'ru'
+          ? data.textRu || rawText
           : data.textEn || rawText;
 
       try {
+        // 원문을 해당 언어 필드에 저장
         if (detectedLanguage === 'ko' && shouldTranslateField(textKo, sourceText)) {
           textKo = sourceText;
         }
@@ -64,7 +74,14 @@ export class ChatService {
         if (detectedLanguage === 'en' && shouldTranslateField(textEn, sourceText)) {
           textEn = sourceText;
         }
+        if (detectedLanguage === 'zh' && shouldTranslateField(textZh, sourceText)) {
+          textZh = sourceText;
+        }
+        if (detectedLanguage === 'ru' && shouldTranslateField(textRu, sourceText)) {
+          textRu = sourceText;
+        }
 
+        // 다른 모든 언어로 자동 번역
         if (detectedLanguage !== 'ko' && shouldTranslateField(textKo, sourceText)) {
           textKo = (await translateText(sourceText, 'ko', detectedLanguage as DetectedLanguage)) || textKo;
         }
@@ -73,6 +90,12 @@ export class ChatService {
         }
         if (detectedLanguage !== 'en' && shouldTranslateField(textEn, sourceText)) {
           textEn = (await translateText(sourceText, 'en', detectedLanguage as DetectedLanguage)) || textEn;
+        }
+        if (detectedLanguage !== 'zh' && shouldTranslateField(textZh, sourceText)) {
+          textZh = (await translateText(sourceText, 'zh', detectedLanguage as DetectedLanguage)) || textZh;
+        }
+        if (detectedLanguage !== 'ru' && shouldTranslateField(textRu, sourceText)) {
+          textRu = (await translateText(sourceText, 'ru', detectedLanguage as DetectedLanguage)) || textRu;
         }
       } catch (_error) {
         // Ignore translation errors and save original fields only.
@@ -86,6 +109,8 @@ export class ChatService {
         textKo,
         textVn,
         textEn,
+        textZh,
+        textRu,
         detectedLanguage: detectedLanguage || null,
         messageType: data.messageType,
         imageUrl: data.imageUrl || null,
@@ -116,7 +141,7 @@ export class ChatService {
     }
 
     // Emit SSE event
-    const text = data.textKo || data.textVn || data.textEn || '';
+    const text = data.textKo || data.textVn || data.textEn || data.textZh || data.textRu || '';
     await eventEmitter.publishChatMessage(
       data.sessionId,
       data.senderType,

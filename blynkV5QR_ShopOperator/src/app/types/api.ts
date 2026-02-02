@@ -77,6 +77,7 @@ export interface BackendMenuCategory {
   nameVn: string;
   nameEn?: string | null;
   nameZh?: string | null;
+  nameRu?: string | null;
   displayOrder: number;
   menuItems?: BackendMenuItem[];
 }
@@ -90,10 +91,12 @@ export interface BackendMenuItem {
   nameVn: string;
   nameEn?: string | null;
   nameZh?: string | null;
+  nameRu?: string | null;
   descriptionKo?: string | null;
   descriptionVn?: string | null;
   descriptionEn?: string | null;
   descriptionZh?: string | null;
+  descriptionRu?: string | null;
   priceVnd: number;
   imageUrl?: string | null;
   isSoldOut: boolean;
@@ -109,6 +112,7 @@ export interface BackendMenuOptionGroup {
   nameVn: string;
   nameEn?: string | null;
   nameZh?: string | null;
+  nameRu?: string | null;
   minSelect: number;
   maxSelect: number;
   options?: BackendMenuOption[];
@@ -122,6 +126,7 @@ export interface BackendMenuOption {
   nameVn: string;
   nameEn?: string | null;
   nameZh?: string | null;
+  nameRu?: string | null;
   priceVnd: number;
 }
 
@@ -257,7 +262,9 @@ export interface BackendChatMessage {
   textKo?: string | null;
   textVn?: string | null;
   textEn?: string | null;
-  detectedLanguage?: 'ko' | 'vn' | 'en' | null;
+  textZh?: string | null;
+  textRu?: string | null;
+  detectedLanguage?: 'ko' | 'vn' | 'en' | 'zh' | 'ru' | null;
   messageType: 'TEXT' | 'ORDER' | 'REQUEST' | 'IMAGE';
   imageUrl?: string | null;
   metadata?: any;
@@ -277,6 +284,31 @@ export interface BackendNotification {
   descriptionEn?: string | null;
   metadata?: any;
   isRead: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Backend Promotion Response
+export interface BackendPromotion {
+  id: string;
+  restaurantId: string;
+  titleKo: string;
+  titleVn: string;
+  titleEn?: string | null;
+  titleZh?: string | null;
+  titleRu?: string | null;
+  descriptionKo?: string | null;
+  descriptionVn?: string | null;
+  descriptionEn?: string | null;
+  descriptionZh?: string | null;
+  descriptionRu?: string | null;
+  imageUrl?: string | null;
+  discountPercent?: number | null;
+  startDate: string;
+  endDate: string;
+  displayOrder: number;
+  isActive: boolean;
+  showOnLoad: boolean;
   createdAt: string;
   updatedAt: string;
 }

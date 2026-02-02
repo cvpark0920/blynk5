@@ -8,26 +8,26 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 
-type LangType = 'ko' | 'vn' | 'en' | 'zh';
+type LangType = 'ko' | 'vn' | 'en' | 'zh' | 'ru';
 
 const UI_TEXT = {
-  cartEmpty: { ko: '장바구니가 비었습니다.', vn: 'Giỏ hàng trống.', en: 'Cart is empty.', zh: '购物车是空的。' },
-  menu: { ko: '메뉴', vn: 'Thực đơn', en: 'Menu', zh: '菜单' },
-  cartCheck: { ko: '장바구니 확인', vn: 'Xem giỏ hàng', en: 'View Cart', zh: '查看购物车' },
-  addMore: { ko: '더 담기', vn: 'Thêm món', en: 'Add More', zh: '继续添加' },
-  order: { ko: '주문하기', vn: 'Đặt hàng', en: 'Place Order', zh: '下单' },
-  total: { ko: '총 결제금액', vn: 'Tổng tiền', en: 'Total Amount', zh: '合计金额' },
-  fold: { ko: '접기', vn: 'Thu gọn', en: 'Collapse', zh: '收起' },
-  selectOption: { ko: '옵션 선택', vn: 'Chọn tùy chọn', en: 'Options', zh: '选择选项' },
-  addToCart: { ko: '담기', vn: 'Thêm', en: 'Add', zh: '加入' },
-  addToCartBtn: { ko: '장바구니 담기', vn: 'Thêm vào giỏ', en: 'Add to Cart', zh: '加入购物车' },
-  free: { ko: '무료', vn: 'Miễn phí', en: 'Free', zh: '免费' },
-  all: { ko: '전체', vn: 'Tất cả', en: 'All', zh: '全部' },
-  food: { ko: '음식', vn: 'Món ăn', en: 'Food', zh: '食物' },
-  drink: { ko: '음료', vn: 'Đồ uống', en: 'Drinks', zh: '饮料' },
-  dessert: { ko: '디저트', vn: 'Tráng miệng', en: 'Dessert', zh: '甜点' },
-  loadingMenu: { ko: '메뉴를 불러오는 중...', vn: 'Đang tải thực đơn...', en: 'Loading menu...', zh: '正在加载菜单...' },
-  menuEmpty: { ko: '메뉴가 없습니다.', vn: 'Không có thực đơn.', en: 'No menu available.', zh: '暂无菜单。' }
+  cartEmpty: { ko: '장바구니가 비었습니다.', vn: 'Giỏ hàng trống.', en: 'Cart is empty.', zh: '购物车是空的。', ru: 'Корзина пуста.' },
+  menu: { ko: '메뉴', vn: 'Thực đơn', en: 'Menu', zh: '菜单', ru: 'Меню' },
+  cartCheck: { ko: '장바구니 확인', vn: 'Xem giỏ hàng', en: 'View Cart', zh: '查看购物车', ru: 'Просмотр корзины' },
+  addMore: { ko: '더 담기', vn: 'Thêm món', en: 'Add More', zh: '继续添加', ru: 'Добавить еще' },
+  order: { ko: '주문하기', vn: 'Đặt hàng', en: 'Place Order', zh: '下单', ru: 'Оформить заказ' },
+  total: { ko: '총 결제금액', vn: 'Tổng tiền', en: 'Total Amount', zh: '合计金额', ru: 'Общая сумма' },
+  fold: { ko: '접기', vn: 'Thu gọn', en: 'Collapse', zh: '收起', ru: 'Свернуть' },
+  selectOption: { ko: '옵션 선택', vn: 'Chọn tùy chọn', en: 'Options', zh: '选择选项', ru: 'Выбор опций' },
+  addToCart: { ko: '담기', vn: 'Thêm', en: 'Add', zh: '加入', ru: 'Добавить' },
+  addToCartBtn: { ko: '장바구니 담기', vn: 'Thêm vào giỏ', en: 'Add to Cart', zh: '加入购物车', ru: 'Добавить в корзину' },
+  free: { ko: '무료', vn: 'Miễn phí', en: 'Free', zh: '免费', ru: 'Бесплатно' },
+  all: { ko: '전체', vn: 'Tất cả', en: 'All', zh: '全部', ru: 'Все' },
+  food: { ko: '음식', vn: 'Món ăn', en: 'Food', zh: '食物', ru: 'Еда' },
+  drink: { ko: '음료', vn: 'Đồ uống', en: 'Drinks', zh: '饮料', ru: 'Напитки' },
+  dessert: { ko: '디저트', vn: 'Tráng miệng', en: 'Dessert', zh: '甜点', ru: 'Десерт' },
+  loadingMenu: { ko: '메뉴를 불러오는 중...', vn: 'Đang tải thực đơn...', en: 'Loading menu...', zh: '正在加载菜单...', ru: 'Загрузка меню...' },
+  menuEmpty: { ko: '메뉴가 없습니다.', vn: 'Không có thực đơn.', en: 'No menu available.', zh: '暂无菜单。', ru: 'Меню недоступно.' }
 };
 
 const MenuItemCard: React.FC<{
@@ -61,9 +61,9 @@ const MenuItemCard: React.FC<{
   const currentPrice = item.priceVND + selectedOptions.reduce((sum, opt) => sum + opt.priceVND, 0);
 
   // Localization Logic
-  const primaryName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-  const secondaryName = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : item.nameVN;
-  const description = lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : lang === 'zh' ? (item.descriptionZH || item.descriptionEN || item.descriptionKO) : (item.descriptionEN || item.descriptionKO);
+  const primaryName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : lang === 'ru' ? (item.nameRU || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+  const secondaryName = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : lang === 'ru' ? item.nameVN : item.nameVN;
+  const description = lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : lang === 'zh' ? (item.descriptionZH || item.descriptionEN || item.descriptionKO) : lang === 'ru' ? (item.descriptionRU || item.descriptionEN || item.descriptionKO) : (item.descriptionEN || item.descriptionKO);
 
   return (
     <div className={`bg-card rounded-2xl overflow-hidden border transition-all duration-200 hover:border-border/70 ${isExpanded ? 'border-primary/30 ring-1 ring-primary/10' : 'border-border/60'} shadow-[0_1px_4px_rgba(0,0,0,0.04)]`}>
@@ -156,8 +156,8 @@ const MenuItemCard: React.FC<{
               <div className="space-y-2">
                 {item.options?.map(opt => {
                   const isSelected = selectedOptions.some(o => o.id === opt.id);
-                  const optLabel = lang === 'ko' ? opt.labelKO : lang === 'vn' ? opt.labelVN : lang === 'zh' ? (opt.labelZH || opt.labelEN || opt.labelKO) : (opt.labelEN || opt.labelKO);
-                  const optSub = lang === 'vn' ? (opt.labelEN || opt.labelKO) : lang === 'zh' ? opt.labelVN : opt.labelVN;
+                  const optLabel = lang === 'ko' ? opt.labelKO : lang === 'vn' ? opt.labelVN : lang === 'zh' ? (opt.labelZH || opt.labelEN || opt.labelKO) : lang === 'ru' ? (opt.labelRU || opt.labelEN || opt.labelKO) : (opt.labelEN || opt.labelKO);
+                  const optSub = lang === 'vn' ? (opt.labelEN || opt.labelKO) : lang === 'zh' ? opt.labelVN : lang === 'ru' ? opt.labelVN : opt.labelVN;
 
                   return (
                     <div 
@@ -405,8 +405,8 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                     </div>
                  ) : (
                     cart.map((item, index) => {
-                      const itemName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-                      const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : item.nameVN;
+                      const itemName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : lang === 'ru' ? (item.nameRU || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
+                      const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : lang === 'ru' ? item.nameVN : item.nameVN;
                       
                       return (
                         <div key={index} className="bg-card p-3 rounded-xl border border-border flex gap-3 shadow-sm">
@@ -426,7 +426,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                             
                             {item.selectedOptions && item.selectedOptions.length > 0 && (
                               <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
-                                └ {item.selectedOptions.map(o => lang === 'ko' ? o.labelKO : lang === 'vn' ? o.labelVN : lang === 'zh' ? (o.labelZH || o.labelEN || o.labelKO) : (o.labelEN || o.labelKO)).join(', ')}
+                                └ {item.selectedOptions.map(o => lang === 'ko' ? o.labelKO : lang === 'vn' ? o.labelVN : lang === 'zh' ? (o.labelZH || o.labelEN || o.labelKO) : lang === 'ru' ? (o.labelRU || o.labelEN || o.labelKO) : (o.labelEN || o.labelKO)).join(', ')}
                               </div>
                             )}
 

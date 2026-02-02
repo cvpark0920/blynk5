@@ -80,6 +80,7 @@ export interface MenuOption {
   nameVn: string;
   nameEn?: string;
   nameZh?: string;
+  nameRu?: string;
   priceVnd: number;
 }
 
@@ -90,6 +91,7 @@ export interface MenuOptionGroup {
   nameVn: string;
   nameEn?: string;
   nameZh?: string;
+  nameRu?: string;
   minSelect: number;
   maxSelect: number;
   options: MenuOption[];
@@ -103,10 +105,12 @@ export interface MenuItem {
   nameVn: string;
   nameEn?: string;
   nameZh?: string;
+  nameRu?: string;
   descriptionKo?: string;
   descriptionVn?: string;
   descriptionEn?: string;
   descriptionZh?: string;
+  descriptionRu?: string;
   priceVnd: number;
   imageUrl?: string;
   isSoldOut: boolean;
@@ -121,6 +125,7 @@ export interface MenuCategory {
   nameVn: string;
   nameEn?: string;
   nameZh?: string;
+  nameRu?: string;
   displayOrder: number;
   menuItems: MenuItem[];
 }
@@ -178,7 +183,9 @@ export interface ChatMessage {
   textKo: string;
   textVn: string;
   textEn?: string;
-  detectedLanguage?: 'ko' | 'vn' | 'en' | null;
+  textZH?: string;
+  textRU?: string;
+  detectedLanguage?: 'ko' | 'vn' | 'en' | 'zh' | 'ru' | null;
   messageType: 'TEXT' | 'IMAGE' | 'ORDER' | 'REQUEST';
   imageUrl?: string;
   metadata?: any;
@@ -188,12 +195,39 @@ export interface ChatMessage {
 export interface SendMessageRequest {
   sessionId: string;
   senderType: 'USER' | 'STAFF' | 'SYSTEM';
-  textKo: string;
-  textVn: string;
+  textKo?: string;
+  textVn?: string;
   textEn?: string;
+  textZh?: string;
+  textRu?: string;
   messageType: 'TEXT' | 'IMAGE' | 'ORDER' | 'REQUEST';
   imageUrl?: string;
   metadata?: any;
+}
+
+// Promotion 타입
+export interface Promotion {
+  id: string;
+  restaurantId: string;
+  titleKo: string;
+  titleVn: string;
+  titleEn?: string | null;
+  titleZh?: string | null;
+  titleRu?: string | null;
+  descriptionKo?: string | null;
+  descriptionVn?: string | null;
+  descriptionEn?: string | null;
+  descriptionZh?: string | null;
+  descriptionRu?: string | null;
+  imageUrl?: string | null;
+  discountPercent?: number | null;
+  startDate: string;
+  endDate: string;
+  displayOrder: number;
+  isActive: boolean;
+  showOnLoad: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 class ApiClient {
@@ -347,6 +381,7 @@ class ApiClient {
     labelVn: string;
     labelEn?: string;
     labelZh?: string;
+    labelRu?: string;
     messageKo?: string;
     messageVn?: string;
     messageEn?: string;
@@ -358,6 +393,13 @@ class ApiClient {
     if (restaurantId) params.append('restaurantId', restaurantId);
     if (type) params.append('type', type);
     return this.request(`/api/public/quick-chips?${params.toString()}`);
+  }
+
+  // Promotion methods (public API)
+  async getPromotions(restaurantId: string, showOnLoadOnly?: boolean): Promise<ApiResponse<Promotion[]>> {
+    const params = new URLSearchParams();
+    if (showOnLoadOnly) params.append('showOnLoadOnly', 'true');
+    return this.request(`/api/public/promotions/${restaurantId}${params.toString() ? `?${params.toString()}` : ''}`);
   }
 }
 

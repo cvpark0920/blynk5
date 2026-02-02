@@ -1351,13 +1351,14 @@ export const createCategory = async (
       throw createError('Name (Korean and Vietnamese) is required', 400);
     }
 
-    const { nameZh } = req.body;
+    const { nameZh, nameRu } = req.body;
     const category = await menuService.createCategory({
       restaurantId,
       nameKo,
       nameVn,
       nameEn,
       nameZh,
+      nameRu,
       displayOrder: displayOrder || 0,
     });
 

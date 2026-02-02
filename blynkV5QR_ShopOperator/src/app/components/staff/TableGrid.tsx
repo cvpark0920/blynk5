@@ -1323,54 +1323,56 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
           )}
 
           {/* Status Filter Tabs */}
-          <div className="mb-4">
+          <div className="mb-4 overflow-x-auto">
             <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-              <TabsList className="bg-muted/60 p-0.5 h-9 w-full gap-1 rounded-lg grid grid-cols-5 md:inline-flex">
+              <TabsList className="bg-transparent p-0 mb-0 w-fit inline-flex gap-2 whitespace-nowrap">
                 <TabsTrigger
                   value="all"
-                  className="px-3 sm:px-4 text-xs gap-1.5 md:gap-2 rounded-md border-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                  className="gap-2 px-4 py-2 bg-card rounded-full shadow-sm border border-border active:scale-95 transition-all flex-shrink-0 group data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 hover:border-primary/30 hover:bg-primary/10"
                   aria-label={`전체 (${visibleTables.length})`}
                 >
-                  <List size={14} />
-                  <span className="hidden sm:inline">전체 ({visibleTables.length})</span>
+                  <List size={16} className="text-muted-foreground group-data-[state=active]:text-primary group-hover:text-primary transition-colors" />
+                  <span className="text-sm font-medium text-foreground/80 group-data-[state=active]:text-primary group-hover:text-primary transition-colors">
+                    전체 ({visibleTables.length})
+                  </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="empty"
-                  className="px-3 sm:px-4 text-xs gap-1.5 md:gap-2 rounded-md border-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                  className="gap-2 px-4 py-2 bg-card rounded-full shadow-sm border border-border active:scale-95 transition-all flex-shrink-0 group data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 hover:border-primary/30 hover:bg-primary/10"
                   aria-label={`${t('status.empty')} (${visibleTables.filter(t => t.status === 'empty').length})`}
                 >
-                  <CircleCheck size={14} />
-                  <span className="hidden sm:inline">
+                  <CircleCheck size={16} className="text-muted-foreground group-data-[state=active]:text-primary group-hover:text-primary transition-colors" />
+                  <span className="text-sm font-medium text-foreground/80 group-data-[state=active]:text-primary group-hover:text-primary transition-colors">
                     {t('status.empty')} ({visibleTables.filter(t => t.status === 'empty').length})
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="ordering"
-                  className="px-3 sm:px-4 text-xs gap-1.5 md:gap-2 rounded-md border-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                  className="gap-2 px-4 py-2 bg-card rounded-full shadow-sm border border-border active:scale-95 transition-all flex-shrink-0 group data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 hover:border-primary/30 hover:bg-primary/10"
                   aria-label={`${t('status.ordering')} (${visibleTables.filter(t => t.status === 'ordering').length})`}
                 >
-                  <Clock size={14} />
-                  <span className="hidden sm:inline">
+                  <Clock size={16} className="text-muted-foreground group-data-[state=active]:text-primary group-hover:text-primary transition-colors" />
+                  <span className="text-sm font-medium text-foreground/80 group-data-[state=active]:text-primary group-hover:text-primary transition-colors">
                     {t('status.ordering')} ({visibleTables.filter(t => t.status === 'ordering').length})
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="dining"
-                  className="px-3 sm:px-4 text-xs gap-1.5 md:gap-2 rounded-md border-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                  className="gap-2 px-4 py-2 bg-card rounded-full shadow-sm border border-border active:scale-95 transition-all flex-shrink-0 group data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 hover:border-primary/30 hover:bg-primary/10"
                   aria-label={`${t('status.dining')} (${visibleTables.filter(t => t.status === 'dining').length})`}
                 >
-                  <UtensilsCrossed size={14} />
-                  <span className="hidden sm:inline">
+                  <UtensilsCrossed size={16} className="text-muted-foreground group-data-[state=active]:text-primary group-hover:text-primary transition-colors" />
+                  <span className="text-sm font-medium text-foreground/80 group-data-[state=active]:text-primary group-hover:text-primary transition-colors">
                     {t('status.dining')} ({visibleTables.filter(t => t.status === 'dining').length})
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="cleaning"
-                  className="px-3 sm:px-4 text-xs gap-1.5 md:gap-2 rounded-md border-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                  className="gap-2 px-4 py-2 bg-card rounded-full shadow-sm border border-border active:scale-95 transition-all flex-shrink-0 group data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 hover:border-primary/30 hover:bg-primary/10"
                   aria-label={`${t('status.cleaning')} (${visibleTables.filter(t => t.status === 'cleaning').length})`}
                 >
-                  <RotateCcw size={14} />
-                  <span className="hidden sm:inline">
+                  <RotateCcw size={16} className="text-muted-foreground group-data-[state=active]:text-primary group-hover:text-primary transition-colors" />
+                  <span className="text-sm font-medium text-foreground/80 group-data-[state=active]:text-primary group-hover:text-primary transition-colors">
                     {t('status.cleaning')} ({visibleTables.filter(t => t.status === 'cleaning').length})
                   </span>
                 </TabsTrigger>

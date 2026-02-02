@@ -10,10 +10,12 @@ export interface CreateQuickChipData {
   labelVn: string;
   labelEn?: string;
   labelZh?: string;
+  labelRu?: string;
   messageKo?: string;
   messageVn?: string;
   messageEn?: string;
   messageZh?: string;
+  messageRu?: string;
   displayOrder?: number;
   isActive?: boolean;
 }
@@ -25,10 +27,12 @@ export interface UpdateQuickChipData {
   labelVn?: string;
   labelEn?: string;
   labelZh?: string;
+  labelRu?: string;
   messageKo?: string;
   messageVn?: string;
   messageEn?: string;
   messageZh?: string;
+  messageRu?: string;
   displayOrder?: number;
   isActive?: boolean;
 }
@@ -118,7 +122,7 @@ export class QuickChipService {
       platformMap.set(key, chip);
     }
 
-    // 상점 오버라이드를 중앙 템플릿 위에 병합 (중국어 필드는 상점 오버라이드에 없으면 중앙 템플릿 값 사용)
+    // 상점 오버라이드를 중앙 템플릿 위에 병합 (중국어/러시아어 필드는 상점 오버라이드에 없으면 중앙 템플릿 값 사용)
     const mergedMap = new Map<string, typeof platformChips[number]>();
     
     // 먼저 중앙 템플릿을 모두 추가
@@ -128,7 +132,7 @@ export class QuickChipService {
       mergedMap.set(key, chip);
     }
 
-    // 상점 오버라이드를 병합 (중국어 필드가 없거나 null이면 중앙 템플릿 값 사용)
+    // 상점 오버라이드를 병합 (중국어/러시아어 필드가 없거나 null이면 중앙 템플릿 값 사용)
     for (const override of restaurantChips) {
       const key = this.resolveTemplateKey(override);
       if (!key) continue;
@@ -136,16 +140,22 @@ export class QuickChipService {
       const platformChip = platformMap.get(key);
       if (platformChip) {
         // 중앙 템플릿이 있으면 병합
-        // 중국어 필드는 상점 오버라이드에 유효한 값(문자열)이 있으면 사용, 없거나 null/undefined이면 중앙 템플릿 값 사용
+        // 중국어/러시아어 필드는 상점 오버라이드에 유효한 값(문자열)이 있으면 사용, 없거나 null/undefined이면 중앙 템플릿 값 사용
         const overrideLabelZh = override.labelZh && typeof override.labelZh === 'string' && override.labelZh.trim();
         const overrideMessageZh = override.messageZh && typeof override.messageZh === 'string' && override.messageZh.trim();
+        const overrideLabelRu = override.labelRu && typeof override.labelRu === 'string' && override.labelRu.trim();
+        const overrideMessageRu = override.messageRu && typeof override.messageRu === 'string' && override.messageRu.trim();
         const platformLabelZh = platformChip.labelZh && typeof platformChip.labelZh === 'string' && platformChip.labelZh.trim();
         const platformMessageZh = platformChip.messageZh && typeof platformChip.messageZh === 'string' && platformChip.messageZh.trim();
+        const platformLabelRu = platformChip.labelRu && typeof platformChip.labelRu === 'string' && platformChip.labelRu.trim();
+        const platformMessageRu = platformChip.messageRu && typeof platformChip.messageRu === 'string' && platformChip.messageRu.trim();
         
         mergedMap.set(key, {
           ...override,
           labelZh: overrideLabelZh || platformLabelZh || null,
           messageZh: overrideMessageZh || platformMessageZh || null,
+          labelRu: overrideLabelRu || platformLabelRu || null,
+          messageRu: overrideMessageRu || platformMessageRu || null,
         });
       } else {
         // 중앙 템플릿이 없으면 상점 오버라이드만 사용
@@ -197,10 +207,12 @@ export class QuickChipService {
         labelVn: data.labelVn,
         labelEn: data.labelEn,
         labelZh: data.labelZh,
+        labelRu: data.labelRu,
         messageKo: data.messageKo,
         messageVn: data.messageVn,
         messageEn: data.messageEn,
         messageZh: data.messageZh,
+        messageRu: data.messageRu,
         displayOrder: data.displayOrder || 0,
         isActive: data.isActive !== undefined ? data.isActive : true,
       },
@@ -220,10 +232,12 @@ export class QuickChipService {
         ...(data.labelVn !== undefined && { labelVn: data.labelVn }),
         ...(data.labelEn !== undefined && { labelEn: data.labelEn }),
         ...(data.labelZh !== undefined && { labelZh: data.labelZh }),
+        ...(data.labelRu !== undefined && { labelRu: data.labelRu }),
         ...(data.messageKo !== undefined && { messageKo: data.messageKo }),
         ...(data.messageVn !== undefined && { messageVn: data.messageVn }),
         ...(data.messageEn !== undefined && { messageEn: data.messageEn }),
         ...(data.messageZh !== undefined && { messageZh: data.messageZh }),
+        ...(data.messageRu !== undefined && { messageRu: data.messageRu }),
         ...(data.displayOrder !== undefined && { displayOrder: data.displayOrder }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
       },

@@ -445,9 +445,11 @@ export function StoreHeader({
              </div>
           </SelectTrigger>
           <SelectContent align="end" className="min-w-[120px] rounded-xl border-zinc-100 shadow-xl shadow-zinc-200/50">
-            <SelectItem value="ko" className="text-xs font-medium py-2">🇰🇷 한국어</SelectItem>
-            <SelectItem value="en" className="text-xs font-medium py-2">🇺🇸 English</SelectItem>
-            <SelectItem value="vn" className="text-xs font-medium py-2">🇻🇳 Tiếng Việt</SelectItem>
+            <SelectItem value="ko" className="text-xs font-medium py-2 focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">🇰🇷 한국어</SelectItem>
+            <SelectItem value="en" className="text-xs font-medium py-2 focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">🇺🇸 English</SelectItem>
+            <SelectItem value="ru" className="text-xs font-medium py-2 focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">🇷🇺 Русский</SelectItem>
+            <SelectItem value="vn" className="text-xs font-medium py-2 focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">🇻🇳 Tiếng Việt</SelectItem>
+            <SelectItem value="zh" className="text-xs font-medium py-2 focus:bg-zinc-100 focus:text-zinc-900 data-[highlighted]:bg-zinc-100 data-[highlighted]:text-zinc-900">🇨🇳 简体中文</SelectItem>
           </SelectContent>
         </Select>
         <button

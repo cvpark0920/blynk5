@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getRestaurantPublic, getBanks, getQuickChipsPublic } from '../controllers/publicController';
+import { getActivePromotions } from '../controllers/promotionController';
 
 const router = Router();
 
@@ -10,5 +11,6 @@ router.get('/restaurant', getRestaurantPublic); // 서브도메인 기반
 router.get('/restaurant/:restaurantId', getRestaurantPublic); // 기존 형식
 router.get('/banks', getBanks);
 router.get('/quick-chips', getQuickChipsPublic);
+router.get('/promotions/:restaurantId', getActivePromotions);
 
 export default router;

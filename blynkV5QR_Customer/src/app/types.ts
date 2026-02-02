@@ -4,6 +4,7 @@ export interface MenuOption {
   labelVN: string;
   labelEN?: string;
   labelZH?: string;
+  labelRU?: string;
   priceVND: number;
 }
 
@@ -13,6 +14,7 @@ export interface MenuItem {
   nameVN: string;
   nameEN?: string;
   nameZH?: string;
+  nameRU?: string;
   priceVND: number;
   category: 'food' | 'drink' | 'dessert'; // 하위 호환성을 위해 유지
   categoryId: string; // 실제 카테고리 ID
@@ -21,6 +23,7 @@ export interface MenuItem {
   descriptionVN?: string;
   descriptionEN?: string;
   descriptionZH?: string;
+  descriptionRU?: string;
   options?: MenuOption[];
 }
 
@@ -30,7 +33,9 @@ export interface ChatMessage {
   textKO: string;
   textVN: string;
   textEN?: string;
-  detectedLanguage?: 'ko' | 'vn' | 'en' | null;
+  textZH?: string;
+  textRU?: string;
+  detectedLanguage?: 'ko' | 'vn' | 'en' | 'zh' | 'ru' | null;
   timestamp: Date;
   type: 'text' | 'order' | 'request' | 'image';
   metadata?: any; // For order details
@@ -51,9 +56,11 @@ export interface QuickChip {
   labelVN: string;
   labelEN?: string;
   labelZH?: string;
+  labelRU?: string;
   action: 'message' | 'toggle_feature';
   messageKO?: string;
   messageVN?: string;
   messageEN?: string;
   messageZH?: string;
+  messageRU?: string;
 }

@@ -48,10 +48,12 @@ interface QuickChip {
   labelVn: string;
   labelEn?: string;
   labelZh?: string;
+  labelRu?: string;
   messageKo?: string;
   messageVn?: string;
   messageEn?: string;
   messageZh?: string;
+  messageRu?: string;
   displayOrder: number;
   isActive: boolean;
 }
@@ -100,10 +102,12 @@ export function QuickChipsManagement() {
     labelVn: '',
     labelEn: '',
     labelZh: '',
+    labelRu: '',
     messageKo: '',
     messageVn: '',
     messageEn: '',
     messageZh: '',
+    messageRu: '',
     displayOrder: 0,
     isActive: true,
   });
@@ -208,10 +212,12 @@ export function QuickChipsManagement() {
       labelVn: '',
       labelEn: '',
       labelZh: '',
+      labelRu: '',
       messageKo: '',
       messageVn: '',
       messageEn: '',
       messageZh: '',
+      messageRu: '',
       displayOrder: 0,
       isActive: true,
     });
@@ -241,10 +247,12 @@ export function QuickChipsManagement() {
         labelVn: override.labelVn,
         labelEn: override.labelEn ?? template.labelEn ?? '',
         labelZh: override.labelZh ?? template.labelZh ?? '',
+        labelRu: override.labelRu ?? template.labelRu ?? '',
         messageKo: override.messageKo ?? template.messageKo ?? '',
         messageVn: override.messageVn ?? template.messageVn ?? '',
         messageEn: override.messageEn ?? template.messageEn ?? '',
         messageZh: override.messageZh ?? template.messageZh ?? '',
+        messageRu: override.messageRu ?? template.messageRu ?? '',
         displayOrder: override.displayOrder,
         isActive: override.isActive,
       };
@@ -267,10 +275,12 @@ export function QuickChipsManagement() {
         labelVn: template.labelVn,
         labelEn: template.labelEn || '',
         labelZh: template.labelZh ?? '',
+        labelRu: template.labelRu ?? '',
         messageKo: template.messageKo || '',
         messageVn: template.messageVn || '',
         messageEn: template.messageEn || '',
         messageZh: template.messageZh ?? '',
+        messageRu: template.messageRu ?? '',
         displayOrder: template.displayOrder,
         isActive: true,
       };
@@ -294,10 +304,12 @@ export function QuickChipsManagement() {
       labelVn: chip.labelVn,
       labelEn: chip.labelEn ?? '',
       labelZh: chip.labelZh ?? '',
+      labelRu: chip.labelRu ?? '',
       messageKo: chip.messageKo ?? '',
       messageVn: chip.messageVn ?? '',
       messageEn: chip.messageEn ?? '',
       messageZh: chip.messageZh ?? '',
+      messageRu: chip.messageRu ?? '',
       displayOrder: chip.displayOrder,
       isActive: chip.isActive,
     };
@@ -325,10 +337,12 @@ export function QuickChipsManagement() {
           labelVn: formData.labelVn,
           labelEn: formData.labelEn || undefined,
           labelZh: formData.labelZh || undefined,
+          labelRu: formData.labelRu || undefined,
           messageKo: formData.messageKo || undefined,
           messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
           messageZh: formData.messageZh || undefined,
+          messageRu: formData.messageRu || undefined,
           displayOrder: formData.displayOrder,
           isActive: formData.isActive,
         });
@@ -343,10 +357,12 @@ export function QuickChipsManagement() {
           labelVn: formData.labelVn,
           labelEn: formData.labelEn || undefined,
           labelZh: formData.labelZh || undefined,
+          labelRu: formData.labelRu || undefined,
           messageKo: formData.messageKo || undefined,
           messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
           messageZh: formData.messageZh || undefined,
+          messageRu: formData.messageRu || undefined,
           displayOrder: formData.displayOrder,
           isActive: formData.isActive,
         });
@@ -401,10 +417,12 @@ export function QuickChipsManagement() {
             labelVn: template.labelVn,
             labelEn: template.labelEn,
             labelZh: template.labelZh,
+            labelRu: template.labelRu,
             messageKo: template.messageKo,
             messageVn: template.messageVn,
             messageEn: template.messageEn,
             messageZh: template.messageZh,
+            messageRu: template.messageRu,
             displayOrder: template.displayOrder,
             isActive: false,
           });
@@ -538,6 +556,17 @@ export function QuickChipsManagement() {
             </div>
           )}
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor="labelRu" className="text-sm font-medium text-foreground">
+            라벨 (러시아어)
+          </Label>
+          <Input
+            id="labelRu"
+            value={formData.labelRu ?? ''}
+            onChange={(e) => setFormData({ ...formData, labelRu: e.target.value })}
+            className="bg-input-background border-input"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -593,6 +622,17 @@ export function QuickChipsManagement() {
               Debug: formData.messageZh = "{formData.messageZh}" (type: {typeof formData.messageZh})
             </div>
           )}
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="messageRu" className="text-sm font-medium text-foreground">
+            메시지 (러시아어)
+          </Label>
+          <Input
+            id="messageRu"
+            value={formData.messageRu ?? ''}
+            onChange={(e) => setFormData({ ...formData, messageRu: e.target.value })}
+            className="bg-input-background border-input"
+          />
         </div>
       </div>
 

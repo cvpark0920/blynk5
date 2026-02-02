@@ -32,6 +32,11 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ chips, onChipClick }
       if (zh && zh.trim()) return zh;
       return chip.labelEN || chip.labelKO;
     }
+    if (lang === 'ru') {
+      const ru = chip.labelRU;
+      if (ru && ru.trim()) return ru;
+      return chip.labelEN || chip.labelKO;
+    }
     return chip.labelEN || chip.labelKO;
   };
 

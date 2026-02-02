@@ -13,7 +13,7 @@ export const sendMessage = async (
   next: NextFunction
 ) => {
   try {
-    const { sessionId, senderType, textKo, textVn, textEn, messageType, imageUrl, metadata } = req.body;
+    const { sessionId, senderType, textKo, textVn, textEn, textZh, textRu, messageType, imageUrl, metadata } = req.body;
 
     if (!sessionId || !senderType || !messageType) {
       throw createError('Session ID, sender type, and message type are required', 400);
@@ -25,6 +25,8 @@ export const sendMessage = async (
       textKo,
       textVn,
       textEn,
+      textZh,
+      textRu,
       messageType: messageType as MessageType,
       imageUrl,
       metadata,
