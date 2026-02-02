@@ -68,6 +68,7 @@ export const createPromotion = async (
       displayOrder,
       isActive,
       showOnLoad,
+      menuItemIds,
     } = req.body;
 
     if (!restaurantId || !titleKo || !titleVn) {
@@ -112,6 +113,7 @@ export const createPromotion = async (
       displayOrder,
       isActive,
       showOnLoad,
+      menuItemIds: Array.isArray(menuItemIds) ? menuItemIds : undefined,
     });
 
     res.status(201).json({ success: true, data: promotion });
@@ -153,6 +155,7 @@ export const updatePromotion = async (
       displayOrder,
       isActive,
       showOnLoad,
+      menuItemIds,
     } = req.body;
 
     if (!restaurantId || !promotionId) {
@@ -201,6 +204,7 @@ export const updatePromotion = async (
     if (displayOrder !== undefined) updateData.displayOrder = displayOrder;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (showOnLoad !== undefined) updateData.showOnLoad = showOnLoad;
+    if (menuItemIds !== undefined) updateData.menuItemIds = Array.isArray(menuItemIds) ? menuItemIds : [];
 
     const updatedPromotion = await promotionService.updatePromotion(promotionId, updateData);
     res.json({ success: true, data: updatedPromotion });
@@ -264,14 +268,74 @@ export const getActivePromotions = async (
       throw createError('Restaurant ID is required', 400);
     }
 
+    console.log('[getActivePromotions] 요청:', {
+      restaurantId,
+      showOnLoadOnly,
+      now: new Date().toISOString(),
+    });
+
+    // 먼저 모든 프로모션 조회 (디버깅용)
+    const allPromotions = await promotionService.getAllPromotions(restaurantId);
+    console.log('[getActivePromotions] 모든 프로모션:', {
+      count: allPromotions.length,
+      promotions: allPromotions.map(p => ({
+        id: p.id,
+        titleKo: p.titleKo,
+        isActive: p.isActive,
+        showOnLoad: p.showOnLoad,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        now: new Date().toISOString(),
+      })),
+    });
+
     const promotions = await promotionService.getActivePromotions(
       restaurantId,
       false, // includeExpired
       showOnLoadOnly === 'true' // showOnLoadOnly
     );
 
-    res.json({ success: true, data: promotions });
+    console.log('[getActivePromotions] 활성 프로모션:', {
+      count: promotions.length,
+      promotions: promotions.map(p => ({
+        id: p.id,
+        titleKo: p.titleKo,
+        isActive: p.isActive,
+        showOnLoad: p.showOnLoad,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        promotionMenuItemsCount: p.promotionMenuItems?.length || 0,
+        promotionMenuItems: p.promotionMenuItems?.map(pmi => ({
+          id: pmi.id,
+          menuItemId: pmi.menuItemId,
+          menuItemName: pmi.menuItem?.nameKo,
+        })) || [],
+      })),
+    });
+
+    // Map promotionMenuItems to menuItems for convenience
+    const promotionsWithMenuItems = promotions.map(promo => ({
+      ...promo,
+      menuItems: promo.promotionMenuItems?.map(pmi => pmi.menuItem) || [],
+    }));
+
+    console.log('[getActivePromotions] 매핑된 프로모션:', {
+      count: promotionsWithMenuItems.length,
+      promotions: promotionsWithMenuItems.map(p => ({
+        id: p.id,
+        titleKo: p.titleKo,
+        menuItemsCount: p.menuItems?.length || 0,
+        menuItems: p.menuItems?.map(mi => ({
+          id: mi.id,
+          nameKo: mi.nameKo,
+          imageUrl: mi.imageUrl,
+        })) || [],
+      })),
+    });
+
+    res.json({ success: true, data: promotionsWithMenuItems });
   } catch (error) {
+    console.error('[getActivePromotions] 오류:', error);
     next(error);
   }
 };

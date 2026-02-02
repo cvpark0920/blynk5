@@ -38,6 +38,9 @@ import {
   unsubscribePush,
   getNotificationPreferences,
   updateNotificationPreferences,
+  uploadSplashImage,
+  deleteSplashImage,
+  uploadPromotionImage,
 } from '../controllers/staffController';
 import { sendMessage, getChatHistory, getChatReadStatus, markChatRead } from '../controllers/chatController';
 import {
@@ -60,8 +63,16 @@ import {
   updatePromotion,
   deletePromotion,
 } from '../controllers/promotionController';
+import multer from 'multer';
+import { config } from '../config';
 
 const router = Router();
+
+// Multer 설정 (이미지 업로드용)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: config.upload.maxSize },
+});
 
 // All staff routes require authentication
 router.use(authenticate);
@@ -132,5 +143,12 @@ router.get('/restaurant/:restaurantId/promotions', getPromotions);
 router.post('/restaurant/:restaurantId/promotions', createPromotion);
 router.put('/restaurant/:restaurantId/promotions/:promotionId', updatePromotion);
 router.delete('/restaurant/:restaurantId/promotions/:promotionId', deletePromotion);
+
+// Splash image routes (OWNER/MANAGER only, checked in controller)
+router.post('/restaurant/:restaurantId/splash-image', upload.single('image'), uploadSplashImage);
+router.delete('/restaurant/:restaurantId/splash-image', deleteSplashImage);
+
+// Promotion image routes (OWNER/MANAGER only, checked in controller)
+router.post('/restaurant/:restaurantId/promotion-image', upload.single('image'), uploadPromotionImage);
 
 export default router;

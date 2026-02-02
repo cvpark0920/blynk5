@@ -143,6 +143,7 @@ export interface Restaurant {
   status: string;
   qrCode: string;
   createdAt: string;
+  splashImageUrl?: string | null;
 }
 
 // Order 타입 (백엔드 구조에 맞춤)
@@ -228,6 +229,13 @@ export interface Promotion {
   showOnLoad: boolean;
   createdAt: string;
   updatedAt: string;
+  promotionMenuItems?: Array<{
+    id: string;
+    promotionId: string;
+    menuItemId: string;
+    menuItem: MenuItem;
+  }>;
+  menuItems?: MenuItem[]; // Convenience field mapped from promotionMenuItems
 }
 
 class ApiClient {

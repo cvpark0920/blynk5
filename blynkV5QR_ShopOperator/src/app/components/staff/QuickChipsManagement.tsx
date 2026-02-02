@@ -125,15 +125,17 @@ export function QuickChipsManagement() {
 
       // 디버깅: API 응답 확인
       if (templateResponse.success && templateResponse.data && templateResponse.data.length > 0) {
-        console.log('🔍 QuickChip Template API Response (first item):', {
-          labelKo: templateResponse.data[0].labelKo,
-          labelZh: templateResponse.data[0].labelZh,
-          messageKo: templateResponse.data[0].messageKo,
-          messageZh: templateResponse.data[0].messageZh,
-          hasLabelZh: 'labelZh' in templateResponse.data[0],
-          hasMessageZh: 'messageZh' in templateResponse.data[0],
-          allKeys: Object.keys(templateResponse.data[0]),
-        });
+        if (import.meta.env.DEV) {
+          console.log('🔍 QuickChip Template API Response (first item):', {
+            labelKo: templateResponse.data[0].labelKo,
+            labelZh: templateResponse.data[0].labelZh,
+            messageKo: templateResponse.data[0].messageKo,
+            messageZh: templateResponse.data[0].messageZh,
+            hasLabelZh: 'labelZh' in templateResponse.data[0],
+            hasMessageZh: 'messageZh' in templateResponse.data[0],
+            allKeys: Object.keys(templateResponse.data[0]),
+          });
+        }
       }
 
       if (templateResponse.success && templateResponse.data) {
@@ -162,7 +164,7 @@ export function QuickChipsManagement() {
 
   // 다이얼로그가 열릴 때 formData가 올바르게 설정되었는지 확인
   useEffect(() => {
-    if (isDialogOpen) {
+    if (isDialogOpen && import.meta.env.DEV) {
       console.log('🔍 Dialog opened, formData.labelZh:', formData.labelZh);
       console.log('🔍 Dialog opened, formData.messageZh:', formData.messageZh);
     }
@@ -226,14 +228,16 @@ export function QuickChipsManagement() {
 
   const openOverrideDialog = (template: QuickChip, override?: QuickChip) => {
     // 디버깅: 템플릿 데이터 확인
-    console.log('🔍 openOverrideDialog - template:', {
-      labelKo: template.labelKo,
-      labelZh: template.labelZh,
-      messageKo: template.messageKo,
-      messageZh: template.messageZh,
-      hasLabelZh: 'labelZh' in template,
-      hasMessageZh: 'messageZh' in template,
-    });
+    if (import.meta.env.DEV) {
+      console.log('🔍 openOverrideDialog - template:', {
+        labelKo: template.labelKo,
+        labelZh: template.labelZh,
+        messageKo: template.messageKo,
+        messageZh: template.messageZh,
+        hasLabelZh: 'labelZh' in template,
+        hasMessageZh: 'messageZh' in template,
+      });
+    }
 
     if (override) {
       setEditingMode('edit');
@@ -256,9 +260,11 @@ export function QuickChipsManagement() {
         displayOrder: override.displayOrder,
         isActive: override.isActive,
       };
-      console.log('🔍 Override exists - override.labelZh:', override.labelZh, 'template.labelZh:', template.labelZh);
-      console.log('🔍 Override formData.labelZh:', overrideFormData.labelZh);
-      console.log('🔍 Override formData.messageZh:', overrideFormData.messageZh);
+      if (import.meta.env.DEV) {
+        console.log('🔍 Override exists - override.labelZh:', override.labelZh, 'template.labelZh:', template.labelZh);
+        console.log('🔍 Override formData.labelZh:', overrideFormData.labelZh);
+        console.log('🔍 Override formData.messageZh:', overrideFormData.messageZh);
+      }
       setFormData(overrideFormData);
       setTimeout(() => {
         setIsDialogOpen(true);
@@ -267,7 +273,9 @@ export function QuickChipsManagement() {
       setEditingMode('override');
       setEditingChip(null);
       setBaseTemplate(template);
-      console.log('🔍 Setting formData with template.labelZh:', template.labelZh);
+      if (import.meta.env.DEV) {
+        console.log('🔍 Setting formData with template.labelZh:', template.labelZh);
+      }
       const newFormData = {
         templateKey: buildTemplateKey(template.templateKey, template.icon, template.labelKo),
         icon: template.icon,
@@ -284,8 +292,10 @@ export function QuickChipsManagement() {
         displayOrder: template.displayOrder,
         isActive: true,
       };
-      console.log('🔍 New formData.labelZh:', newFormData.labelZh);
-      console.log('🔍 New formData.messageZh:', newFormData.messageZh);
+      if (import.meta.env.DEV) {
+        console.log('🔍 New formData.labelZh:', newFormData.labelZh);
+        console.log('🔍 New formData.messageZh:', newFormData.messageZh);
+      }
       setFormData(newFormData);
       setTimeout(() => {
         setIsDialogOpen(true);
@@ -313,8 +323,10 @@ export function QuickChipsManagement() {
       displayOrder: chip.displayOrder,
       isActive: chip.isActive,
     };
-    console.log('🔍 Edit formData.labelZh:', editFormData.labelZh);
-    console.log('🔍 Edit formData.messageZh:', editFormData.messageZh);
+    if (import.meta.env.DEV) {
+      console.log('🔍 Edit formData.labelZh:', editFormData.labelZh);
+      console.log('🔍 Edit formData.messageZh:', editFormData.messageZh);
+    }
     setFormData(editFormData);
     setTimeout(() => {
       setIsDialogOpen(true);
@@ -544,10 +556,16 @@ export function QuickChipsManagement() {
             id="labelZh"
             value={formData.labelZh ?? ''}
             onChange={(e) => {
-              console.log('🔍 labelZh onChange:', e.target.value);
+              if (import.meta.env.DEV) {
+                console.log('🔍 labelZh onChange:', e.target.value);
+              }
               setFormData({ ...formData, labelZh: e.target.value });
             }}
-            onFocus={() => console.log('🔍 labelZh onFocus, current formData.labelZh:', formData.labelZh)}
+            onFocus={() => {
+              if (import.meta.env.DEV) {
+                console.log('🔍 labelZh onFocus, current formData.labelZh:', formData.labelZh);
+              }
+            }}
             className="bg-input-background border-input"
           />
           {process.env.NODE_ENV === 'development' && (
@@ -611,10 +629,16 @@ export function QuickChipsManagement() {
             id="messageZh"
             value={formData.messageZh ?? ''}
             onChange={(e) => {
-              console.log('🔍 messageZh onChange:', e.target.value);
+              if (import.meta.env.DEV) {
+                console.log('🔍 messageZh onChange:', e.target.value);
+              }
               setFormData({ ...formData, messageZh: e.target.value });
             }}
-            onFocus={() => console.log('🔍 messageZh onFocus, current formData.messageZh:', formData.messageZh)}
+            onFocus={() => {
+              if (import.meta.env.DEV) {
+                console.log('🔍 messageZh onFocus, current formData.messageZh:', formData.messageZh);
+              }
+            }}
             className="bg-input-background border-input"
           />
           {process.env.NODE_ENV === 'development' && (

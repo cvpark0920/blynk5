@@ -5,6 +5,7 @@ import { eventEmitter } from '../sse/eventEmitter';
 import { notificationService } from './notificationService';
 import { chatService } from './chatService';
 import { tableService } from './tableService';
+import { promotionService } from './promotionService';
 
 export interface OrderItemInput {
   menuItemId: string;
@@ -39,6 +40,33 @@ export class OrderService {
       },
     });
 
+    // Get active promotions for discount calculation
+    const now = new Date();
+    const activePromotions = await prisma.promotion.findMany({
+      where: {
+        restaurantId: data.restaurantId,
+        isActive: true,
+        startDate: { lte: now },
+        endDate: { gte: now },
+        discountPercent: { not: null },
+      },
+      include: {
+        promotionMenuItems: {
+          select: {
+            menuItemId: true,
+          },
+        },
+      },
+    });
+
+    // Create a map of menuItemId -> promotion for quick lookup
+    const menuItemPromotionMap = new Map<string, typeof activePromotions[0]>();
+    for (const promotion of activePromotions) {
+      for (const pmi of promotion.promotionMenuItems) {
+        menuItemPromotionMap.set(pmi.menuItemId, promotion);
+      }
+    }
+
     // Calculate total amount
     let totalAmount = 0;
     const orderItemsData = [];
@@ -53,7 +81,8 @@ export class OrderService {
         throw createError(`Menu item ${menuItem.nameKo} is sold out`, 400);
       }
 
-      let itemTotal = menuItem.priceVnd * item.quantity;
+      // Base price calculation
+      let originalItemPrice = menuItem.priceVnd * item.quantity;
       const orderItemOptions = [];
 
       // Calculate option prices
@@ -64,7 +93,7 @@ export class OrderService {
             .find((o: { id: string }) => o.id === opt.optionId);
 
           if (option) {
-            itemTotal += option.priceVnd * opt.quantity;
+            originalItemPrice += option.priceVnd * opt.quantity;
             orderItemOptions.push({
               optionId: opt.optionId,
               quantity: opt.quantity,
@@ -74,13 +103,27 @@ export class OrderService {
         }
       }
 
-      totalAmount += itemTotal;
+      // Apply promotion discount if applicable
+      const promotion = menuItemPromotionMap.get(item.menuItemId);
+      let finalItemPrice = originalItemPrice;
+      let discountApplied = 0;
+
+      if (promotion && promotion.discountPercent) {
+        // Apply discount only to menu item price, not options
+        const menuItemPriceOnly = menuItem.priceVnd * item.quantity;
+        const discountedMenuItemPrice = Math.floor(menuItemPriceOnly * (1 - promotion.discountPercent / 100));
+        const optionsPrice = originalItemPrice - menuItemPriceOnly;
+        finalItemPrice = discountedMenuItemPrice + optionsPrice;
+        discountApplied = originalItemPrice - finalItemPrice;
+      }
+
+      totalAmount += finalItemPrice;
 
       orderItemsData.push({
         menuItemId: item.menuItemId,
         quantity: item.quantity,
         unitPrice: menuItem.priceVnd,
-        totalPrice: itemTotal,
+        totalPrice: finalItemPrice,
         notes: item.notes || [],
         options: orderItemOptions,
       });

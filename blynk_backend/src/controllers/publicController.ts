@@ -36,7 +36,7 @@ export const getRestaurantPublic = async (
         qrCode: true,
         subdomain: true,
         createdAt: true,
-        // Exclude sensitive information: ownerId, settings
+        settings: true, // Include settings to extract splashImageUrl
       },
     });
 
@@ -49,7 +49,19 @@ export const getRestaurantPublic = async (
       throw createError('Restaurant is not active', 404);
     }
 
-    res.json({ success: true, data: restaurant });
+    // Extract splashImageUrl from settings (public information)
+    const settings = (restaurant.settings as any) || {};
+    const splashImageUrl = settings.splashImageUrl || null;
+
+    // Return restaurant data with splashImageUrl (exclude other sensitive settings)
+    const { settings: _, ...restaurantData } = restaurant;
+    res.json({ 
+      success: true, 
+      data: {
+        ...restaurantData,
+        splashImageUrl,
+      }
+    });
   } catch (error) {
     next(error);
   }

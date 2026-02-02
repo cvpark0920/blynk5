@@ -7,7 +7,7 @@ import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { getTranslation } from '../../i18n/translations';
-import { apiClient } from '../../../lib/api';
+import { apiClient, Promotion } from '../../../lib/api';
 
 interface BillModalProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ interface BillModalProps {
   tableNumber: number | null;
   onPaymentRequest: (method: string) => void;
   onTransferComplete: () => void;
+  promotions?: Promotion[];
 }
 
 type BillStep = 'bill' | 'method' | 'qr';
@@ -28,7 +29,8 @@ export const BillModal: React.FC<BillModalProps> = ({
   restaurantId,
   tableNumber,
   onPaymentRequest,
-  onTransferComplete 
+  onTransferComplete,
+  promotions = []
 }) => {
   const { lang } = useLanguage();
   const [step, setStep] = useState<BillStep>('bill');
@@ -41,19 +43,45 @@ export const BillModal: React.FC<BillModalProps> = ({
     accountHolder: string;
   } | null>(null);
 
+  // 프로모션 할인 계산 함수들
+  const getActivePromotionForMenuItem = (menuItemId: string) => {
+    const now = new Date();
+    return promotions.find(promo => {
+      if (!promo.isActive || !promo.discountPercent) return false;
+      const startDate = new Date(promo.startDate);
+      const endDate = new Date(promo.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      if (now < startDate || now > endDate) return false;
+      
+      // 메뉴 항목이 프로모션에 포함되는지 확인
+      const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                          promo.menuItems?.map(mi => mi.id) || [];
+      return menuItemIds.includes(menuItemId);
+    });
+  };
+
+  const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+    if (!discountPercent) return originalPrice;
+    return Math.floor(originalPrice * (1 - discountPercent / 100));
+  };
+
   const total = orders.reduce((sum, item) => {
-    // unitPrice는 순수 메뉴 항목의 단가 (백엔드에서 받은 값 사용)
-    const unitPrice = (item as any).unitPrice || item.priceVND || 0;
+    // 프로모션 할인 적용
+    const activePromotion = getActivePromotionForMenuItem(item.id);
+    const originalUnitPrice = (item as any).unitPrice || item.priceVND || 0;
+    const discountedUnitPrice = activePromotion 
+      ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+      : originalUnitPrice;
     
-    // 옵션 총액 계산
+    // 옵션 총액 계산 (옵션은 할인 대상이 아님)
     const optionsTotal = item.selectedOptions?.reduce((optSum, opt) => {
       const optPrice = opt.priceVND || 0;
       const optQuantity = (opt as any).quantity || 1;
       return optSum + (optPrice * optQuantity);
     }, 0) || 0;
     
-    // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
-    const itemTotal = (unitPrice * (item.quantity || 1)) + optionsTotal;
+    // 주문 항목 총액 = (할인된 단가 × 수량) + 옵션 총액
+    const itemTotal = (discountedUnitPrice * (item.quantity || 1)) + optionsTotal;
     return sum + itemTotal;
   }, 0);
 
@@ -228,18 +256,22 @@ export const BillModal: React.FC<BillModalProps> = ({
                        </div>
                      ) : (
                        orders.map((item, idx) => {
-                         // unitPrice는 순수 메뉴 항목의 단가 (백엔드에서 받은 값 사용)
-                         const unitPrice = (item as any).unitPrice || item.priceVND || 0;
+                         // 프로모션 할인 적용
+                         const activePromotion = getActivePromotionForMenuItem(item.id);
+                         const originalUnitPrice = (item as any).unitPrice || item.priceVND || 0;
+                         const discountedUnitPrice = activePromotion 
+                           ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                           : originalUnitPrice;
                          
-                         // 옵션 총액 계산
+                         // 옵션 총액 계산 (옵션은 할인 대상이 아님)
                          const optionsTotal = item.selectedOptions?.reduce((sum, opt) => {
                            const optPrice = opt.priceVND || 0;
                            const optQuantity = (opt as any).quantity || 1;
                            return sum + (optPrice * optQuantity);
                          }, 0) || 0;
                          
-                         // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
-                         const totalPrice = (unitPrice * item.quantity) + optionsTotal;
+                         // 주문 항목 총액 = (할인된 단가 × 수량) + 옵션 총액
+                         const totalPrice = (discountedUnitPrice * item.quantity) + optionsTotal;
                          
                          return (
                           <div key={`${item.id}-${idx}`} className="flex justify-between items-start py-3 border-b border-border last:border-0">
@@ -279,7 +311,20 @@ export const BillModal: React.FC<BillModalProps> = ({
                             </div>
                             <div className="flex flex-col items-end gap-0.5 shrink-0">
                              <div className="text-xs text-muted-foreground">
-                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(unitPrice)} × {item.quantity}
+                                {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                  <span className="flex items-center gap-1">
+                                    <span className="line-through opacity-60">
+                                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(originalUnitPrice)}
+                                    </span>
+                                    <span>
+                                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(discountedUnitPrice)} × {item.quantity}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span>
+                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(discountedUnitPrice)} × {item.quantity}
+                                  </span>
+                                )}
                               </div>
                               <CurrencyDisplay amountVND={totalPrice} className="font-bold" />
                             </div>

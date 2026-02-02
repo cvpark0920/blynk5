@@ -12,6 +12,8 @@ import { nanoid } from 'nanoid';
 import { VietQR } from 'vietqr';
 import { config } from '../config';
 import { pushService } from '../services/pushService';
+import path from 'path';
+import fs from 'fs/promises';
 
 const debugLog = (..._args: unknown[]) => {};
 
@@ -2990,6 +2992,240 @@ export const unsubscribePush = async (
 
     await pushService.removeSubscription(endpoint);
     res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 스플래시 이미지 업로드 (OWNER/MANAGER only)
+ */
+export const uploadSplashImage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { restaurantId } = req.params;
+    const file = (req as any).file as Express.Multer.File | undefined;
+
+    if (!restaurantId) {
+      throw createError('Restaurant ID is required', 400);
+    }
+
+    if (!file) {
+      throw createError('Splash image file is required', 400);
+    }
+
+    // 이미지 파일 타입 검증
+    const allowedTypes = config.upload.allowedTypes || ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      throw createError('Unsupported image file type. Allowed types: JPEG, PNG, WebP', 400);
+    }
+
+    // 권한 체크
+    const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
+    if (!access.isOwner && !access.isManager) {
+      throw createError('Only owners or managers can upload splash images', 403);
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (!restaurant) {
+      throw createError('Restaurant not found', 404);
+    }
+
+    // 기존 이미지 파일 삭제 (있는 경우)
+    const currentSettings = (restaurant.settings as any) || {};
+    const currentSplashImageUrl = currentSettings.splashImageUrl;
+    if (currentSplashImageUrl && typeof currentSplashImageUrl === 'string') {
+      try {
+        const publicDir = path.resolve(__dirname, '../../public');
+        const oldFilePath = path.join(publicDir, currentSplashImageUrl);
+        await fs.unlink(oldFilePath).catch(() => {
+          // 파일이 없어도 에러 무시
+        });
+      } catch (error) {
+        // 파일 삭제 실패해도 계속 진행
+        console.error('Failed to delete old splash image:', error);
+      }
+    }
+
+    // 파일 확장자 결정
+    const extension = path.extname(file.originalname || '').toLowerCase() || 
+      (file.mimetype === 'image/jpeg' ? '.jpg' : 
+       file.mimetype === 'image/png' ? '.png' : 
+       file.mimetype === 'image/webp' ? '.webp' : '.jpg');
+    
+    const fileName = `splash-${restaurantId}-${Date.now()}${extension}`;
+    const publicDir = path.resolve(__dirname, '../../public');
+    const uploadDir = path.join(publicDir, 'uploads', 'splash-images');
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const filePath = path.join(uploadDir, fileName);
+    await fs.writeFile(filePath, file.buffer);
+
+    const splashImageUrl = `/uploads/splash-images/${fileName}`;
+    const updatedSettings = {
+      ...currentSettings,
+      splashImageUrl,
+    };
+
+    await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: {
+        settings: updatedSettings,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        splashImageUrl,
+        settings: updatedSettings,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 프로모션 이미지 업로드 (OWNER/MANAGER only)
+ */
+export const uploadPromotionImage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { restaurantId } = req.params;
+    const file = (req as any).file as Express.Multer.File | undefined;
+
+    if (!restaurantId) {
+      throw createError('Restaurant ID is required', 400);
+    }
+
+    if (!file) {
+      throw createError('Promotion image file is required', 400);
+    }
+
+    // 이미지 파일 타입 검증
+    const allowedTypes = config.upload.allowedTypes || ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      throw createError('Unsupported image file type. Allowed types: JPEG, PNG, WebP', 400);
+    }
+
+    // 권한 체크
+    const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
+    if (!access.isOwner && !access.isManager) {
+      throw createError('Only owners or managers can upload promotion images', 403);
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (!restaurant) {
+      throw createError('Restaurant not found', 404);
+    }
+
+    // 파일 확장자 결정
+    const extension = path.extname(file.originalname || '').toLowerCase() || 
+      (file.mimetype === 'image/jpeg' ? '.jpg' : 
+       file.mimetype === 'image/png' ? '.png' : 
+       file.mimetype === 'image/webp' ? '.webp' : '.jpg');
+    
+    const fileName = `promotion-${restaurantId}-${Date.now()}${extension}`;
+    const publicDir = path.resolve(__dirname, '../../public');
+    const uploadDir = path.join(publicDir, 'uploads', 'promotion-images');
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const filePath = path.join(uploadDir, fileName);
+    await fs.writeFile(filePath, file.buffer);
+
+    const promotionImageUrl = `/uploads/promotion-images/${fileName}`;
+
+    res.json({
+      success: true,
+      data: {
+        imageUrl: promotionImageUrl,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 스플래시 이미지 삭제 (OWNER/MANAGER only)
+ */
+export const deleteSplashImage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const { restaurantId } = req.params;
+
+    if (!restaurantId) {
+      throw createError('Restaurant ID is required', 400);
+    }
+
+    // 권한 체크
+    const access = await checkRestaurantAccess(authReq.user.userId, restaurantId);
+    if (!access.isOwner && !access.isManager) {
+      throw createError('Only owners or managers can delete splash images', 403);
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (!restaurant) {
+      throw createError('Restaurant not found', 404);
+    }
+
+    const currentSettings = (restaurant.settings as any) || {};
+    const splashImageUrl = currentSettings.splashImageUrl;
+
+    if (splashImageUrl && typeof splashImageUrl === 'string') {
+      try {
+        const publicDir = path.resolve(__dirname, '../../public');
+        const filePath = path.join(publicDir, splashImageUrl);
+        await fs.unlink(filePath).catch(() => {
+          // 파일이 없어도 에러 무시
+        });
+      } catch (error) {
+        console.error('Failed to delete splash image file:', error);
+        // 파일 삭제 실패해도 설정은 업데이트
+      }
+    }
+
+    const updatedSettings = {
+      ...currentSettings,
+    };
+    delete updatedSettings.splashImageUrl;
+
+    await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: {
+        settings: updatedSettings,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Splash image deleted successfully',
+    });
   } catch (error) {
     next(error);
   }

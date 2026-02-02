@@ -17,7 +17,7 @@ import {
   Table, Order, MenuCategory, MenuItem
 } from './data';
 import { mapBackendTableToFrontend, mapBackendOrderToFrontend, mapBackendMenuItemToFrontend } from './utils/mappers';
-import { BackendTable, BackendOrder, BackendMenuItem, BackendChatMessage } from './types/api';
+import { BackendTable, BackendOrder, BackendMenuItem, BackendChatMessage, BackendPromotion } from './types/api';
 
 import { getSubdomain } from '../../../src/utils/subdomain';
 import {
@@ -87,6 +87,7 @@ export function MainApp() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [promotions, setPromotions] = useState<BackendPromotion[]>([]);
   const [isLoadingTables, setIsLoadingTables] = useState(false);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [notificationSoundUrl, setNotificationSoundUrl] = useState<string | null>(null);
@@ -123,11 +124,31 @@ export function MainApp() {
   } | null>(null);
   const recentModalRequestsRef = useRef<Set<string>>(new Set());
 
+  // Load promotions
+  const loadPromotions = async () => {
+    if (!restaurantId) return;
+    
+    try {
+      const result = await apiClient.getPromotions(restaurantId);
+      if (result.success && result.data) {
+        // Map promotionMenuItems to menuItems for convenience
+        const mappedPromotions = result.data.map(promo => ({
+          ...promo,
+          menuItems: promo.promotionMenuItems?.map(pmi => pmi.menuItem) || [],
+        }));
+        setPromotions(mappedPromotions);
+      }
+    } catch (error) {
+      console.error('Error loading promotions:', error);
+    }
+  };
+
   // Load tables, orders, and menu from API when restaurantId is available
   useEffect(() => {
     if (restaurantId && isAuthenticated) {
       loadTables();
       loadMenu();
+      loadPromotions();
     }
   }, [restaurantId, isAuthenticated, language]);
 
@@ -1219,6 +1240,7 @@ export function MainApp() {
                       onOrdersReload={loadOrders}
                       onTablesReload={loadTables}
                       menu={menu}
+                      promotions={promotions}
                       onChatNew={(handler) => {
                         // Store handler reference for SSE event
                         chatNewHandlerRef.current = handler;
@@ -1243,6 +1265,7 @@ export function MainApp() {
                       setOrders={setOrders}
                       onOrdersReload={loadOrders}
                       menu={menu}
+                      promotions={promotions}
                     />
                   </div>
                 )}

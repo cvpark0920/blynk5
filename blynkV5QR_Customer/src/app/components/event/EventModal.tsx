@@ -31,6 +31,18 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
   const popularItems = menuItems.slice(2, 4);
   const dragControls = useDragControls();
 
+  // 활성 프로모션만 필터링 (현재 날짜 기준)
+  const activePromotions = React.useMemo(() => {
+    const now = new Date();
+    return promotions.filter(promo => {
+      if (!promo.isActive) return false;
+      const startDate = new Date(promo.startDate);
+      const endDate = new Date(promo.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      return now >= startDate && now <= endDate;
+    }).sort((a, b) => a.displayOrder - b.displayOrder);
+  }, [promotions]);
+
   const getLocalizedName = (item: any) => {
     if (lang === 'ko') return item.nameKO;
     if (lang === 'vn') return item.nameVN;
@@ -111,9 +123,9 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, lang, m
               <div className="flex flex-col gap-10 pb-10">
                 
                 {/* Promotions Section */}
-                {promotions.length > 0 ? (
+                {activePromotions.length > 0 ? (
                   <div className="px-6 mt-2 space-y-4">
-                    {promotions.map((promo) => (
+                    {activePromotions.map((promo) => (
                       <div key={promo.id} className="relative aspect-[4/3] w-full rounded-3xl overflow-hidden group cursor-pointer">
                         {promo.imageUrl ? (
                           <img 

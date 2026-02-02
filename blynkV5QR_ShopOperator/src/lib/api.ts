@@ -928,6 +928,7 @@ class ApiClient {
     displayOrder?: number;
     isActive?: boolean;
     showOnLoad?: boolean;
+    menuItemIds?: string[];
   }) {
     return this.request<BackendPromotion>(`/api/staff/restaurant/${restaurantId}/promotions`, {
       method: 'POST',
@@ -953,6 +954,7 @@ class ApiClient {
     displayOrder?: number;
     isActive?: boolean;
     showOnLoad?: boolean;
+    menuItemIds?: string[];
   }) {
     return this.request<BackendPromotion>(`/api/staff/restaurant/${restaurantId}/promotions/${promotionId}`, {
       method: 'PUT',
@@ -964,6 +966,128 @@ class ApiClient {
     return this.request(`/api/staff/restaurant/${restaurantId}/promotions/${promotionId}`, {
       method: 'DELETE',
     });
+  }
+
+  // Splash image methods
+  async uploadSplashImage(restaurantId: string, file: File) {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    const token = this.getAuthToken();
+    const endpoint = `/api/staff/restaurant/${restaurantId}/splash-image`;
+    
+    // Use the same URL generation logic as request() method
+    const getRequestUrl = (): string => {
+      const envUrl = import.meta.env.VITE_API_URL;
+      if (envUrl) {
+        const normalized = normalizeApiBaseUrl(envUrl);
+        const hostWithoutPort = window.location.host.split(':')[0];
+        const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+        const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+        const isEnvLocalhost = normalized.includes('localhost') || normalized.includes('127.0.0.1');
+        if (isLocalSubdomain) {
+          return endpoint;
+        }
+        if (!isLocalhost && !isLocalSubdomain && isEnvLocalhost) {
+          return endpoint;
+        }
+        return joinUrl(normalized, endpoint);
+      }
+      
+      // Runtime subdomain check
+      if (typeof window !== 'undefined') {
+        const host = window.location.host;
+        if (host.includes('.localhost:') || host.match(/^shop_\d+\.localhost:/)) {
+          return endpoint; // 상대 경로
+        }
+      }
+      
+      return joinUrl('http://localhost:3000', endpoint);
+    };
+    
+    const url = getRequestUrl();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    // Note: Don't set Content-Type header for FormData - browser will set it automatically with boundary
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async deleteSplashImage(restaurantId: string) {
+    return this.request(`/api/staff/restaurant/${restaurantId}/splash-image`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Promotion image methods
+  async uploadPromotionImage(restaurantId: string, file: File) {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    const token = this.getAuthToken();
+    const endpoint = `/api/staff/restaurant/${restaurantId}/promotion-image`;
+    
+    // Use the same URL generation logic as request() method
+    const getRequestUrl = (): string => {
+      const envUrl = import.meta.env.VITE_API_URL;
+      if (envUrl) {
+        const normalized = normalizeApiBaseUrl(envUrl);
+        const hostWithoutPort = window.location.host.split(':')[0];
+        const isLocalhost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1';
+        const isLocalSubdomain = hostWithoutPort.endsWith('.localhost');
+        const isEnvLocalhost = normalized.includes('localhost') || normalized.includes('127.0.0.1');
+        if (isLocalSubdomain) {
+          return endpoint;
+        }
+        if (!isLocalhost && !isLocalSubdomain && isEnvLocalhost) {
+          return endpoint;
+        }
+        return joinUrl(normalized, endpoint);
+      }
+      
+      // Runtime subdomain check
+      if (typeof window !== 'undefined') {
+        const host = window.location.host;
+        if (host.includes('.localhost:') || host.match(/^shop_\d+\.localhost:/)) {
+          return endpoint; // 상대 경로
+        }
+      }
+      
+      return joinUrl('http://localhost:3000', endpoint);
+    };
+    
+    const url = getRequestUrl();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    // Note: Don't set Content-Type header for FormData - browser will set it automatically with boundary
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
   }
 }
 

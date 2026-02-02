@@ -48,9 +48,9 @@ export function mapBackendTableToFrontend(backendTable: BackendTable): Table {
   
   const frontendStatus = statusMap[backendTable.status] || 'empty';
   
-  // 공석 테이블(EMPTY)은 항상 guests를 0으로 설정
-  // 활성 세션이 있는 경우에만 세션의 guestCount 사용
-  const guests = frontendStatus === 'empty' ? 0 : (activeSession?.guestCount || 0);
+  // 활성 세션이 있으면 세션의 guestCount 사용
+  // 테이블 상태가 EMPTY여도 활성 세션이 있고 guestCount > 0이면 표시
+  const guests = activeSession?.guestCount || 0;
   const orderTime = activeSession?.createdAt ? new Date(activeSession.createdAt) : undefined;
   
   // Calculate total amount from orders

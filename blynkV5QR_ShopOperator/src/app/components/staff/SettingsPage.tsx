@@ -5,11 +5,12 @@ import { TableManagement } from './TableManagement';
 import { PaymentMethodManagement } from './PaymentMethodManagement';
 import { QuickChipsManagement } from './QuickChipsManagement';
 import { PromotionManager } from './PromotionManager';
+import { SplashImageManager } from './SplashImageManager';
 import { Staff, MenuItem, MenuCategory, Table } from '../../data';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { UtensilsCrossed, Users, LayoutGrid, CreditCard, MessageSquare, Tag } from 'lucide-react';
+import { UtensilsCrossed, Users, LayoutGrid, CreditCard, MessageSquare, Tag, Image } from 'lucide-react';
 
 interface SettingsPageProps {
   // Menu Props
@@ -68,6 +69,10 @@ export function SettingsPage({
     (userRole && ['OWNER', 'MANAGER'].includes(userRole)) ||
     (currentUser?.role && ['owner', 'manager'].includes(currentUser.role.toLowerCase()));
   
+  const canManageSplashImage =
+    (userRole && ['OWNER', 'MANAGER'].includes(userRole)) ||
+    (currentUser?.role && ['owner', 'manager'].includes(currentUser.role.toLowerCase()));
+  
   // Check if user is OWNER (only OWNER can manage payment methods)
   const isOwner = 
     userRole === 'OWNER' ||
@@ -115,6 +120,16 @@ export function SettingsPage({
                     >
                         <Tag size={16} className="text-muted-foreground group-data-[state=active]:text-primary group-hover:text-primary transition-colors" />
                         <span className="text-sm font-medium text-foreground/80 group-data-[state=active]:text-primary group-hover:text-primary transition-colors">프로모션</span>
+                    </TabsTrigger>
+                )}
+                {canManageSplashImage && (
+                    <TabsTrigger 
+                      value="splash-image" 
+                      className="gap-2 px-4 py-2 bg-card rounded-full shadow-sm border border-border active:scale-95 transition-all flex-shrink-0 group data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 hover:border-primary/30 hover:bg-primary/10" 
+                      aria-label={t('settings.tab_splash_image')}
+                    >
+                        <Image size={16} className="text-muted-foreground group-data-[state=active]:text-primary group-hover:text-primary transition-colors" />
+                        <span className="text-sm font-medium text-foreground/80 group-data-[state=active]:text-primary group-hover:text-primary transition-colors">{t('settings.tab_splash_image')}</span>
                     </TabsTrigger>
                 )}
                 {canManageStaff && (
@@ -176,6 +191,11 @@ export function SettingsPage({
             {canManagePromotions && (
                 <TabsContent value="promotions" className="m-0 h-full border-none">
                     <PromotionManager isEmbedded={true} />
+                </TabsContent>
+            )}
+            {canManageSplashImage && (
+                <TabsContent value="splash-image" className="m-0 h-full border-none">
+                    <SplashImageManager isEmbedded={true} />
                 </TabsContent>
             )}
             {isOwner && (

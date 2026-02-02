@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { MenuItem, CartItem, MenuOption } from '../../types';
-import { MenuCategory } from '../../../lib/api';
+import { MenuCategory, Promotion } from '../../../lib/api';
 import { CurrencyDisplay } from '../CurrencyDisplay';
 import { X, Plus, Minus, ShoppingBag, Check, Trash2, ArrowLeft, ChevronUp, UtensilsCrossed } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
@@ -36,7 +36,8 @@ const MenuItemCard: React.FC<{
   addToCart: (item: MenuItem, options?: MenuOption[]) => void;
   removeFromCart: (itemId: string) => void;
   lang: LangType;
-}> = ({ item, cart, addToCart, removeFromCart, lang }) => {
+  promotions?: Promotion[];
+}> = ({ item, cart, addToCart, removeFromCart, lang, promotions = [] }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState<MenuOption[]>([]);
   
@@ -58,7 +59,32 @@ const MenuItemCard: React.FC<{
     setSelectedOptions([]); // Reset
   };
 
-  const currentPrice = item.priceVND + selectedOptions.reduce((sum, opt) => sum + opt.priceVND, 0);
+  // Find active promotion for this menu item
+  const getActivePromotion = () => {
+    const now = new Date();
+    return promotions.find(promo => {
+      if (!promo.isActive || !promo.discountPercent) return false;
+      const startDate = new Date(promo.startDate);
+      const endDate = new Date(promo.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      if (now < startDate || now > endDate) return false;
+      
+      // Check if this menu item is in the promotion
+      const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                          promo.menuItems?.map(mi => mi.id) || [];
+      return menuItemIds.includes(item.id);
+    });
+  };
+
+  const activePromotion = getActivePromotion();
+  const calculateDiscountedPrice = (price: number) => {
+    if (!activePromotion?.discountPercent) return price;
+    return Math.floor(price * (1 - activePromotion.discountPercent / 100));
+  };
+
+  const originalPrice = item.priceVND + selectedOptions.reduce((sum, opt) => sum + opt.priceVND, 0);
+  const discountedPrice = calculateDiscountedPrice(item.priceVND) + selectedOptions.reduce((sum, opt) => sum + opt.priceVND, 0);
+  const currentPrice = activePromotion ? discountedPrice : originalPrice;
 
   // Localization Logic
   const primaryName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : lang === 'ru' ? (item.nameRU || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
@@ -66,7 +92,10 @@ const MenuItemCard: React.FC<{
   const description = lang === 'ko' ? item.descriptionKO : lang === 'vn' ? item.descriptionVN : lang === 'zh' ? (item.descriptionZH || item.descriptionEN || item.descriptionKO) : lang === 'ru' ? (item.descriptionRU || item.descriptionEN || item.descriptionKO) : (item.descriptionEN || item.descriptionKO);
 
   return (
-    <div className={`bg-card rounded-2xl overflow-hidden border transition-all duration-200 hover:border-border/70 ${isExpanded ? 'border-primary/30 ring-1 ring-primary/10' : 'border-border/60'} shadow-[0_1px_4px_rgba(0,0,0,0.04)]`}>
+    <div 
+      id={`menu-item-${item.id}`}
+      className={`bg-card rounded-2xl overflow-hidden border transition-all duration-200 hover:border-border/70 ${isExpanded ? 'border-primary/30 ring-1 ring-primary/10' : 'border-border/60'} shadow-[0_1px_4px_rgba(0,0,0,0.04)]`}
+    >
       {/* 이미지 영역 */}
       <div className="relative aspect-[4/3] bg-muted overflow-hidden">
         <img 
@@ -79,6 +108,13 @@ const MenuItemCard: React.FC<{
         {quantity > 0 && (
           <div className="absolute top-2 right-2 bg-primary/90 text-primary-foreground text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-sm">
             {quantity}
+          </div>
+        )}
+        
+        {/* 프로모션 할인 배지 */}
+        {activePromotion && (
+          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+            {activePromotion.discountPercent}% 할인
           </div>
         )}
       </div>
@@ -113,7 +149,18 @@ const MenuItemCard: React.FC<{
         ) : (
           quantity > 0 ? (
             <div className="flex items-center gap-2.5">
-              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-foreground flex-1" />
+              <div className="flex-1">
+                {activePromotion ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground line-through">
+                      <CurrencyDisplay amountVND={item.priceVND} className="text-[10px]" />
+                    </span>
+                    <CurrencyDisplay amountVND={calculateDiscountedPrice(item.priceVND)} className="text-xs font-bold text-primary" />
+                  </div>
+                ) : (
+                  <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-foreground" />
+                )}
+              </div>
               <div className="flex items-center gap-0.5 bg-muted rounded-lg px-1 py-0.5 border border-border">
                 <button 
                   onClick={() => removeFromCart(item.id)}
@@ -132,7 +179,16 @@ const MenuItemCard: React.FC<{
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-foreground flex-1" />
+              {activePromotion ? (
+                <div className="flex items-center gap-1.5 flex-1">
+                  <span className="text-[10px] text-muted-foreground line-through">
+                    <CurrencyDisplay amountVND={item.priceVND} className="text-[10px]" />
+                  </span>
+                  <CurrencyDisplay amountVND={calculateDiscountedPrice(item.priceVND)} className="text-xs font-bold text-primary" />
+                </div>
+              ) : (
+                <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-foreground flex-1" />
+              )}
               <button 
                 onClick={() => addToCart(item)}
                 className="h-7 w-7 flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm active:scale-95 transition-all"
@@ -195,9 +251,20 @@ const MenuItemCard: React.FC<{
                 className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md shadow-black/10 font-medium flex items-center justify-center gap-2"
               >
                 <span>{UI_TEXT.addToCartBtn[lang]}</span>
-                <span className="bg-primary-foreground/20 px-1.5 py-0.5 rounded text-xs">
-                  {currentPrice.toLocaleString()} ₫
-                </span>
+                <div className="flex items-center gap-1.5 bg-primary-foreground/20 px-1.5 py-0.5 rounded text-xs">
+                  {activePromotion && originalPrice !== currentPrice ? (
+                    <>
+                      <span className="line-through text-[10px] opacity-70">
+                        {originalPrice.toLocaleString()} ₫
+                      </span>
+                      <span className="font-bold">
+                        {currentPrice.toLocaleString()} ₫
+                      </span>
+                    </>
+                  ) : (
+                    <span>{currentPrice.toLocaleString()} ₫</span>
+                  )}
+                </div>
               </Button>
             </div>
           </motion.div>
@@ -218,6 +285,7 @@ interface MenuModalProps {
   menuItems: MenuItem[];
   menuCategories: MenuCategory[];
   isLoadingMenu?: boolean;
+  promotions?: Promotion[];
 }
 
 export const MenuModal: React.FC<MenuModalProps> = ({ 
@@ -230,7 +298,8 @@ export const MenuModal: React.FC<MenuModalProps> = ({
   lang,
   menuItems,
   menuCategories,
-  isLoadingMenu = false
+  isLoadingMenu = false,
+  promotions = []
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [showCartDetails, setShowCartDetails] = useState(defaultShowCart);
@@ -406,7 +475,41 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                  ) : (
                     cart.map((item, index) => {
                       const itemName = lang === 'ko' ? item.nameKO : lang === 'vn' ? item.nameVN : lang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : lang === 'ru' ? (item.nameRU || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-                      const itemSub = lang === 'vn' ? (item.nameEN || item.nameKO) : lang === 'zh' ? item.nameVN : lang === 'ru' ? item.nameVN : item.nameVN;
+                      
+                      // 프로모션 확인
+                      const getActivePromotionForCartItem = () => {
+                        const now = new Date();
+                        return promotions.find(promo => {
+                          if (!promo.isActive || !promo.discountPercent) return false;
+                          const startDate = new Date(promo.startDate);
+                          const endDate = new Date(promo.endDate);
+                          endDate.setHours(23, 59, 59, 999);
+                          if (now < startDate || now > endDate) return false;
+                          
+                          const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                              promo.menuItems?.map(mi => mi.id) || [];
+                          return menuItemIds.includes(item.id);
+                        });
+                      };
+                      
+                      const activePromotion = getActivePromotionForCartItem();
+                      const calculateDiscountedPrice = (price: number) => {
+                        if (!activePromotion?.discountPercent) return price;
+                        return Math.floor(price * (1 - activePromotion.discountPercent / 100));
+                      };
+                      
+                      // 주 메뉴 가격 (프로모션 할인 적용)
+                      const mainItemPrice = activePromotion ? calculateDiscountedPrice(item.priceVND) : item.priceVND;
+                      const mainItemOriginalPrice = item.priceVND;
+                      
+                      // 옵션 총액 (할인 없음)
+                      const optionsTotal = (item.selectedOptions?.reduce((s, o) => s + o.priceVND, 0) || 0);
+                      
+                      // 항목당 총액 = (할인된 주 메뉴 가격 + 옵션 총액)
+                      const itemUnitTotal = mainItemPrice + optionsTotal;
+                      
+                      // 수량별 총액
+                      const itemTotal = itemUnitTotal * item.quantity;
                       
                       return (
                         <div key={index} className="bg-card p-3 rounded-xl border border-border flex gap-3 shadow-sm">
@@ -417,21 +520,56 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                             <div className="flex justify-between items-start">
                               <div>
                                 <h4 className="font-bold text-foreground truncate pr-2 leading-tight">{itemName}</h4>
-                                <p className="text-xs text-muted-foreground truncate">{itemSub}</p>
                               </div>
                               <button onClick={() => updateQuantity(index, -item.quantity)} className="text-muted-foreground hover:text-destructive p-1 -mr-1">
                                 <Trash2 size={18} />
                               </button>
                             </div>
                             
-                            {item.selectedOptions && item.selectedOptions.length > 0 && (
-                              <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
-                                └ {item.selectedOptions.map(o => lang === 'ko' ? o.labelKO : lang === 'vn' ? o.labelVN : lang === 'zh' ? (o.labelZH || o.labelEN || o.labelKO) : lang === 'ru' ? (o.labelRU || o.labelEN || o.labelKO) : (o.labelEN || o.labelKO)).join(', ')}
+                            {/* 주 메뉴 가격 */}
+                            <div className="mt-2 space-y-1">
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">{itemName}</span>
+                                <div className="flex items-center gap-2">
+                                  {activePromotion && mainItemOriginalPrice !== mainItemPrice && (
+                                    <span className="text-xs text-muted-foreground line-through">
+                                      <CurrencyDisplay amountVND={mainItemOriginalPrice} className="text-xs" />
+                                    </span>
+                                  )}
+                                  <CurrencyDisplay 
+                                    amountVND={mainItemPrice} 
+                                    className={activePromotion ? "text-sm font-semibold text-primary" : "text-sm font-semibold"} 
+                                  />
+                                </div>
                               </div>
-                            )}
+                              
+                              {/* 옵션 항목들 */}
+                              {item.selectedOptions && item.selectedOptions.length > 0 && (
+                                <div className="space-y-0.5 pl-2 border-l-2 border-muted">
+                                  {item.selectedOptions.map((option, optIndex) => {
+                                    const optionName = lang === 'ko' ? option.labelKO : 
+                                                      lang === 'vn' ? option.labelVN : 
+                                                      lang === 'zh' ? (option.labelZH || option.labelEN || option.labelKO) : 
+                                                      lang === 'ru' ? (option.labelRU || option.labelEN || option.labelKO) : 
+                                                      (option.labelEN || option.labelKO);
+                                    return (
+                                      <div key={optIndex} className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground">└ {optionName}</span>
+                                        <CurrencyDisplay amountVND={option.priceVND} className="text-xs" />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
 
-                            <div className="flex justify-between items-end mt-2">
-                              <CurrencyDisplay amountVND={(item.priceVND + (item.selectedOptions?.reduce((s,o)=>s+o.priceVND,0)||0)) * item.quantity} />
+                            <div className="flex justify-between items-end mt-3 pt-2 border-t border-border">
+                              <div className="flex flex-col items-end">
+                                <div className="text-xs text-muted-foreground mb-0.5">
+                                  {lang === 'ko' ? '합계' : lang === 'vn' ? 'Tổng' : lang === 'zh' ? '合计' : lang === 'ru' ? 'Итого' : 'Total'}
+                                </div>
+                                <CurrencyDisplay amountVND={itemTotal} className="text-base font-bold" />
+                              </div>
                               
                               <div className="flex items-center gap-3 bg-muted rounded-lg p-1 border border-border">
                                 <button onClick={() => updateQuantity(index, -1)} className="w-6 h-6 flex items-center justify-center bg-card rounded shadow-sm border border-border text-muted-foreground active:bg-muted">
@@ -470,6 +608,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                       addToCart={addToCart} 
                       removeFromCart={removeFromCart} 
                       lang={lang}
+                      promotions={promotions}
                     />
                   ))}
                 </div>

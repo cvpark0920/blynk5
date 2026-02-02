@@ -193,38 +193,155 @@ export const BlynkApp: React.FC = () => {
 
     const loadPromotions = async () => {
       try {
+        console.log('[BlynkApp] 프로모션 로드 시작:', { restaurantId });
+        debugLog('[BlynkApp] 프로모션 로드 시작:', { restaurantId });
         const response = await apiClient.getPromotions(restaurantId);
+        console.log('[BlynkApp] 프로모션 API 응답:', response);
+        debugLog('[BlynkApp] 프로모션 API 응답:', response);
+        
         if (response.success && response.data) {
-          setPromotions(response.data);
+          // 원본 데이터 전체 구조 확인
+          console.log('[BlynkApp] 원본 프로모션 데이터 (전체):', JSON.stringify(response.data, null, 2));
+          
+          console.log('[BlynkApp] 원본 프로모션 데이터 (요약):', {
+            count: response.data.length,
+            promotions: response.data.map(p => ({
+              id: p.id,
+              titleKo: p.titleKo,
+              hasPromotionMenuItems: !!p.promotionMenuItems,
+              promotionMenuItemsLength: p.promotionMenuItems?.length || 0,
+              promotionMenuItems: p.promotionMenuItems?.map(pmi => ({
+                id: pmi.id,
+                menuItemId: pmi.menuItemId,
+                hasMenuItem: !!pmi.menuItem,
+                menuItemName: pmi.menuItem?.nameKo,
+                menuItemImageUrl: pmi.menuItem?.imageUrl,
+              })) || [],
+              hasMenuItems: !!p.menuItems,
+              menuItemsLength: p.menuItems?.length || 0,
+              menuItems: p.menuItems?.map(mi => ({
+                id: mi.id,
+                nameKo: mi.nameKo,
+                imageUrl: mi.imageUrl,
+              })) || [],
+            })),
+          });
+          
+          // Map promotionMenuItems to menuItems for convenience
+          const mappedPromotions = response.data.map(promo => ({
+            ...promo,
+            menuItems: promo.promotionMenuItems?.map(pmi => pmi.menuItem).filter(Boolean) || promo.menuItems || [],
+          }));
+          
+          console.log('[BlynkApp] 매핑된 프로모션:', {
+            count: mappedPromotions.length,
+            promotions: mappedPromotions.map(p => ({
+              id: p.id,
+              titleKo: p.titleKo,
+              isActive: p.isActive,
+              showOnLoad: p.showOnLoad,
+              startDate: p.startDate,
+              endDate: p.endDate,
+              menuItemsCount: p.menuItems?.length || 0,
+              menuItems: p.menuItems?.map(mi => ({
+                id: mi.id,
+                nameKo: mi.nameKo,
+                imageUrl: mi.imageUrl,
+              })) || [],
+            })),
+          });
+          debugLog('[BlynkApp] 매핑된 프로모션:', {
+            count: mappedPromotions.length,
+            promotions: mappedPromotions.map(p => ({
+              id: p.id,
+              titleKo: p.titleKo,
+              isActive: p.isActive,
+              showOnLoad: p.showOnLoad,
+              startDate: p.startDate,
+              endDate: p.endDate,
+              menuItemsCount: p.menuItems?.length || 0,
+            })),
+          });
+          
+          setPromotions(mappedPromotions);
           
           // 로딩 시 팝업으로 표시할 프로모션 확인
           const now = new Date();
           const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const todayStr = today.toISOString().split('T')[0];
           
-          const popupPromotions = response.data.filter(promo => {
-            if (!promo.showOnLoad || !promo.isActive) return false;
+          const popupPromotions = mappedPromotions.filter(promo => {
+            if (!promo.showOnLoad) {
+              console.log('[BlynkApp] 프로모션 제외 (showOnLoad=false):', promo.id, promo.titleKo);
+              return false;
+            }
+            if (!promo.isActive) {
+              console.log('[BlynkApp] 프로모션 제외 (isActive=false):', promo.id, promo.titleKo);
+              return false;
+            }
             
             const startDate = new Date(promo.startDate);
             const endDate = new Date(promo.endDate);
             endDate.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
             
-            if (now < startDate || now > endDate) return false;
+            if (now < startDate) {
+              console.log('[BlynkApp] 프로모션 제외 (시작일 전):', {
+                id: promo.id,
+                titleKo: promo.titleKo,
+                now: now.toISOString(),
+                startDate: startDate.toISOString(),
+              });
+              return false;
+            }
+            if (now > endDate) {
+              console.log('[BlynkApp] 프로모션 제외 (종료일 후):', {
+                id: promo.id,
+                titleKo: promo.titleKo,
+                now: now.toISOString(),
+                endDate: endDate.toISOString(),
+              });
+              return false;
+            }
             
             // 오늘 하루 안보이기 체크
             const hiddenKey = `promotion_hidden_${promo.id}_${todayStr}`;
-            return !localStorage.getItem(hiddenKey);
+            const isHidden = localStorage.getItem(hiddenKey);
+            if (isHidden) {
+              console.log('[BlynkApp] 프로모션 제외 (오늘 하루 안보기):', promo.id, promo.titleKo);
+              return false;
+            }
+            
+            console.log('[BlynkApp] 프로모션 팝업 표시 대상:', promo.id, promo.titleKo);
+            return true;
+          });
+          
+          console.log('[BlynkApp] 팝업 표시 대상 프로모션:', {
+            count: popupPromotions.length,
+            promotions: popupPromotions.map(p => ({ id: p.id, titleKo: p.titleKo, displayOrder: p.displayOrder })),
           });
           
           // displayOrder 순서대로 정렬하고 첫 번째 프로모션 표시
           if (popupPromotions.length > 0) {
             const sortedPromotions = popupPromotions.sort((a, b) => a.displayOrder - b.displayOrder);
+            console.log('[BlynkApp] 프로모션 팝업 표시:', sortedPromotions[0].id, sortedPromotions[0].titleKo);
             setCurrentPromotion(sortedPromotions[0]);
             setShowPromotionPopup(true);
+          } else {
+            console.log('[BlynkApp] 표시할 프로모션 없음 - 모든 프로모션:', mappedPromotions.map(p => ({
+              id: p.id,
+              titleKo: p.titleKo,
+              isActive: p.isActive,
+              showOnLoad: p.showOnLoad,
+              startDate: p.startDate,
+              endDate: p.endDate,
+            })));
           }
+        } else {
+          console.error('[BlynkApp] 프로모션 로드 실패:', response.error);
         }
       } catch (error) {
-        console.error('Failed to load promotions:', error);
+        console.error('[BlynkApp] 프로모션 로드 중 오류:', error);
+        debugLog('[BlynkApp] 프로모션 로드 중 오류:', error);
       }
     };
 
@@ -1210,6 +1327,7 @@ export const BlynkApp: React.FC = () => {
             transition={{ duration: 1.0, ease: "easeInOut" }}
           >
             <LanguageSelector 
+              splashImageUrl={restaurant?.splashImageUrl}
               onComplete={() => setShowIntro(false)}
               restaurantName={restaurant?.nameKo || restaurant?.nameVn || null}
             />
@@ -1319,7 +1437,7 @@ export const BlynkApp: React.FC = () => {
            </span>
         </div>
         {messages.map(msg => (
-          <ChatBubble key={msg.id} message={msg} />
+          <ChatBubble key={msg.id} message={msg} promotions={promotions} />
         ))}
       </div>
 
@@ -1454,6 +1572,7 @@ export const BlynkApp: React.FC = () => {
         menuItems={menuItems}
         menuCategories={menuCategories}
         isLoadingMenu={isLoadingMenu}
+        promotions={promotions}
       />
       <BillModal
         isOpen={isBillOpen}
@@ -1466,6 +1585,7 @@ export const BlynkApp: React.FC = () => {
         tableNumber={tableNumber}
         onPaymentRequest={handlePaymentRequest}
         onTransferComplete={handleTransferComplete}
+        promotions={promotions}
       />
       <EventModal
         isOpen={isEventOpen}
@@ -1497,6 +1617,76 @@ export const BlynkApp: React.FC = () => {
           }}
           promotion={currentPromotion}
           lang={userLang}
+          menuItems={currentPromotion.menuItems || []}
+          cart={cart}
+          setCart={setCart}
+          onAddToCart={(frontendItem, options) => {
+            // 옵션 선택 후 장바구니에 추가
+            setCart(prev => {
+              const optionsKey = (opts?: MenuOption[]) => 
+                (opts || []).map(o => o.id).sort().join(',');
+              
+              const newKey = optionsKey(options);
+              
+              const existing = prev.find(i => 
+                i.id === frontendItem.id && 
+                optionsKey(i.selectedOptions) === newKey
+              );
+              
+              if (existing) {
+                return prev.map(i => i === existing ? { ...i, quantity: i.quantity + 1 } : i);
+              }
+              return [...prev, { ...frontendItem, quantity: 1, selectedOptions: options }];
+            });
+          }}
+          onMenuClick={(backendMenuItem) => {
+            // Convert backend MenuItem to frontend MenuItem
+            const options = (backendMenuItem.optionGroups && Array.isArray(backendMenuItem.optionGroups) 
+              ? backendMenuItem.optionGroups.flatMap(group => 
+                  (group.options && Array.isArray(group.options)
+                    ? group.options.map(opt => ({
+                        id: opt.id,
+                        labelKO: opt.nameKo,
+                        labelVN: opt.nameVn,
+                        labelEN: opt.nameEn,
+                        labelZH: (opt as any).nameZh,
+                        labelRU: (opt as any).nameRu,
+                        priceVND: opt.priceVnd,
+                      }))
+                    : [])
+                )
+              : []).filter(Boolean);
+
+            const frontendMenuItem: FrontendMenuItem = {
+              id: backendMenuItem.id,
+              nameKO: backendMenuItem.nameKo,
+              nameVN: backendMenuItem.nameVn,
+              nameEN: backendMenuItem.nameEn,
+              nameZH: (backendMenuItem as any).nameZh,
+              nameRU: (backendMenuItem as any).nameRu,
+              priceVND: backendMenuItem.priceVnd,
+              category: 'food', // 기본값
+              categoryId: backendMenuItem.categoryId || '',
+              imageQuery: backendMenuItem.imageUrl || '',
+              descriptionKO: backendMenuItem.descriptionKo,
+              descriptionVN: backendMenuItem.descriptionVn,
+              descriptionRU: (backendMenuItem as any).descriptionRu,
+              descriptionEN: backendMenuItem.descriptionEn,
+              descriptionZH: (backendMenuItem as any).descriptionZh,
+              options: options.length > 0 ? options : undefined,
+            };
+
+            // Open MenuModal and scroll to the menu item
+            setIsMenuOpen(true);
+            setActiveTab('menu');
+            // Small delay to ensure modal is open before scrolling
+            setTimeout(() => {
+              const element = document.getElementById(`menu-item-${frontendMenuItem.id}`);
+              if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 100);
+          }}
         />
       )}
       </div>

@@ -311,4 +311,11 @@ export interface BackendPromotion {
   showOnLoad: boolean;
   createdAt: string;
   updatedAt: string;
+  promotionMenuItems?: Array<{
+    id: string;
+    promotionId: string;
+    menuItemId: string;
+    menuItem: BackendMenuItem;
+  }>;
+  menuItems?: BackendMenuItem[]; // Convenience field mapped from promotionMenuItems
 }

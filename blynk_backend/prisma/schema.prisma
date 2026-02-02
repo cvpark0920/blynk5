@@ -137,6 +137,7 @@ model MenuItem {
   category      MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   optionGroups  MenuOptionGroup[]
   orderItems    OrderItem[]
+  promotionMenuItems PromotionMenuItem[]
 
   @@index([categoryId])
   @@index([restaurantId])
@@ -478,11 +479,26 @@ model Promotion {
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
   restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  promotionMenuItems PromotionMenuItem[]
 
   @@index([restaurantId])
   @@index([startDate, endDate])
   @@index([isActive])
   @@map("promotions")
+}
+
+model PromotionMenuItem {
+  id          String     @id @default(cuid())
+  promotionId String     @map("promotion_id")
+  menuItemId  String     @map("menu_item_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  promotion   Promotion  @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, menuItemId])
+  @@index([promotionId])
+  @@index([menuItemId])
+  @@map("promotion_menu_items")
 }
 
 model PushSubscription {

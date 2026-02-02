@@ -6,6 +6,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { apiClient } from '../../../lib/api';
 import { formatPriceVND } from '../../utils/priceFormat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { BackendPromotion } from '../../types/api';
 
 interface OrderFeedProps {
   orders: Order[];
@@ -13,13 +14,15 @@ interface OrderFeedProps {
   onOrdersReload?: () => void;
 }
 
-export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: OrderFeedProps & { menu?: Array<{ id: string; name: string; imageUrl?: string }> }) {
+export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [], promotions = [] }: OrderFeedProps & { menu?: Array<{ id: string; name: string; imageUrl?: string }>; promotions?: BackendPromotion[] }) {
   const { t } = useLanguage();
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
     const width = window.innerWidth;
     const mobile = width < 768;
-    console.log('[OrderFeed] Initial isMobile check:', { width, mobile });
+    if (import.meta.env.DEV) {
+      console.log('[OrderFeed] Initial isMobile check:', { width, mobile });
+    }
     return mobile;
   });
   
@@ -27,7 +30,9 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
     const checkMobile = () => {
       const width = window.innerWidth;
       const mobile = width < 768;
-      console.log('[OrderFeed] Resize check:', { width, mobile });
+      if (import.meta.env.DEV) {
+        console.log('[OrderFeed] Resize check:', { width, mobile });
+      }
       setIsMobile(mobile);
     };
     checkMobile();
@@ -189,6 +194,39 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                           <div className="px-4 pb-4 space-y-2.5">
                             {order.items.map((item, idx) => {
                               const menuItem = menu.find(m => m.name === item.name);
+                              
+                              // 프로모션 할인 계산
+                              const getActivePromotionForMenuItem = (menuItemId: string) => {
+                                const now = new Date();
+                                return promotions.find(promo => {
+                                  if (!promo.isActive || !promo.discountPercent) return false;
+                                  const startDate = new Date(promo.startDate);
+                                  const endDate = new Date(promo.endDate);
+                                  endDate.setHours(23, 59, 59, 999);
+                                  if (now < startDate || now > endDate) return false;
+                                  
+                                  const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                                      promo.menuItems?.map(mi => mi.id) || [];
+                                  return menuItemIds.includes(menuItemId);
+                                });
+                              };
+
+                              const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                                if (!discountPercent) return originalPrice;
+                                return Math.floor(originalPrice * (1 - discountPercent / 100));
+                              };
+
+                              const menuItemId = item.menuItemId || menuItem?.id;
+                              const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                              const originalUnitPrice = item.unitPrice || (item.price / item.quantity);
+                              const discountedUnitPrice = activePromotion 
+                                ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                                : originalUnitPrice;
+                              
+                              const optionsTotal = item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                sum + (opt.price * opt.quantity), 0) || 0;
+                              const itemTotal = (discountedUnitPrice * item.quantity) + optionsTotal;
+                              
                               return (
                                 <div key={idx} className="flex items-start gap-2.5">
                                   <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
@@ -203,10 +241,23 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                                   <div className="flex-1 min-w-0 pt-0.5">
                                     <div className="flex items-start justify-between gap-2">
                                       <span className="text-sm font-semibold text-zinc-900 leading-snug">{item.name}</span>
-                                      <span className="text-xs font-bold text-zinc-600 shrink-0">{formatPriceVND(item.price)}</span>
+                                      <span className="text-xs font-bold text-zinc-600 shrink-0">{formatPriceVND(itemTotal)}</span>
                                     </div>
                                     <div className="text-xs text-zinc-500 mt-0.5">
-                                      {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
+                                      {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                        <span className="flex items-center gap-1">
+                                          <span className="line-through opacity-60">
+                                            {formatPriceVND(originalUnitPrice)}
+                                          </span>
+                                          <span>
+                                            {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                          </span>
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                        </span>
+                                      )}
                                     </div>
                                     {item.options && item.options.length > 0 && (
                                       <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-zinc-200">
@@ -287,6 +338,39 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                           <div className="px-4 pb-4 space-y-2.5">
                             {order.items.map((item, idx) => {
                               const menuItem = menu.find(m => m.name === item.name);
+                              
+                              // 프로모션 할인 계산
+                              const getActivePromotionForMenuItem = (menuItemId: string) => {
+                                const now = new Date();
+                                return promotions.find(promo => {
+                                  if (!promo.isActive || !promo.discountPercent) return false;
+                                  const startDate = new Date(promo.startDate);
+                                  const endDate = new Date(promo.endDate);
+                                  endDate.setHours(23, 59, 59, 999);
+                                  if (now < startDate || now > endDate) return false;
+                                  
+                                  const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                                      promo.menuItems?.map(mi => mi.id) || [];
+                                  return menuItemIds.includes(menuItemId);
+                                });
+                              };
+
+                              const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                                if (!discountPercent) return originalPrice;
+                                return Math.floor(originalPrice * (1 - discountPercent / 100));
+                              };
+
+                              const menuItemId = item.menuItemId || menuItem?.id;
+                              const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                              const originalUnitPrice = item.unitPrice || (item.price / item.quantity);
+                              const discountedUnitPrice = activePromotion 
+                                ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                                : originalUnitPrice;
+                              
+                              const optionsTotal = item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                sum + (opt.price * opt.quantity), 0) || 0;
+                              const itemTotal = (discountedUnitPrice * item.quantity) + optionsTotal;
+                              
                               return (
                                 <div key={idx} className="flex items-start gap-2.5">
                                   <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
@@ -302,15 +386,24 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                                     <div className="flex items-start justify-between gap-2">
                                       <span className="text-sm font-semibold text-zinc-700 leading-snug">{item.name}</span>
                                       <span className="text-xs font-bold text-zinc-600 shrink-0">
-                                        {formatPriceVND(
-                                          (item.unitPrice || 0) * item.quantity + 
-                                          (item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
-                                            sum + (opt.price * opt.quantity), 0) || 0)
-                                        )}
+                                        {formatPriceVND(itemTotal)}
                                       </span>
                                     </div>
                                     <div className="text-xs text-zinc-500 mt-0.5">
-                                      {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
+                                      {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                        <span className="flex items-center gap-1">
+                                          <span className="line-through opacity-60">
+                                            {formatPriceVND(originalUnitPrice)}
+                                          </span>
+                                          <span>
+                                            {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                          </span>
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                        </span>
+                                      )}
                                     </div>
                                     {item.options && item.options.length > 0 && (
                                       <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-zinc-200">
@@ -396,6 +489,39 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                             <div className="px-4 pb-4 space-y-2.5">
                               {order.items.map((item, idx) => {
                                 const menuItem = menu.find(m => m.name === item.name);
+                                
+                                // 프로모션 할인 계산
+                                const getActivePromotionForMenuItem = (menuItemId: string) => {
+                                  const now = new Date();
+                                  return promotions.find(promo => {
+                                    if (!promo.isActive || !promo.discountPercent) return false;
+                                    const startDate = new Date(promo.startDate);
+                                    const endDate = new Date(promo.endDate);
+                                    endDate.setHours(23, 59, 59, 999);
+                                    if (now < startDate || now > endDate) return false;
+                                    
+                                    const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                                        promo.menuItems?.map(mi => mi.id) || [];
+                                    return menuItemIds.includes(menuItemId);
+                                  });
+                                };
+
+                                const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                                  if (!discountPercent) return originalPrice;
+                                  return Math.floor(originalPrice * (1 - discountPercent / 100));
+                                };
+
+                                const menuItemId = item.menuItemId || menuItem?.id;
+                                const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                                const originalUnitPrice = item.unitPrice || (item.price / item.quantity);
+                                const discountedUnitPrice = activePromotion 
+                                  ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                                  : originalUnitPrice;
+                                
+                                const optionsTotal = item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                  sum + (opt.price * opt.quantity), 0) || 0;
+                                const itemTotal = (discountedUnitPrice * item.quantity) + optionsTotal;
+                                
                                 return (
                                   <div key={idx} className="flex items-start gap-2.5">
                                     <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
@@ -411,15 +537,24 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
                                       <div className="flex items-start justify-between gap-2">
                                         <span className="text-sm font-semibold text-zinc-700 leading-snug">{item.name}</span>
                                         <span className="text-xs font-bold text-zinc-600 shrink-0">
-                                          {formatPriceVND(
-                                            (item.unitPrice || 0) * item.quantity + 
-                                            (item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
-                                              sum + (opt.price * opt.quantity), 0) || 0)
-                                          )}
+                                          {formatPriceVND(itemTotal)}
                                         </span>
                                       </div>
                                       <div className="text-xs text-zinc-500 mt-0.5">
-                                        {formatPriceVND(item.unitPrice || (item.price / item.quantity))} × {item.quantity}
+                                        {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                          <span className="flex items-center gap-1">
+                                            <span className="line-through opacity-60">
+                                              {formatPriceVND(originalUnitPrice)}
+                                            </span>
+                                            <span>
+                                              {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                            </span>
+                                          </span>
+                                        ) : (
+                                          <span>
+                                            {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                          </span>
+                                        )}
                                       </div>
                                       {item.options && item.options.length > 0 && (
                                         <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-zinc-200">

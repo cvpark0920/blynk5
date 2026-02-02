@@ -11,7 +11,7 @@ import { CheckoutSheet } from './CheckoutSheet';
 import { TableQRCodeModal } from './TableQRCodeModal';
 import { formatPriceVND } from '../../utils/priceFormat';
 import { mapBackendWaitingEntryToFrontend } from '../../utils/mappers';
-import { BackendWaitingEntry, BackendChatMessage } from '../../types/api';
+import { BackendWaitingEntry, BackendChatMessage, BackendPromotion } from '../../types/api';
 import ChatBubble from '../chat/ChatBubble';
 import { QuickActions } from '../chat/QuickActions';
 import {
@@ -63,6 +63,7 @@ interface TableGridProps {
   onOrdersReload?: (tablesOverride?: Table[] | null) => void | Promise<void>;
   onTablesReload?: () => Promise<Table[] | null>; // 테이블 목록 재로드, 반환값으로 주문 필터에 사용
   menu?: Array<{ id: string; name: string; imageUrl?: string }>; // Optional menu for image display
+  promotions?: BackendPromotion[]; // 프로모션 목록
   onChatNew?: (handler: (tableId: number, sessionId: string, sender?: string, messageType?: string) => Promise<void>) => void; // 채팅 메시지 수신 시 호출되는 핸들러 등록 콜백
   onChatRead?: (handler: (sessionId: string, lastReadMessageId: string) => Promise<void>) => void; // 채팅 읽음 상태 변경 시 호출되는 핸들러 등록 콜백
   tableToOpen?: number | null; // 테이블 번호로 테이블 상세 화면 열기
@@ -70,7 +71,7 @@ interface TableGridProps {
   initialActiveTab?: 'orders' | 'chat'; // 테이블이 열릴 때 초기 활성 탭
 }
 
-export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload, onTablesReload, menu = [], onChatNew, onChatRead, tableToOpen, onTableOpened, initialActiveTab }: TableGridProps) {
+export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload, onTablesReload, menu = [], promotions = [], onChatNew, onChatRead, tableToOpen, onTableOpened, initialActiveTab }: TableGridProps) {
   const debugLog = (..._args: unknown[]) => {};
   const { t, language } = useLanguage();
   const { shopRestaurantId: restaurantId, shopUserRole, shopUser } = useUnifiedAuth();
@@ -274,7 +275,9 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
       // Force reload chat messages when switching to chat tab
       // This ensures messages are loaded even if there was a timing issue
       const timeoutId = setTimeout(() => {
-        loadChatMessages(selectedTable.currentSessionId);
+        if (selectedTable.currentSessionId) {
+          loadChatMessages(selectedTable.currentSessionId);
+        }
       }, 100);
       return () => clearTimeout(timeoutId);
     }
@@ -545,7 +548,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
       return;
     }
 
-    console.info('[TableGrid] handleChatRead: found table', { tableId: table.id, tableNumber: table.tableNumber });
+    console.info('[TableGrid] handleChatRead: found table', { tableId: table.id, tableNumber: table.id });
 
     // Recalculate unread chat count for this table
     try {
@@ -1397,6 +1400,24 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   return false;
                 }
                 
+                // 활성 세션이 있는 경우, 활성 세션의 주문만 포함
+                // 이전 세션의 주문이 배지 표시에 영향을 주지 않도록 방지
+                if (table.currentSessionId) {
+                  const belongsToActiveSession = o.sessionId === table.currentSessionId;
+                  if (!belongsToActiveSession) {
+                    console.info('[TableGrid] Order excluded (different session)', {
+                      orderId: o.id,
+                      orderTableId: o.tableId,
+                      orderSessionId: o.sessionId,
+                      tableId: table.id,
+                      tableCurrentSessionId: table.currentSessionId,
+                      tableStatus: table.status,
+                      orderStatus: o.status,
+                    });
+                    return false;
+                  }
+                }
+                
                 // If table is empty, only show very recent orders (within 5 minutes)
                 // This prevents showing stale orders from previous sessions
                 if (table.status === 'empty') {
@@ -1410,17 +1431,21 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     tableStatus: table.status,
                     orderAge,
                     isRecent,
+                    orderSessionId: o.sessionId,
+                    tableCurrentSessionId: table.currentSessionId,
                   });
                   return isRecent;
                 }
                 
-                // For non-empty tables, show all matching orders
+                // For non-empty tables, show orders from active session
                 console.info('[TableGrid] Order included for table', {
                   orderId: o.id,
                   orderTableId: o.tableId,
                   tableId: table.id,
                   tableStatus: table.status,
                   orderStatus: o.status,
+                  orderSessionId: o.sessionId,
+                  tableCurrentSessionId: table.currentSessionId,
                 });
                 return true;
               });
@@ -1440,7 +1465,17 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
               const hasAlert = pendingOrders.length > 0 || activeRequest;
               
               // Determine table status badge based on table status and order statuses
-              // Priority: 청소중 > 결제완료 > 서빙완료 > 조리중 > 식사중 > 주문완료 > 주문중
+              // Priority: 청소중 > 결제완료 > 조리중 > 서빙완료 > 주문중(pending) > 식사중 > 주문완료 > 주문중(empty)
+              // 중요: 활성 세션의 주문만 고려하여 이전 세션의 주문이 배지에 영향을 주지 않도록 함
+              // 배지 표시 규칙:
+              // 1. 청소중: 테이블 상태가 cleaning
+              // 2. 결제완료: dining 상태이고 결제 완료된 주문이 있음
+              // 3. 조리중: 조리 중인 주문이 있음 (pending 주문이 있어도 조리중이 우선)
+              // 4. 서빙완료: 서빙/배달 완료된 주문이 있고 결제가 완료되지 않음
+              // 5. 주문중(pending): pending 상태인 주문이 있음 (새 주문 접수)
+              // 6. 식사중: dining 상태이고 pending 주문이 없고, 서빙/배달 완료된 주문이 있음
+              // 7. 주문완료: ordering 상태이고 pending 주문이 없고, 조리/서빙 완료된 주문이 있음
+              // 8. 주문중(empty): ordering 상태이고 주문이 없음
               let tableStatusBadge: {
                 label: string;
                 color: string;
@@ -1461,7 +1496,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   icon: <RotateCcw size={11} />
                 };
               } else if (table.status === 'dining' && paidOrders.length > 0) {
-                // 결제완료
+                // 결제완료 - 식사 중이고 결제 완료된 주문이 있는 경우
                 tableStatusBadge = {
                   label: t('payment.status.completed') || '결제완료',
                   color: 'emerald',
@@ -1471,7 +1506,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   icon: <CheckCircle2 size={11} />
                 };
               } else if (cookingOrders.length > 0) {
-                // 조리중
+                // 조리중 - 조리 중인 주문이 있는 경우 (최우선)
                 tableStatusBadge = {
                   label: t('order.status.cooking') || '조리중',
                   color: 'blue',
@@ -1481,7 +1516,8 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   icon: <ChefHat size={11} />
                 };
               } else if ((servedOrders.length > 0 || deliveredOrders.length > 0) && paidOrders.length === 0) {
-                // 서빙완료 - 조리/서빙 완료된 주문이 있고 결제가 완료되지 않은 경우
+                // 서빙완료 - 서빙/배달 완료된 주문이 있고 결제가 완료되지 않은 경우
+                // 활성 세션의 주문만 고려하므로 이전 세션의 주문은 포함되지 않음
                 tableStatusBadge = {
                   label: t('order.status.served') || '서빙완료',
                   color: 'zinc',
@@ -1490,17 +1526,29 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   textColor: 'text-white',
                   icon: <CircleCheck size={11} />
                 };
-              } else if (table.status === 'dining' && paidOrders.length === 0) {
+              } else if (table.status === 'dining' && paidOrders.length === 0 && pendingOrders.length === 0 && (servedOrders.length > 0 || deliveredOrders.length > 0)) {
+                // 식사중 - 식사 중이고 대기 중인 주문이 없고, 서빙/배달 완료된 주문이 있는 경우
+                // (실제로 서빙이 완료되어 식사 중인 상태)
                 tableStatusBadge = {
-                  label: t('order.status.served') || '서빙완료',
-                  color: 'zinc',
-                  bgColor: 'bg-zinc-500',
-                  borderColor: 'border-zinc-500',
+                  label: t('status.dining') || '식사중',
+                  color: 'emerald',
+                  bgColor: 'bg-emerald-500',
+                  borderColor: 'border-emerald-500',
                   textColor: 'text-white',
-                  icon: <CircleCheck size={11} />
+                  icon: <UtensilsCrossed size={11} />
+                };
+              } else if (table.status === 'ordering' && pendingOrders.length > 0) {
+                // 주문중 - 주문 대기 중인 주문이 있는 경우 (최우선)
+                tableStatusBadge = {
+                  label: t('status.ordering') || '주문중',
+                  color: 'orange',
+                  bgColor: 'bg-orange-500',
+                  borderColor: 'border-orange-500',
+                  textColor: 'text-white',
+                  icon: <Clock size={11} />
                 };
               } else if (table.status === 'ordering' && pendingOrders.length === 0 && tableOrders.length > 0 && (cookingOrders.length > 0 || servedOrders.length > 0 || deliveredOrders.length > 0)) {
-                // 주문완료 - 주문이 있고 조리 중인 상태
+                // 주문완료 - 주문 중 상태이고 대기 중인 주문이 없고, 조리/서빙 완료된 주문이 있는 경우
                 tableStatusBadge = {
                   label: t('order.status.completed') || '주문완료',
                   color: 'orange',
@@ -1509,8 +1557,8 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   textColor: 'text-white',
                   icon: <CircleCheck size={11} />
                 };
-              } else if (table.status === 'ordering') {
-                // 주문중 - 주문 대기 중이거나 아직 주문이 없는 상태
+              } else if (table.status === 'ordering' && tableOrders.length === 0) {
+                // 주문중 - 주문 대기 중이지만 아직 주문이 없는 상태
                 tableStatusBadge = {
                   label: t('status.ordering') || '주문중',
                   color: 'orange',
@@ -1518,6 +1566,17 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                   borderColor: 'border-orange-500',
                   textColor: 'text-white',
                   icon: <Clock size={11} />
+                };
+              } else if (table.status === 'dining' && pendingOrders.length === 0 && cookingOrders.length === 0 && servedOrders.length === 0 && deliveredOrders.length === 0 && paidOrders.length === 0 && tableOrders.length > 0) {
+                // 식사중 (fallback) - dining 상태이고 주문이 있지만 모든 주문이 처리된 상태
+                // (이 경우는 거의 발생하지 않지만 안전장치)
+                tableStatusBadge = {
+                  label: t('status.dining') || '식사중',
+                  color: 'emerald',
+                  bgColor: 'bg-emerald-500',
+                  borderColor: 'border-emerald-500',
+                  textColor: 'text-white',
+                  icon: <UtensilsCrossed size={11} />
                 };
               }
               
@@ -1750,6 +1809,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     onOrderEntryClick={() => setIsOrderEntryOpen(true)}
                     updatingOrderId={updatingOrderId}
                     menu={menu}
+                    promotions={promotions}
                     formatPriceVND={formatPriceVND}
                     language={language}
                     shopUserRole={shopUserRole}
@@ -1792,6 +1852,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                     onOrderEntryClick={() => setIsOrderEntryOpen(true)}
                     updatingOrderId={updatingOrderId}
                     menu={menu}
+                    promotions={promotions}
                     formatPriceVND={formatPriceVND}
                     language={language}
                     shopUserRole={shopUserRole}
@@ -1844,6 +1905,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
           orders={orders}
           currentSessionId={selectedTable.currentSessionId}
           onCheckoutComplete={handleCheckoutComplete}
+          promotions={promotions}
         />
       )}
 
@@ -1889,7 +1951,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
 function DetailBody({ 
     detailTableId, tables, selectedTable, tableOrders, chatMessages = [], isLoadingChat = false, t, handleReply, handleUpdateOrderStatus, 
     handleSmartAction, handleResetTable, closeTableDetail, getActionButtonText, getActionButtonColor, quickReplies,
-    handleUpdateGuests, handleUpdateMemo, onOrderEntryClick, updatingOrderId, menu = [], formatPriceVND, language = 'ko', shopUserRole,
+    handleUpdateGuests, handleUpdateMemo, onOrderEntryClick, updatingOrderId, menu = [], promotions = [], formatPriceVND, language = 'ko', shopUserRole,
     updateTableToCleaning, onTablesReload, onCheckoutClick, onQRCodeClick, onChatTabOpen, unreadChatCount: unreadChatCountOverride,
     activeTab, setActiveTab
 }: any) {
@@ -2335,6 +2397,39 @@ function DetailBody({
                                                 <div className="px-4 py-3 space-y-2.5">
                                                     {order.items.map((item: any, idx: number) => {
                                                         const menuItem = menu.find(m => m.name === item.name);
+                                                        
+                                                        // 프로모션 할인 계산
+                                                        const getActivePromotionForMenuItem = (menuItemId: string) => {
+                                                            const now = new Date();
+                                                            return promotions.find(promo => {
+                                                                if (!promo.isActive || !promo.discountPercent) return false;
+                                                                const startDate = new Date(promo.startDate);
+                                                                const endDate = new Date(promo.endDate);
+                                                                endDate.setHours(23, 59, 59, 999);
+                                                                if (now < startDate || now > endDate) return false;
+                                                                
+                                                                const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                                                                    promo.menuItems?.map(mi => mi.id) || [];
+                                                                return menuItemIds.includes(menuItemId);
+                                                            });
+                                                        };
+
+                                                        const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                                                            if (!discountPercent) return originalPrice;
+                                                            return Math.floor(originalPrice * (1 - discountPercent / 100));
+                                                        };
+
+                                                        const menuItemId = item.menuItemId || menuItem?.id;
+                                                        const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                                                        const originalUnitPrice = item.unitPrice || 0;
+                                                        const discountedUnitPrice = activePromotion 
+                                                            ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                                                            : originalUnitPrice;
+                                                        
+                                                        const optionsTotal = item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                                            sum + (opt.price * opt.quantity), 0) || 0;
+                                                        const itemTotal = (discountedUnitPrice * item.quantity) + optionsTotal;
+                                                        
                                                         return (
                                                             <div key={idx} className="flex items-start gap-3">
                                                                 <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden shrink-0 border border-border">
@@ -2350,18 +2445,25 @@ function DetailBody({
                                                                     <div className="flex items-start justify-between gap-2 mb-1">
                                                                         <span className="text-sm font-semibold text-foreground leading-snug">{item.name}</span>
                                                                         <span className="text-sm font-bold text-foreground shrink-0">
-                                                                            {formatPriceVND(
-                                                                                (item.unitPrice || 0) * item.quantity + 
-                                                                                (item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
-                                                                                    sum + (opt.price * opt.quantity), 0) || 0)
-                                                                            )}
+                                                                            {formatPriceVND(itemTotal)}
                                                                         </span>
                                                                     </div>
                                                                     <div className="space-y-1">
                                                                         <div className="flex items-center gap-2">
-                                                                            <span className="text-xs text-muted-foreground">
-                                                                                {formatPriceVND(item.unitPrice || 0)} × {item.quantity}
-                                                                            </span>
+                                                                            {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                                                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                                                    <span className="line-through opacity-60">
+                                                                                        {formatPriceVND(originalUnitPrice)}
+                                                                                    </span>
+                                                                                    <span>
+                                                                                        {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                                                                    </span>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-xs text-muted-foreground">
+                                                                                    {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                                                                </span>
+                                                                            )}
                                                                         </div>
                                                                         {item.options && item.options.length > 0 && (
                                                                             <div className="space-y-1 pl-3 border-l-2 border-muted">
@@ -2444,7 +2546,7 @@ function DetailBody({
                                             key={msg.id} 
                                             ref={index === chatMessages.length - 1 ? lastMessageRef : null}
                                         >
-                                            <ChatBubble message={msg} language={language} tableNumber={selectedTable?.id} />
+                                            <ChatBubble message={msg} language={language} tableNumber={selectedTable?.id} promotions={promotions} />
                                         </div>
                                     ))
                                 ) : (

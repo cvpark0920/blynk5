@@ -27,10 +27,79 @@ export class SessionService {
         tableId: data.tableId,
         status: SessionStatus.ACTIVE,
       },
+      include: {
+        table: true,
+      },
     });
 
     if (existingSession) {
-      return existingSession;
+      // 기존 세션이 있으면 guestCount를 업데이트하고 테이블 상태도 업데이트
+      const updatedSession = await prisma.session.update({
+        where: { id: existingSession.id },
+        data: { guestCount: data.guestCount },
+        include: {
+          table: true,
+          restaurant: true,
+        },
+      });
+
+      // 테이블 상태 업데이트: EMPTY이고 guestCount > 0이면 ORDERING으로 변경
+      const updateData: any = {};
+      const currentTableStatus = updatedSession.table.status;
+      
+      if (currentTableStatus === TableStatus.EMPTY && data.guestCount > 0) {
+        updateData.status = TableStatus.ORDERING;
+        console.log(`[SessionService] createSession - Updating existing session and table status from EMPTY to ORDERING`, {
+          sessionId: existingSession.id,
+          tableId: data.tableId,
+          tableNumber: updatedSession.table.tableNumber,
+          guestCount: data.guestCount,
+          restaurantId: data.restaurantId,
+          previousStatus: currentTableStatus,
+          newStatus: TableStatus.ORDERING,
+        });
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        const updatedTable = await prisma.table.update({
+          where: { id: data.tableId },
+          data: updateData,
+        });
+
+        console.log(`[SessionService] createSession - Table status updated`, {
+          tableId: data.tableId,
+          tableNumber: updatedSession.table.tableNumber,
+          previousStatus: currentTableStatus,
+          newStatus: updateData.status,
+        });
+
+        // SSE 이벤트 발행
+        if (updateData.status) {
+          console.log(`[SessionService] createSession - Publishing table:status-changed SSE event`, {
+            restaurantId: data.restaurantId,
+            tableId: data.tableId,
+            tableNumber: updatedSession.table.tableNumber,
+            status: updateData.status,
+            sessionId: existingSession.id,
+          });
+          await eventEmitter.publishTableStatusChanged(
+            data.restaurantId,
+            data.tableId,
+            updateData.status,
+            existingSession.id
+          );
+          console.log(`[SessionService] createSession - SSE event published successfully`);
+        }
+      } else {
+        console.log(`[SessionService] createSession - No table status change needed`, {
+          tableId: data.tableId,
+          tableNumber: updatedSession.table.tableNumber,
+          currentStatus: currentTableStatus,
+          guestCount: data.guestCount,
+        });
+      }
+
+      return updatedSession;
     }
 
     const session = await prisma.session.create({

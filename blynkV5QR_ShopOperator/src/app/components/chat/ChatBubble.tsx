@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Languages, User } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { BackendChatMessage } from '../../types/api';
+import { BackendChatMessage, BackendPromotion } from '../../types/api';
 
 interface ChatBubbleProps {
   message: BackendChatMessage;
   language: 'ko' | 'vn' | 'en' | 'zh' | 'ru';
   tableNumber?: number;
+  promotions?: BackendPromotion[];
 }
 
 const getMessageText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh' | 'ru'): string => {
@@ -44,7 +45,7 @@ const getTranslatedText = (message: BackendChatMessage, language: 'ko' | 'vn' | 
 };
 
 
-const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber }) => {
+const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber, promotions = [] }) => {
   const { t } = useLanguage();
   const [avatarError, setAvatarError] = React.useState(false);
   const isUser = message.senderType === 'USER';
@@ -173,19 +174,45 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                       const imageUrl = item.imageQuery || item.imageUrl || '';
                       const quantity = item.quantity || 1;
                       
-                      // unitPrice는 순수 메뉴 항목의 단가, totalPrice는 옵션을 포함한 총액
-                      const unitPrice = item.unitPrice || 0; // 순수 메뉴 항목 단가
+                      // 프로모션 할인 계산
+                      const getActivePromotionForMenuItem = (menuItemId: string) => {
+                        const now = new Date();
+                        return promotions.find(promo => {
+                          if (!promo.isActive || !promo.discountPercent) return false;
+                          const startDate = new Date(promo.startDate);
+                          const endDate = new Date(promo.endDate);
+                          endDate.setHours(23, 59, 59, 999);
+                          if (now < startDate || now > endDate) return false;
+                          
+                          const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                              promo.menuItems?.map(mi => mi.id) || [];
+                          return menuItemIds.includes(menuItemId);
+                        });
+                      };
+
+                      const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                        if (!discountPercent) return originalPrice;
+                        return Math.floor(originalPrice * (1 - discountPercent / 100));
+                      };
+
+                      const menuItemId = item.menuItemId || item.id;
+                      const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                      const originalUnitPrice = item.unitPrice || 0; // 원래 메뉴 항목 단가
+                      const discountedUnitPrice = activePromotion 
+                        ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                        : originalUnitPrice;
+                      
                       const selectedOptions = Array.isArray(item.selectedOptions) ? item.selectedOptions : [];
                       
-                      // 옵션 총액 계산
+                      // 옵션 총액 계산 (옵션은 할인 대상이 아님)
                       const optionsTotal = selectedOptions.reduce((sum: number, opt: any) => {
                         const optPrice = opt.priceVND || opt.price || 0;
                         const optQuantity = opt.quantity || 1;
                         return sum + (optPrice * optQuantity);
                       }, 0);
                       
-                      // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
-                      const itemTotal = (unitPrice * quantity) + optionsTotal;
+                      // 주문 항목 총액 = (할인된 단가 × 수량) + 옵션 총액
+                      const itemTotal = (discountedUnitPrice * quantity) + optionsTotal;
                       
                       return (
                         <div key={item.id || item.menuItemId || idx} className="flex gap-2 sm:gap-3">
@@ -209,7 +236,20 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                               <p className={`text-[10px] sm:text-xs truncate ${isStaff ? 'text-foreground/80' : 'text-white/80'}`}>{itemSub}</p>
                             )}
                             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(unitPrice)} × {quantity}
+                              {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="line-through opacity-60">
+                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(originalUnitPrice)}
+                                  </span>
+                                  <span>
+                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(discountedUnitPrice)} × {quantity}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span>
+                                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(discountedUnitPrice)} × {quantity}
+                                </span>
+                              )}
                             </div>
                             {selectedOptions.length > 0 && (
                               <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-muted/30">
@@ -243,7 +283,32 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                         <span className={`text-xs sm:text-sm font-bold ${isStaff ? 'text-foreground' : 'text-white'}`}>
                           {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
                             orderItems.reduce((sum: number, item: any) => {
-                              const unitPrice = item.unitPrice || 0;
+                              const getActivePromotionForMenuItem = (menuItemId: string) => {
+                                const now = new Date();
+                                return promotions.find(promo => {
+                                  if (!promo.isActive || !promo.discountPercent) return false;
+                                  const startDate = new Date(promo.startDate);
+                                  const endDate = new Date(promo.endDate);
+                                  endDate.setHours(23, 59, 59, 999);
+                                  if (now < startDate || now > endDate) return false;
+                                  
+                                  const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                                      promo.menuItems?.map(mi => mi.id) || [];
+                                  return menuItemIds.includes(menuItemId);
+                                });
+                              };
+
+                              const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                                if (!discountPercent) return originalPrice;
+                                return Math.floor(originalPrice * (1 - discountPercent / 100));
+                              };
+
+                              const menuItemId = item.menuItemId || item.id;
+                              const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                              const originalUnitPrice = item.unitPrice || 0;
+                              const discountedUnitPrice = activePromotion 
+                                ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                                : originalUnitPrice;
                               const itemQty = item.quantity || 1;
                               const selectedOptions = Array.isArray(item.selectedOptions) ? item.selectedOptions : [];
                               const optionsTotal = selectedOptions.reduce((optSum: number, opt: any) => {
@@ -251,7 +316,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber 
                                 const optQuantity = opt.quantity || 1;
                                 return optSum + (optPrice * optQuantity);
                               }, 0);
-                              return sum + (unitPrice * itemQty) + optionsTotal;
+                              return sum + (discountedUnitPrice * itemQty) + optionsTotal;
                             }, 0)
                           )}
                         </span>

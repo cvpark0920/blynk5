@@ -7,6 +7,7 @@ import { formatPriceVND } from '../../utils/priceFormat';
 import { Order } from '../../data';
 import { X, Banknote, CreditCard, Building2, Loader2 } from 'lucide-react';
 import { QRCodeModal } from './QRCodeModal';
+import { BackendPromotion } from '../../types/api';
 import {
   Sheet,
   SheetContent,
@@ -41,6 +42,7 @@ interface CheckoutSheetProps {
   orders: Order[];
   currentSessionId?: string | null; // 활성 세션 ID 추가
   onCheckoutComplete: () => void;
+  promotions?: BackendPromotion[];
 }
 
 function useIsDesktop() {
@@ -62,6 +64,7 @@ export function CheckoutSheet({
   orders,
   currentSessionId,
   onCheckoutComplete,
+  promotions = [],
 }: CheckoutSheetProps) {
   const { t } = useLanguage();
   const { shopRestaurantId: restaurantId } = useUnifiedAuth();
@@ -187,16 +190,42 @@ export function CheckoutSheet({
                       </div>
                       <ul className="space-y-2">
                         {order.items.map((item, idx) => {
-                          // unitPrice는 순수 메뉴 항목의 단가
-                          const unitPrice = item.unitPrice || 0;
+                          // 프로모션 할인 계산
+                          const getActivePromotionForMenuItem = (menuItemId: string) => {
+                            const now = new Date();
+                            return promotions.find(promo => {
+                              if (!promo.isActive || !promo.discountPercent) return false;
+                              const startDate = new Date(promo.startDate);
+                              const endDate = new Date(promo.endDate);
+                              endDate.setHours(23, 59, 59, 999);
+                              if (now < startDate || now > endDate) return false;
+                              
+                              const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                                  promo.menuItems?.map(mi => mi.id) || [];
+                              return menuItemIds.includes(menuItemId);
+                            });
+                          };
+
+                          const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                            if (!discountPercent) return originalPrice;
+                            return Math.floor(originalPrice * (1 - discountPercent / 100));
+                          };
+
+                          const menuItemId = item.menuItemId;
+                          const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                          const originalUnitPrice = item.unitPrice || 0;
+                          const discountedUnitPrice = activePromotion 
+                            ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                            : originalUnitPrice;
+                          
                           const itemQuantity = item.quantity || 1;
                           
-                          // 옵션 총액 계산
+                          // 옵션 총액 계산 (옵션은 할인 대상이 아님)
                           const optionsTotal = item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
                             sum + (opt.price * opt.quantity), 0) || 0;
                           
-                          // 주문 항목 총액 = (단가 × 수량) + 옵션 총액
-                          const itemTotal = (unitPrice * itemQuantity) + optionsTotal;
+                          // 주문 항목 총액 = (할인된 단가 × 수량) + 옵션 총액
+                          const itemTotal = (discountedUnitPrice * itemQuantity) + optionsTotal;
                           
                           return (
                             <li key={idx} className="space-y-1">
@@ -205,7 +234,20 @@ export function CheckoutSheet({
                                 <span className="text-muted-foreground">{formatPriceVND(itemTotal)}</span>
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {formatPriceVND(unitPrice)} × {itemQuantity}
+                                {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                  <span className="flex items-center gap-1">
+                                    <span className="line-through opacity-60">
+                                      {formatPriceVND(originalUnitPrice)}
+                                    </span>
+                                    <span>
+                                      {formatPriceVND(discountedUnitPrice)} × {itemQuantity}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span>
+                                    {formatPriceVND(discountedUnitPrice)} × {itemQuantity}
+                                  </span>
+                                )}
                               </div>
                               {item.options && item.options.length > 0 && (
                                 <div className="space-y-0.5 pl-3 border-l-2 border-muted/50">
