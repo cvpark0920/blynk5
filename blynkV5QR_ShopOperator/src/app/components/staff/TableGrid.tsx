@@ -2072,13 +2072,15 @@ function DetailBody({
     }, [chatMessages, activeTab]);
 
     return (
-        <div className="h-full flex flex-col overflow-hidden min-h-0 bg-card w-full min-w-0 max-w-full">
+        <div 
+          className="h-full flex flex-col overflow-hidden min-h-0 w-full min-w-0 max-w-full"
+          style={{ backgroundColor: activeTab === 'chat' ? '#5C7285' : undefined }}
+        >
             {/* Body */}
             <ScrollArea className="flex-1 min-h-0 w-full min-w-0">
                 <div 
                   ref={tabsContentWrapperRef} 
-                  className="p-3 sm:p-4 space-y-3 sm:space-y-4 w-full max-w-full min-w-0"
-                  style={{ backgroundColor: activeTab === 'chat' ? '#5C7285' : undefined }}
+                  className="p-3 sm:p-4 space-y-3 sm:space-y-4 w-full max-w-full min-w-0 min-h-full"
                 >
                 <Tabs value={activeTab} className="w-full">
                     <TabsContent value="orders" className="pt-2">
