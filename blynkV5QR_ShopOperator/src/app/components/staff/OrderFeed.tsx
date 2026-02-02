@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Order } from '../../data';
 import { ChefHat, CircleCheck, Clock, UtensilsCrossed, ArrowRight, Timer, Hash, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,6 +15,26 @@ interface OrderFeedProps {
 
 export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: OrderFeedProps & { menu?: Array<{ id: string; name: string; imageUrl?: string }> }) {
   const { t } = useLanguage();
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const width = window.innerWidth;
+    const mobile = width < 768;
+    console.log('[OrderFeed] Initial isMobile check:', { width, mobile });
+    return mobile;
+  });
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const width = window.innerWidth;
+      const mobile = width < 768;
+      console.log('[OrderFeed] Resize check:', { width, mobile });
+      setIsMobile(mobile);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   const [activeTab, setActiveTab] = useState<'pending' | 'cooking' | 'served'>('pending');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
@@ -103,23 +123,29 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [] }: Orde
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'cooking' | 'served')} className="flex-1 flex flex-col overflow-hidden">
         <div className="px-6 shrink-0">
           <TabsList className="bg-muted/60 p-0.5 h-9 w-full gap-1 rounded-lg">
-            <TabsTrigger value="pending" className="gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0">
+            <TabsTrigger value="pending" className={`flex-1 gap-1 ${isMobile ? '' : 'md:gap-1.5'} px-2 ${isMobile ? '' : 'md:px-3'} py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0 whitespace-nowrap`}>
               <ChefHat size={14} />
-              <span className="text-xs font-semibold">{t('feed.tab.new_orders')}</span>
+              {!isMobile && (
+                <span className="text-xs font-semibold">{t('feed.tab.new_orders')}</span>
+              )}
               <span className="text-[11px] bg-background/80 data-[state=active]:bg-primary/20 text-muted-foreground data-[state=active]:text-primary-foreground px-1.5 py-0.5 rounded font-medium">
                 {pendingOrders.length}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="cooking" className="gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0">
+            <TabsTrigger value="cooking" className={`flex-1 gap-1 ${isMobile ? '' : 'md:gap-1.5'} px-2 ${isMobile ? '' : 'md:px-3'} py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0 whitespace-nowrap`}>
               <Timer size={14} />
-              <span className="text-xs font-semibold">{t('feed.tab.cooking')}</span>
+              {!isMobile && (
+                <span className="text-xs font-semibold">{t('feed.tab.cooking')}</span>
+              )}
               <span className="text-[11px] bg-background/80 data-[state=active]:bg-primary/20 text-muted-foreground data-[state=active]:text-primary-foreground px-1.5 py-0.5 rounded font-medium">
                 {cookingOrders.length}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="served" className="gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0">
+            <TabsTrigger value="served" className={`flex-1 gap-1 ${isMobile ? '' : 'md:gap-1.5'} px-2 ${isMobile ? '' : 'md:px-3'} py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-md border-0 whitespace-nowrap`}>
               <CheckCircle2 size={14} />
-              <span className="text-xs font-semibold">{t('feed.tab.served')}</span>
+              {!isMobile && (
+                <span className="text-xs font-semibold">{t('feed.tab.served')}</span>
+              )}
               <span className="text-[11px] bg-background/80 data-[state=active]:bg-primary/20 text-muted-foreground data-[state=active]:text-primary-foreground px-1.5 py-0.5 rounded font-medium">
                 {servedOrders.length}
               </span>
