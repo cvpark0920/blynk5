@@ -2201,13 +2201,24 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       return savedLang;
     }
     
-    // 브라우저 언어 감지
+    // 브라우저/디바이스 언어 감지 (navigator.languages 배열 우선 확인)
+    const languages = navigator.languages || [navigator.language];
+    for (const langCode of languages) {
+      const langLower = langCode.toLowerCase();
+      if (langLower.includes('ko')) return 'ko';
+      if (langLower.includes('vi')) return 'vn';
+      if (langLower.includes('zh')) return 'zh';
+      if (langLower.includes('ru')) return 'ru';
+    }
+    
+    // navigator.languages가 없는 경우 navigator.language만 확인
     const browserLang = navigator.language.toLowerCase();
     if (browserLang.includes('ko')) return 'ko';
     if (browserLang.includes('vi')) return 'vn';
     if (browserLang.includes('zh')) return 'zh';
     if (browserLang.includes('ru')) return 'ru';
-    return 'ko'; // 상점앱 기본값은 한국어
+    // 지원하지 않는 언어는 영어로 폴백
+    return 'en';
   });
 
   const setLanguage = (newLang: Language) => {

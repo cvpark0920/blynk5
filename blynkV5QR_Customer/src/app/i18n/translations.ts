@@ -104,7 +104,20 @@ export const translations = {
 
 // 브라우저 언어로 LangType 추정 (LanguageProvider 밖에서 사용)
 export const getLangFromNavigator = (): LangType => {
-  const browserLang = (typeof navigator !== 'undefined' ? navigator.language : '').toLowerCase();
+  if (typeof navigator === 'undefined') return 'en';
+  
+  // navigator.languages 배열 우선 확인 (모바일 디바이스 언어 설정 반영)
+  const languages = navigator.languages || [navigator.language];
+  for (const langCode of languages) {
+    const langLower = langCode.toLowerCase();
+    if (langLower.includes('ko')) return 'ko';
+    if (langLower.includes('vi')) return 'vn';
+    if (langLower.includes('zh')) return 'zh';
+    if (langLower.includes('ru')) return 'ru';
+  }
+  
+  // navigator.languages가 없는 경우 navigator.language만 확인
+  const browserLang = navigator.language.toLowerCase();
   if (browserLang.includes('ko')) return 'ko';
   if (browserLang.includes('vi')) return 'vn';
   if (browserLang.includes('zh')) return 'zh';
