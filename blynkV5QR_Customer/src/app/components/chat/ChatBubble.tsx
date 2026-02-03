@@ -9,13 +9,17 @@ import { Promotion } from '../../../lib/api';
 interface ChatBubbleProps {
   message: ChatMessage;
   promotions?: Promotion[];
+  skipAnimation?: boolean; // 메시지 교체 시 애니메이션 건너뛰기
 }
 
-const ChatBubble: React.FC<ChatBubbleProps> = ({ message, promotions = [] }) => {
+const ChatBubble: React.FC<ChatBubbleProps> = ({ message, promotions = [], skipAnimation = false }) => {
   const { lang: userLang } = useLanguage();
   const isUser = message.sender === 'user';
   const [showTranslation, setShowTranslation] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  
+  // 메시지 업데이트 플래그 확인 (타입 안전성을 위해 any 사용)
+  const isUpdating = (message as any)._isUpdating === true || skipAnimation;
 
   const getTextByLanguage = (lang: 'ko' | 'vn' | 'en' | 'zh' | 'ru') => {
     if (lang === 'ko') return message.textKO || '';
@@ -62,9 +66,10 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, promotions = [] }) => 
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      initial={isUpdating ? false : { opacity: 0, y: 10, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
+      layoutId={isUpdating ? `message-${message.id}` : undefined}
       className={`flex w-full mb-7 items-end gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       {/* 상대방 메시지에만 아바타 표시 */}

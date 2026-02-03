@@ -286,19 +286,25 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     }
   }, [selectedTable?.currentSessionId, detailTableId, loadChatMessages]);
 
-  // Reload chat messages when switching to chat tab (especially when opened from notification)
+  // Reload chat messages when switching to chat tab (only if messages are not already loaded)
   useEffect(() => {
     if (activeTab === 'chat' && selectedTable?.currentSessionId && isDetailOpen) {
-      // Force reload chat messages when switching to chat tab
-      // This ensures messages are loaded even if there was a timing issue
-      const timeoutId = setTimeout(() => {
-        if (selectedTable.currentSessionId) {
-          loadChatMessages(selectedTable.currentSessionId);
-        }
-      }, 100);
-      return () => clearTimeout(timeoutId);
+      // 이미 메시지가 로드되어 있으면 재로드하지 않음 (깜빡임 방지)
+      const currentSessionId = selectedTable.currentSessionId;
+      const hasMessagesForSession = chatMessages.length > 0 && 
+        chatMessages.some(msg => msg.sessionId === currentSessionId);
+      
+      // 메시지가 없거나 다른 세션의 메시지인 경우에만 로드
+      if (!hasMessagesForSession && !isLoadingChat) {
+        const timeoutId = setTimeout(() => {
+          if (selectedTable.currentSessionId === currentSessionId) {
+            loadChatMessages(currentSessionId);
+          }
+        }, 100);
+        return () => clearTimeout(timeoutId);
+      }
     }
-  }, [activeTab, selectedTable?.currentSessionId, isDetailOpen, loadChatMessages]);
+  }, [activeTab, selectedTable?.currentSessionId, isDetailOpen, loadChatMessages, chatMessages.length, isLoadingChat]);
 
   // Note: We removed the useEffect that reloads chat messages when tables change
   // because updateTableRequestStatus already handles reloading chat messages for the open table
@@ -2064,17 +2070,31 @@ function DetailBody({
         }
     }, [activeTab, chatMessages, currentTable?.id, onChatTabOpen]);
 
-    // 채팅 탭이 활성화될 때 스크롤을 맨 아래로 이동
+    // 채팅 탭이 활성화될 때 스크롤을 맨 아래로 이동 (메시지가 이미 로드되어 있는 경우에만)
+    // 메시지 재로드가 발생하지 않을 때만 스크롤하여 깜빡임 방지
+    const prevActiveTabRef = useRef<'orders' | 'chat'>('orders');
     useEffect(() => {
-        if (activeTab === 'chat' && chatMessages.length > 0) {
-            // ScrollArea의 Viewport를 찾아서 스크롤
+        // 탭이 orders에서 chat으로 변경될 때만 스크롤 (이미 메시지가 있는 경우)
+        const tabChangedToChat = prevActiveTabRef.current !== 'chat' && activeTab === 'chat';
+        prevActiveTabRef.current = activeTab;
+        
+        if (tabChangedToChat && chatMessages.length > 0 && !isLoadingChat) {
+            // ScrollArea의 Viewport를 찾아서 즉시 스크롤
             const scrollToBottom = () => {
+                // lastMessageRef를 우선적으로 사용 (가장 정확함)
+                if (lastMessageRef.current) {
+                    const viewport = lastMessageRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
+                    if (viewport) {
+                        viewport.scrollTop = viewport.scrollHeight;
+                        return true;
+                    }
+                }
                 // tabsContentWrapperRef를 기준으로 Viewport를 찾기
                 if (tabsContentWrapperRef.current) {
                     const viewport = tabsContentWrapperRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
                     if (viewport) {
                         viewport.scrollTop = viewport.scrollHeight;
-                        return;
+                        return true;
                     }
                 }
                 // chatMessagesContainerRef의 부모 요소들 중 ScrollArea Viewport를 찾기
@@ -2087,30 +2107,22 @@ function DetailBody({
                         if (element.getAttribute('data-slot') === 'scroll-area-viewport') {
                             // Viewport를 찾았으면 맨 아래로 스크롤
                             element.scrollTop = element.scrollHeight;
-                            return;
+                            return true;
                         }
                     }
                 }
-                // Viewport를 찾지 못한 경우, lastMessageRef를 사용한 스크롤 시도
-                if (lastMessageRef.current) {
-                    // scrollIntoView를 사용하되, Viewport를 찾아서 스크롤
-                    const viewport = lastMessageRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
-                    if (viewport) {
-                        viewport.scrollTop = viewport.scrollHeight;
-                    } else {
-                        lastMessageRef.current.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
-                    }
-                }
+                return false;
             };
             
-            // DOM이 완전히 업데이트된 후 스크롤 (여러 번 시도)
-            requestAnimationFrame(() => {
-                setTimeout(scrollToBottom, 50);
-                setTimeout(scrollToBottom, 200);
-                setTimeout(scrollToBottom, 400);
-            });
+            // 즉시 스크롤 시도 (깜빡임 방지를 위해 지연 없이)
+            if (!scrollToBottom()) {
+                // 첫 시도 실패 시 DOM 업데이트 후 재시도 (최소 지연)
+                requestAnimationFrame(() => {
+                    scrollToBottom();
+                });
+            }
         }
-    }, [activeTab]);
+    }, [activeTab, chatMessages.length, isLoadingChat]);
 
     useEffect(() => {
         if (currentTable) {
@@ -2143,25 +2155,26 @@ function DetailBody({
         setIsEditingMemo(false);
     };
 
-    // Auto-scroll to bottom when chat messages change
+    // Auto-scroll to bottom when chat messages change (메시지 추가 시)
+    // 이 useEffect는 메시지가 추가될 때만 실행되며, 위의 useEffect와 중복되지 않도록 주의
     useEffect(() => {
-        if (activeTab === 'chat' && chatMessages.length > 0) {
+        if (activeTab === 'chat' && chatMessages.length > 0 && !isLoadingChat) {
             // ScrollArea의 Viewport를 찾아서 스크롤
             const scrollToBottom = () => {
+                // lastMessageRef를 우선적으로 사용 (가장 정확함)
+                if (lastMessageRef.current) {
+                    const viewport = lastMessageRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
+                    if (viewport) {
+                        viewport.scrollTop = viewport.scrollHeight;
+                        return true;
+                    }
+                }
                 // tabsContentWrapperRef를 기준으로 Viewport를 찾기
                 if (tabsContentWrapperRef.current) {
                     const viewport = tabsContentWrapperRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
                     if (viewport) {
                         viewport.scrollTop = viewport.scrollHeight;
-                        return;
-                    }
-                }
-                // lastMessageRef를 우선적으로 사용
-                if (lastMessageRef.current) {
-                    const viewport = lastMessageRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
-                    if (viewport) {
-                        viewport.scrollTop = viewport.scrollHeight;
-                        return;
+                        return true;
                     }
                 }
                 // chatMessagesContainerRef를 사용한 fallback
@@ -2173,16 +2186,19 @@ function DetailBody({
                         // ScrollArea Viewport는 data-slot="scroll-area-viewport" 속성을 가짐
                         if (element.getAttribute('data-slot') === 'scroll-area-viewport') {
                             element.scrollTop = element.scrollHeight;
-                            return;
+                            return true;
                         }
                     }
                 }
+                return false;
             };
             
-            // Use setTimeout to ensure DOM has updated
-            setTimeout(scrollToBottom, 100);
+            // DOM 업데이트 후 스크롤 (메시지 추가 시에만 약간의 지연 필요)
+            requestAnimationFrame(() => {
+                scrollToBottom();
+            });
         }
-    }, [chatMessages, activeTab]);
+    }, [chatMessages, activeTab, isLoadingChat]);
 
     // ScrollArea viewport 너비 감지
     useEffect(() => {

@@ -650,14 +650,61 @@ export const BlynkApp: React.FC = () => {
 
   // Prevent duplicate chat history reloads
   const reloadingChatRef = useRef(false);
+  // 최근에 전송한 메시지 ID와 시간을 추적하여 중복 리로드 방지
+  const recentlySentMessagesRef = useRef<Map<string, number>>(new Map());
+  // 메시지 전송 시점을 추적하여 SSE 이벤트 무시 기간 설정
+  const lastMessageSendTimeRef = useRef<number>(0);
 
   // 채팅 메시지 수신 처리
   const handleChatMessage = async (event: SSEEvent) => {
     const { sender, text, messageType, imageUrl } = event;
     
+    // 디버깅: SSE 이벤트 정보 로깅
+    console.log('[SSE] handleChatMessage called', { 
+      sender, 
+      senderType: typeof sender,
+      text: text?.substring(0, 50), 
+      messageType,
+      timeSinceLastSend: Date.now() - lastMessageSendTimeRef.current 
+    });
+    
+    // 근본 원인 해결: 자신이 보낸 메시지에 대한 SSE 이벤트는 무시
+    // 고객앱은 자신이 보낸 메시지가 아닌 경우에만 리로드해야 함
+    const senderNormalized = sender?.toUpperCase();
+    if (senderNormalized === 'USER' || senderNormalized === 'CUSTOMER') {
+      console.log('[SSE] Skipping own message SSE event', { sender, senderNormalized, text: text?.substring(0, 50) });
+      debugLog('SSE event received for own message, skipping reload to prevent flicker', { sender, text });
+      return;
+    }
+    
     // Prevent duplicate reloads if already reloading
     if (reloadingChatRef.current) {
       debugLog('Chat history reload already in progress, skipping duplicate SSE event');
+      return;
+    }
+
+    // 추가 안전장치: 최근에 메시지를 전송한 경우 (3초 이내) SSE 이벤트 무시
+    const now = Date.now();
+    const timeSinceLastSend = now - lastMessageSendTimeRef.current;
+    if (timeSinceLastSend < 3000) {
+      debugLog(`SSE event received ${timeSinceLastSend}ms after message send, skipping reload to prevent flicker`);
+      return;
+    }
+
+    // 최근에 전송한 메시지 ID가 있는지 확인 (추가 안전장치)
+    const recentMessageIds = Array.from(recentlySentMessagesRef.current.entries());
+    const hasRecentMessage = recentMessageIds.some(([messageId, timestamp]) => {
+      return now - timestamp < 3000; // 3초 이내
+    });
+
+    if (hasRecentMessage) {
+      debugLog('SSE event received for recently sent message, skipping reload to prevent flicker');
+      // 최근 메시지 목록 정리 (3초 이상 지난 메시지 제거)
+      recentMessageIds.forEach(([messageId, timestamp]) => {
+        if (now - timestamp >= 3000) {
+          recentlySentMessagesRef.current.delete(messageId);
+        }
+      });
       return;
     }
 
@@ -1018,6 +1065,9 @@ export const BlynkApp: React.FC = () => {
                (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined);
     }
 
+    // 메시지 전송 시점 기록 (SSE 이벤트 무시 기간 설정)
+    lastMessageSendTimeRef.current = Date.now();
+
     // 낙관적 업데이트: 메시지를 즉시 UI에 추가
     const tempId = `temp-${Date.now()}`;
     const messageText = textKo || textVn || textEn || textZh || textRu || '';
@@ -1057,10 +1107,43 @@ export const BlynkApp: React.FC = () => {
       if (response.success && response.data) {
         // 서버 응답으로 받은 실제 메시지로 낙관적 메시지 교체
         const realMessage = convertBackendMessage(response.data);
+        // 최근 전송한 메시지로 기록 (SSE 이벤트로 인한 중복 리로드 방지)
+        recentlySentMessagesRef.current.set(realMessage.id, Date.now());
+        
+        // 메시지 교체 시 깜빡임 방지: 같은 위치의 메시지만 교체하고 애니메이션 건너뛰기
         setMessages(prev => {
-          const filtered = prev.filter(msg => msg.id !== tempId);
-          return [...filtered, realMessage];
+          const index = prev.findIndex(msg => msg.id === tempId);
+          if (index !== -1) {
+            // 같은 위치의 메시지를 교체하여 리렌더링 최소화
+            // 메시지에 _isUpdating 플래그를 추가하여 애니메이션 건너뛰기
+            const updatedMessage = { ...realMessage, _isUpdating: true };
+            const newMessages = [...prev];
+            newMessages[index] = updatedMessage;
+            // 플래그 제거를 위한 지연 처리
+            setTimeout(() => {
+              setMessages(current => {
+                const currentIndex = current.findIndex(msg => msg.id === realMessage.id);
+                if (currentIndex !== -1 && current[currentIndex]._isUpdating) {
+                  const cleanedMessages = [...current];
+                  const { _isUpdating, ...cleanedMessage } = cleanedMessages[currentIndex] as any;
+                  cleanedMessages[currentIndex] = cleanedMessage;
+                  return cleanedMessages;
+                }
+                return current;
+              });
+            }, 100);
+            return newMessages;
+          } else {
+            // 임시 메시지를 찾을 수 없으면 필터링 후 추가
+            const filtered = prev.filter(msg => msg.id !== tempId);
+            return [...filtered, realMessage];
+          }
         });
+        
+        // 3초 후 추적 목록에서 제거
+        setTimeout(() => {
+          recentlySentMessagesRef.current.delete(realMessage.id);
+        }, 3000);
       } else {
         // 서버 응답이 없으면 채팅 히스토리 다시 로드
         try {
@@ -1104,6 +1187,9 @@ export const BlynkApp: React.FC = () => {
       ? getTranslation('toast.photoSent', userLang)
       : '');
 
+    // 메시지 전송 시점 기록 (SSE 이벤트 무시 기간 설정)
+    lastMessageSendTimeRef.current = Date.now();
+
     // 낙관적 업데이트: 메시지를 즉시 UI에 추가
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage: ChatMessage = {
@@ -1146,10 +1232,43 @@ export const BlynkApp: React.FC = () => {
       if (response.success && response.data) {
         // 서버 응답으로 받은 실제 메시지로 낙관적 메시지 교체
         const realMessage = convertBackendMessage(response.data);
+        // 최근 전송한 메시지로 기록 (SSE 이벤트로 인한 중복 리로드 방지)
+        recentlySentMessagesRef.current.set(realMessage.id, Date.now());
+        
+        // 메시지 교체 시 깜빡임 방지: 같은 위치의 메시지만 교체하고 애니메이션 건너뛰기
         setMessages(prev => {
-          const filtered = prev.filter(msg => msg.id !== tempId);
-          return [...filtered, realMessage];
+          const index = prev.findIndex(msg => msg.id === tempId);
+          if (index !== -1) {
+            // 같은 위치의 메시지를 교체하여 리렌더링 최소화
+            // 메시지에 _isUpdating 플래그를 추가하여 애니메이션 건너뛰기
+            const updatedMessage = { ...realMessage, _isUpdating: true };
+            const newMessages = [...prev];
+            newMessages[index] = updatedMessage;
+            // 플래그 제거를 위한 지연 처리
+            setTimeout(() => {
+              setMessages(current => {
+                const currentIndex = current.findIndex(msg => msg.id === realMessage.id);
+                if (currentIndex !== -1 && current[currentIndex]._isUpdating) {
+                  const cleanedMessages = [...current];
+                  const { _isUpdating, ...cleanedMessage } = cleanedMessages[currentIndex] as any;
+                  cleanedMessages[currentIndex] = cleanedMessage;
+                  return cleanedMessages;
+                }
+                return current;
+              });
+            }, 100);
+            return newMessages;
+          } else {
+            // 임시 메시지를 찾을 수 없으면 필터링 후 추가
+            const filtered = prev.filter(msg => msg.id !== tempId);
+            return [...filtered, realMessage];
+          }
         });
+        
+        // 3초 후 추적 목록에서 제거
+        setTimeout(() => {
+          recentlySentMessagesRef.current.delete(realMessage.id);
+        }, 3000);
       } else {
         // 서버 응답이 없으면 채팅 히스토리 다시 로드
         try {
