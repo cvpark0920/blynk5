@@ -21,26 +21,21 @@ const getMessageText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en
 const getTranslatedText = (message: BackendChatMessage, language: 'ko' | 'vn' | 'en' | 'zh' | 'ru'): string => {
   if (language === 'ko') {
     // 상점앱이 한국어일 때: 다른 언어 메시지의 한국어 번역 반환
-    // 러시아어 메시지는 백엔드에서 textKo에 번역되어 저장됨
     return message.textKo || message.textVn || message.textEn || '';
   }
   if (language === 'vn') {
     // 상점앱이 베트남어일 때: 다른 언어 메시지의 베트남어 번역 반환
-    // 러시아어 메시지는 백엔드에서 textVn에 번역되어 저장됨
     return message.textVn || message.textKo || message.textEn || '';
   }
   if (language === 'zh') {
-    // 상점앱이 중국어일 때: 다른 언어 메시지의 영어 또는 한국어 반환
-    // 러시아어 메시지는 textEn에 원문이 저장되어 있음
-    return message.textEn || message.textKo || '';
+    // 상점앱이 중국어일 때: 중국어 필드 우선 사용, 없으면 영어/한국어 fallback
+    return message.textZh || message.textEn || message.textKo || '';
   }
   if (language === 'ru') {
-    // 상점앱이 러시아어일 때: 다른 언어 메시지를 러시아어로 번역 (현재는 원문 사용)
-    // TODO: 백엔드에서 러시아어 번역 지원 시 업데이트 필요
-    return message.textEn || message.textKo || message.textVn || '';
+    // 상점앱이 러시아어일 때: 러시아어 필드 우선 사용, 없으면 영어/한국어/베트남어 fallback
+    return message.textRu || message.textEn || message.textKo || message.textVn || '';
   }
   // 영어일 때: 다른 언어 메시지의 영어 번역 반환
-  // 러시아어 메시지는 textEn에 원문이 저장되어 있음
   return message.textEn || message.textKo || message.textVn || '';
 };
 
@@ -60,6 +55,22 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber,
   const translatedText = getMessageText(message, language);
   const showOriginal = !!detectedLanguage && detectedLanguage !== language;
   const messageText = showOriginal ? (originalText || translatedText) : (translatedText || originalText);
+  
+  // 디버깅: 중국어/러시아어 메시지 표시 시 언어 필드 확인
+  if (message.textZh || message.textRu || detectedLanguage === 'zh' || detectedLanguage === 'ru') {
+    console.log(`[ChatBubble] 메시지 표시 (ID: ${message.id}):`, {
+      messageId: message.id,
+      detectedLanguage,
+      displayLanguage: language,
+      textZh: message.textZh ? `${message.textZh.substring(0, 30)}...` : null,
+      textRu: message.textRu ? `${message.textRu.substring(0, 30)}...` : null,
+      textEn: message.textEn ? `${message.textEn.substring(0, 30)}...` : null,
+      originalText: originalText ? `${originalText.substring(0, 30)}...` : null,
+      translatedText: translatedText ? `${translatedText.substring(0, 30)}...` : null,
+      messageText: messageText ? `${messageText.substring(0, 30)}...` : null,
+      showOriginal,
+    });
+  }
   const [showTranslation, setShowTranslation] = useState(false);
   const hasTranslation = !!translatedText && translatedText !== originalText;
   const canTranslate =

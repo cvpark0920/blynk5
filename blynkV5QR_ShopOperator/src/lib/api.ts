@@ -759,6 +759,8 @@ class ApiClient {
     textKo?: string;
     textVn?: string;
     textEn?: string;
+    textZh?: string;
+    textRu?: string;
     messageType: 'TEXT' | 'ORDER' | 'REQUEST' | 'IMAGE';
     imageUrl?: string;
     metadata?: any;

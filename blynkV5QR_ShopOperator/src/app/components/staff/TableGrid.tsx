@@ -205,8 +205,30 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     isLoadingChatRef.current = true;
     setIsLoadingChat(true);
     try {
+      console.log(`[TableGrid] loadChatMessages - 시작 (Session: ${sessionId})`);
       const result = await apiClient.getChatHistory(sessionId);
       if (result.success && result.data) {
+        // 디버깅: 받은 메시지의 언어 필드 확인 (중국어/러시아어 추적)
+        const zhRuMessages = result.data.filter((msg: BackendChatMessage) => 
+          msg.textZh || msg.textRu || msg.detectedLanguage === 'zh' || msg.detectedLanguage === 'ru'
+        );
+        if (zhRuMessages.length > 0) {
+          console.log(`[TableGrid] loadChatMessages - 중국어/러시아어 메시지 발견 (${zhRuMessages.length}개):`);
+          zhRuMessages.forEach((msg: BackendChatMessage, idx: number) => {
+            console.log(`[TableGrid] loadChatMessages - Message ${idx} (ID: ${msg.id}):`, {
+              messageId: msg.id,
+              detectedLanguage: msg.detectedLanguage,
+              textKo: msg.textKo ? `${msg.textKo.substring(0, 30)}...` : null,
+              textVn: msg.textVn ? `${msg.textVn.substring(0, 30)}...` : null,
+              textEn: msg.textEn ? `${msg.textEn.substring(0, 30)}...` : null,
+              textZh: msg.textZh ? `${msg.textZh.substring(0, 30)}...` : null,
+              textRu: msg.textRu ? `${msg.textRu.substring(0, 30)}...` : null,
+              senderType: msg.senderType,
+              messageType: msg.messageType,
+            });
+          });
+        }
+        
         // 기존 메시지가 있고 임시 메시지가 있는 경우 병합 (중복 제거)
         setChatMessages(prev => {
           const hasTempMessages = prev.some(msg => msg.id.startsWith('temp-'));
@@ -493,7 +515,9 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         const currentSelectedTable = visibleTables.find(t => t.id === currentDetailTableId);
         if (currentDetailTableId === tableId && currentSelectedTable?.currentSessionId === sessionId) {
           debugLog('Reloading chat messages for open table detail', { tableId, sessionId, currentDetailTableId });
+          console.log(`[TableGrid] updateTableRequestStatus - SSE 이벤트로 인한 채팅 메시지 재로드 시작 (Table: ${tableId}, Session: ${sessionId})`);
           await loadChatMessages(sessionId);
+          console.log(`[TableGrid] updateTableRequestStatus - SSE 이벤트로 인한 채팅 메시지 재로드 완료`);
         }
       }
     } catch (error) {
@@ -706,6 +730,8 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
       let textKo = '';
       let textVn = '';
       let textEn = '';
+      let textZh = '';
+      let textRu = '';
 
       if (language === 'ko') {
         textKo = message;
@@ -716,6 +742,12 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         textKo = message;
         textEn = message;
       } else if (language === 'zh') {
+        textZh = message;
+        textEn = message;
+        textKo = message;
+        textVn = message;
+      } else if (language === 'ru') {
+        textRu = message;
         textEn = message;
         textKo = message;
         textVn = message;
@@ -734,8 +766,8 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         textKo: textKo || '',
         textVn: textVn || '',
         textEn: textEn || '',
-        textZh: null,
-        textRu: null,
+        textZh: textZh || null,
+        textRu: textRu || null,
         detectedLanguage: null,
         messageType: 'TEXT',
         imageUrl: null,
@@ -753,6 +785,8 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         textKo,
         textVn,
         textEn,
+        textZh: textZh || undefined,
+        textRu: textRu || undefined,
         messageType: 'TEXT',
       });
 

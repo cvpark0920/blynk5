@@ -618,6 +618,14 @@ export function MainApp() {
         
         debugLog('SSE chat:new event received:', { tableNumber: displayTableNumber, sessionId, messageText, sender, event });
         console.info('[SSE] chat:new event', { tableNumber: displayTableNumber, sessionId, messageText, sender, messageType: event.messageType });
+        console.log(`[MainApp] SSE chat:new 이벤트 수신 - 플로우 시작점:`, {
+          tableNumber: displayTableNumber,
+          sessionId,
+          messageText: messageText.substring(0, 50),
+          sender,
+          messageType: event.messageType,
+          timestamp: new Date().toISOString(),
+        });
         
         // Only show modal/toast for messages from customers (user), not from staff (staff)
         // Staff messages are already visible in the UI, no need for notification

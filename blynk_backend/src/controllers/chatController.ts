@@ -47,12 +47,29 @@ export const getChatHistory = async (
     const { sessionId } = req.params;
     const messages = await chatService.getChatHistory(sessionId);
     
-    // 디버깅: API 응답 전 메시지 확인
+    // 디버깅: API 응답 전 메시지 확인 (중국어/러시아어 추적)
     console.log(`[ChatController] getChatHistory - Session ID: ${sessionId}, Messages count: ${messages.length}`);
     messages.forEach((msg: any, idx: number) => {
+      // 중국어/러시아어 필드가 있는 메시지만 로그 출력
+      if (msg.textZh || msg.textRu || msg.detectedLanguage === 'zh' || msg.detectedLanguage === 'ru') {
+        console.log(`[ChatController] getChatHistory - Response message ${idx} (ID: ${msg.id}):`, {
+          messageId: msg.id,
+          detectedLanguage: msg.detectedLanguage,
+          textKo: msg.textKo ? `${msg.textKo.substring(0, 30)}...` : null,
+          textVn: msg.textVn ? `${msg.textVn.substring(0, 30)}...` : null,
+          textEn: msg.textEn ? `${msg.textEn.substring(0, 30)}...` : null,
+          textZh: msg.textZh ? `${msg.textZh.substring(0, 30)}...` : null,
+          textRu: msg.textRu ? `${msg.textRu.substring(0, 30)}...` : null,
+          senderType: msg.senderType,
+          messageType: msg.messageType,
+          messageKeys: Object.keys(msg),
+          rawTextRu: (msg as any).textRu,
+          rawTextZh: (msg as any).textZh,
+        });
+      }
       if (msg.metadata && typeof msg.metadata === 'object' && 'orderId' in msg.metadata) {
         const metadata = msg.metadata as { orderId: string; items?: any[] };
-        console.log(`[ChatController] getChatHistory - Response message ${idx}:`, {
+        console.log(`[ChatController] getChatHistory - Response message ${idx} metadata:`, {
           messageId: msg.id,
           orderId: metadata.orderId,
           itemsCount: metadata.items?.length || 0,

@@ -33,7 +33,11 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, promotions = [], skipA
   const originalText = detectedLanguage ? getTextByLanguage(detectedLanguage) : '';
   const translatedText = getTextByLanguage(userLang);
   const showOriginal = !!detectedLanguage && detectedLanguage !== userLang;
-  const primaryText = showOriginal ? (originalText || translatedText) : (translatedText || originalText);
+  
+  // 사용자 언어가 감지된 언어와 같으면 원문 우선 사용 (번역된 텍스트가 아닌 원문 표시)
+  const primaryText = userLang === detectedLanguage && originalText 
+    ? originalText 
+    : (showOriginal ? (originalText || translatedText) : (translatedText || originalText));
 
   let dateFormatLocale = 'ko-KR';
   switch (userLang) {

@@ -59,14 +59,32 @@ const getApiBaseUrl = (): string => {
 
 // 백엔드 ChatMessage를 프론트엔드 ChatMessage로 변환
 const convertBackendMessage = (msg: BackendChatMessage): ChatMessage => {
+  // 디버깅: 중국어/러시아어 메시지 변환 시 언어 필드 확인
+  // Prisma는 camelCase로 반환하므로 textZh, textRu (소문자) 사용
+  if (msg.textZh || msg.textRu || msg.detectedLanguage === 'zh' || msg.detectedLanguage === 'ru') {
+    console.log(`[BlynkApp] convertBackendMessage - 메시지 변환 (ID: ${msg.id}):`, {
+      messageId: msg.id,
+      detectedLanguage: msg.detectedLanguage,
+      backendTextZh: msg.textZh ? `${msg.textZh.substring(0, 30)}...` : null,
+      backendTextRu: msg.textRu ? `${msg.textRu.substring(0, 30)}...` : null,
+      backendTextEn: msg.textEn ? `${msg.textEn.substring(0, 30)}...` : null,
+      backendTextKo: msg.textKo ? `${msg.textKo.substring(0, 30)}...` : null,
+      senderType: msg.senderType,
+      messageType: msg.messageType,
+      rawMsgKeys: Object.keys(msg),
+      rawMsgTextRu: (msg as any).textRu,
+      rawMsgTextZH: (msg as any).textZh,
+    });
+  }
+  
   return {
     id: msg.id,
     sender: msg.senderType === 'USER' ? 'user' : msg.senderType === 'STAFF' ? 'staff' : 'system',
     textKO: msg.textKo || '',
     textVN: msg.textVn || '',
     textEN: msg.textEn,
-    textZH: msg.textZH,
-    textRU: msg.textRU,
+    textZH: msg.textZh,  // Prisma는 camelCase로 반환하므로 textZh 사용
+    textRU: msg.textRu,  // Prisma는 camelCase로 반환하므로 textRu 사용
     detectedLanguage: msg.detectedLanguage ?? null,
     timestamp: new Date(msg.createdAt),
     type: msg.messageType === 'TEXT' ? 'text' : msg.messageType === 'IMAGE' ? 'image' : msg.messageType === 'ORDER' ? 'order' : 'request',
@@ -713,10 +731,33 @@ export const BlynkApp: React.FC = () => {
     // 현재는 채팅 히스토리를 다시 로드하여 최신 메시지 포함
     reloadingChatRef.current = true;
     try {
+      console.log(`[BlynkApp] handleChatMessage - SSE 이벤트로 인한 채팅 히스토리 재로드 시작 (Session: ${sessionId})`);
       const response = await apiClient.getChatHistory(sessionId!);
       if (response.success && response.data) {
+        // 디버깅: 받은 메시지의 언어 필드 확인 (중국어/러시아어 추적)
+        // Prisma는 camelCase로 반환하므로 textZh, textRu (소문자) 사용
+        const zhRuMessages = response.data.filter((msg: BackendChatMessage) => 
+          msg.textZh || msg.textRu || msg.detectedLanguage === 'zh' || msg.detectedLanguage === 'ru'
+        );
+        if (zhRuMessages.length > 0) {
+          console.log(`[BlynkApp] handleChatMessage - 중국어/러시아어 메시지 발견 (${zhRuMessages.length}개):`);
+          zhRuMessages.forEach((msg: BackendChatMessage, idx: number) => {
+            console.log(`[BlynkApp] handleChatMessage - Message ${idx} (ID: ${msg.id}):`, {
+              messageId: msg.id,
+              detectedLanguage: msg.detectedLanguage,
+              textZh: msg.textZh ? `${msg.textZh.substring(0, 30)}...` : null,
+              textRu: msg.textRu ? `${msg.textRu.substring(0, 30)}...` : null,
+              textEn: msg.textEn ? `${msg.textEn.substring(0, 30)}...` : null,
+              textKo: msg.textKo ? `${msg.textKo.substring(0, 30)}...` : null,
+              senderType: msg.senderType,
+              messageType: msg.messageType,
+            });
+          });
+        }
+        
         const backendMessages = response.data;
         const convertedMessages = backendMessages.map(convertBackendMessage);
+        console.log(`[BlynkApp] handleChatMessage - 채팅 히스토리 재로드 완료 (${convertedMessages.length}개 메시지)`);
         setMessages(convertedMessages);
         
         // 자동 스크롤
@@ -1053,16 +1094,16 @@ export const BlynkApp: React.FC = () => {
       // 중국어 선택 시: 중국어 메시지 전달
       textZh = chip.messageZH ? removeRequestPrefix(chip.messageZH) : 
                (chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
-               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined));
+               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : ''));
     } else if (userLang === 'ru') {
       // 러시아어 선택 시: 러시아어 메시지 전달
       textRu = chip.messageRU ? removeRequestPrefix(chip.messageRU) : 
                (chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
-               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined));
+               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : ''));
     } else {
       // 영어 선택 시: 영어 메시지 사용, 없으면 한국어
       textEn = chip.messageEN ? removeRequestPrefix(chip.messageEN) : 
-               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined);
+               (chip.messageKO ? removeRequestPrefix(chip.messageKO) : '');
     }
 
     // 메시지 전송 시점 기록 (SSE 이벤트 무시 기간 설정)
@@ -1093,6 +1134,22 @@ export const BlynkApp: React.FC = () => {
     }, 50);
 
     try {
+      // 디버깅: 전송할 메시지 언어 필드 확인
+      console.log('[QuickAction] 상용구 전송 시작:', {
+        userLang,
+        textZh: textZh ? `${textZh.substring(0, 30)}...` : null,
+        textRu: textRu ? `${textRu.substring(0, 30)}...` : null,
+        textEn: textEn ? `${textEn.substring(0, 30)}...` : null,
+        textKo: textKo ? `${textKo.substring(0, 30)}...` : null,
+        textVn: textVn ? `${textVn.substring(0, 30)}...` : null,
+        chip: {
+          messageZH: chip.messageZH ? `${chip.messageZH.substring(0, 30)}...` : null,
+          messageRU: chip.messageRU ? `${chip.messageRU.substring(0, 30)}...` : null,
+          messageEN: chip.messageEN ? `${chip.messageEN.substring(0, 30)}...` : null,
+          messageKO: chip.messageKO ? `${chip.messageKO.substring(0, 30)}...` : null,
+        },
+      });
+      
       const response = await apiClient.sendMessage({
         sessionId,
         senderType: 'USER',
@@ -1107,6 +1164,22 @@ export const BlynkApp: React.FC = () => {
       if (response.success && response.data) {
         // 서버 응답으로 받은 실제 메시지로 낙관적 메시지 교체
         const realMessage = convertBackendMessage(response.data);
+        
+        // 디버깅: 서버 응답 메시지 언어 필드 확인
+        console.log('[QuickAction] Server response message:', {
+          id: realMessage.id,
+          textZH: realMessage.textZH,
+          textRU: realMessage.textRU,
+          textEN: realMessage.textEN,
+          textKO: realMessage.textKO,
+          detectedLanguage: realMessage.detectedLanguage,
+          userLang,
+          sentTextZh: textZh,
+          sentTextRu: textRu,
+          backendRaw: response.data,
+          backendRawKeys: Object.keys(response.data || {}),
+        });
+        
         // 최근 전송한 메시지로 기록 (SSE 이벤트로 인한 중복 리로드 방지)
         recentlySentMessagesRef.current.set(realMessage.id, Date.now());
         
@@ -1197,9 +1270,9 @@ export const BlynkApp: React.FC = () => {
       sender: 'user',
       textKO: userLang === 'ko' ? messageText : '',
       textVN: userLang === 'vn' ? messageText : '',
-      textEN: userLang === 'en' ? messageText : undefined,
-      textZH: userLang === 'zh' ? messageText : undefined,
-      textRU: userLang === 'ru' ? messageText : undefined,
+      textEN: userLang === 'en' ? messageText : '',
+      textZH: userLang === 'zh' ? messageText : '',
+      textRU: userLang === 'ru' ? messageText : '',
       timestamp: new Date(),
       type: previewImage ? 'image' : 'text',
       imageUrl: previewImage || undefined,
@@ -1222,9 +1295,9 @@ export const BlynkApp: React.FC = () => {
         senderType: 'USER',
         textKo: userLang === 'ko' ? messageText : '',
         textVn: userLang === 'vn' ? messageText : '',
-        textEn: userLang === 'en' ? messageText : undefined,
-        textZh: userLang === 'zh' ? messageText : undefined,
-        textRu: userLang === 'ru' ? messageText : undefined,
+        textEn: userLang === 'en' ? messageText : '',
+        textZh: userLang === 'zh' ? messageText : '',
+        textRu: userLang === 'ru' ? messageText : '',
         messageType: previewImage ? 'IMAGE' : 'TEXT',
         imageUrl: previewImage || undefined,
       });

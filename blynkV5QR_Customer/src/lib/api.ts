@@ -176,7 +176,7 @@ export interface Order {
   createdAt: string;
 }
 
-// Chat Message 타입
+// Chat Message 타입 (백엔드 응답 - Prisma는 camelCase로 반환)
 export interface ChatMessage {
   id: string;
   sessionId: string;
@@ -184,8 +184,8 @@ export interface ChatMessage {
   textKo: string;
   textVn: string;
   textEn?: string;
-  textZH?: string;
-  textRU?: string;
+  textZh?: string;  // Prisma는 camelCase로 반환하므로 소문자 zh
+  textRu?: string;  // Prisma는 camelCase로 반환하므로 소문자 ru
   detectedLanguage?: 'ko' | 'vn' | 'en' | 'zh' | 'ru' | null;
   messageType: 'TEXT' | 'IMAGE' | 'ORDER' | 'REQUEST';
   imageUrl?: string;

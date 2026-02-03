@@ -36,65 +36,123 @@ export class ChatService {
         });
       }
     }
-    const rawText = data.textKo || data.textVn || data.textEn || data.textZh || data.textRu || '';
+    // rawText 결정: 제공된 언어 필드 중 빈 문자열이 아닌 값만 사용
+    const getNonEmptyText = (text: string | undefined): string | null => {
+      return text && text.trim() !== '' ? text.trim() : null;
+    };
+    
+    // 제공된 언어 필드 확인 (원문 보존을 위해)
+    const providedTextKo = getNonEmptyText(data.textKo);
+    const providedTextVn = getNonEmptyText(data.textVn);
+    const providedTextEn = getNonEmptyText(data.textEn);
+    const providedTextZh = getNonEmptyText(data.textZh);
+    const providedTextRu = getNonEmptyText(data.textRu);
+    
+    // 모든 언어 필드를 동일한 순서로 확인 (원래 순서 유지)
+    const rawText = providedTextKo || 
+                    providedTextVn || 
+                    providedTextEn || 
+                    providedTextZh || 
+                    providedTextRu || 
+                    '';
+    
+    // 제공된 언어 필드가 있으면 해당 언어를 원문 언어로 사용 (언어 감지보다 우선)
+    // 모든 언어를 동일한 우선순위로 처리 (rawText 결정 순서와 동일)
+    let originalLanguage: DetectedLanguage | null = null;
+    if (providedTextKo) {
+      originalLanguage = 'ko';
+    } else if (providedTextVn) {
+      originalLanguage = 'vn';
+    } else if (providedTextEn) {
+      originalLanguage = 'en';
+    } else if (providedTextZh) {
+      originalLanguage = 'zh';
+    } else if (providedTextRu) {
+      originalLanguage = 'ru';
+    }
+    
     const detectedLanguage =
       data.senderType === 'SYSTEM'
         ? null
-        : (await detectLanguageWithDeepL(rawText)) || detectMessageLanguage(rawText);
+        : originalLanguage || (rawText ? ((await detectLanguageWithDeepL(rawText)) || detectMessageLanguage(rawText)) : null);
     const shouldTranslateField = (value: string | undefined, sourceText: string) =>
       !value || value.trim() === '' || value === sourceText;
 
-    let textKo = data.textKo;
-    let textVn = data.textVn;
-    let textEn = data.textEn;
-    let textZh = data.textZh;
-    let textRu = data.textRu;
+    // 제공된 언어 필드를 우선 보존 (언어 감지 결과와 관계없이)
+    let textKo = providedTextKo || data.textKo;
+    let textVn = providedTextVn || data.textVn;
+    let textEn = providedTextEn || data.textEn;
+    let textZh = providedTextZh || data.textZh;
+    let textRu = providedTextRu || data.textRu;
 
     if (rawText && detectedLanguage && (data.messageType === 'TEXT' || data.messageType === 'REQUEST')) {
-      // 원문 텍스트 결정
-      const sourceText =
-        detectedLanguage === 'ko'
-          ? data.textKo || rawText
+      // 원문 텍스트 결정: 제공된 언어 필드가 있으면 그것을 사용, 없으면 감지된 언어의 필드 사용
+      const sourceText = originalLanguage
+        ? (originalLanguage === 'ko' ? providedTextKo
+          : originalLanguage === 'vn' ? providedTextVn
+          : originalLanguage === 'zh' ? providedTextZh
+          : originalLanguage === 'ru' ? providedTextRu
+          : providedTextEn) || rawText
+        : (detectedLanguage === 'ko'
+          ? (providedTextKo || rawText)
           : detectedLanguage === 'vn'
-          ? data.textVn || rawText
+          ? (providedTextVn || rawText)
           : detectedLanguage === 'zh'
-          ? data.textZh || rawText
+          ? (providedTextZh || rawText)
           : detectedLanguage === 'ru'
-          ? data.textRu || rawText
-          : data.textEn || rawText;
+          ? (providedTextRu || rawText)
+          : detectedLanguage === 'en'
+          ? (providedTextEn || rawText)
+          : rawText);
 
       try {
-        // 원문을 해당 언어 필드에 저장
-        if (detectedLanguage === 'ko' && shouldTranslateField(textKo, sourceText)) {
-          textKo = sourceText;
+        // 원문을 해당 언어 필드에 먼저 저장 (제공된 값이 있으면 반드시 보존)
+        // 모든 언어에 동일한 로직 적용
+        // 중요: 제공된 언어 필드는 절대 덮어쓰지 않음
+        if (detectedLanguage === 'ko') {
+          textKo = providedTextKo || sourceText;
+        } else if (providedTextKo) {
+          // 감지된 언어가 아니어도 제공된 값은 보존
+          textKo = providedTextKo;
         }
-        if (detectedLanguage === 'vn' && shouldTranslateField(textVn, sourceText)) {
-          textVn = sourceText;
+        if (detectedLanguage === 'vn') {
+          textVn = providedTextVn || sourceText;
+        } else if (providedTextVn) {
+          textVn = providedTextVn;
         }
-        if (detectedLanguage === 'en' && shouldTranslateField(textEn, sourceText)) {
-          textEn = sourceText;
+        if (detectedLanguage === 'en') {
+          textEn = providedTextEn || sourceText;
+        } else if (providedTextEn) {
+          textEn = providedTextEn;
         }
-        if (detectedLanguage === 'zh' && shouldTranslateField(textZh, sourceText)) {
-          textZh = sourceText;
+        if (detectedLanguage === 'zh') {
+          textZh = providedTextZh || sourceText;
+        } else if (providedTextZh) {
+          // 감지된 언어가 아니어도 제공된 값은 보존
+          textZh = providedTextZh;
         }
-        if (detectedLanguage === 'ru' && shouldTranslateField(textRu, sourceText)) {
-          textRu = sourceText;
+        if (detectedLanguage === 'ru') {
+          textRu = providedTextRu || sourceText;
+        } else if (providedTextRu) {
+          // 감지된 언어가 아니어도 제공된 값은 보존
+          textRu = providedTextRu;
         }
 
-        // 다른 모든 언어로 자동 번역
-        if (detectedLanguage !== 'ko' && shouldTranslateField(textKo, sourceText)) {
+        // 다른 모든 언어로 자동 번역 (원문 언어가 아닌 경우에만)
+        // 중요: 제공된 언어 필드는 절대 덮어쓰지 않음 (원문 보존)
+        if (detectedLanguage !== 'ko' && shouldTranslateField(textKo, sourceText) && !providedTextKo) {
           textKo = (await translateText(sourceText, 'ko', detectedLanguage as DetectedLanguage)) || textKo;
         }
-        if (detectedLanguage !== 'vn' && shouldTranslateField(textVn, sourceText)) {
+        if (detectedLanguage !== 'vn' && shouldTranslateField(textVn, sourceText) && !providedTextVn) {
           textVn = (await translateText(sourceText, 'vn', detectedLanguage as DetectedLanguage)) || textVn;
         }
-        if (detectedLanguage !== 'en' && shouldTranslateField(textEn, sourceText)) {
+        if (detectedLanguage !== 'en' && shouldTranslateField(textEn, sourceText) && !providedTextEn) {
           textEn = (await translateText(sourceText, 'en', detectedLanguage as DetectedLanguage)) || textEn;
         }
-        if (detectedLanguage !== 'zh' && shouldTranslateField(textZh, sourceText)) {
+        if (detectedLanguage !== 'zh' && shouldTranslateField(textZh, sourceText) && !providedTextZh) {
           textZh = (await translateText(sourceText, 'zh', detectedLanguage as DetectedLanguage)) || textZh;
         }
-        if (detectedLanguage !== 'ru' && shouldTranslateField(textRu, sourceText)) {
+        if (detectedLanguage !== 'ru' && shouldTranslateField(textRu, sourceText) && !providedTextRu) {
           textRu = (await translateText(sourceText, 'ru', detectedLanguage as DetectedLanguage)) || textRu;
         }
       } catch (_error) {
@@ -123,6 +181,27 @@ export class ChatService {
           },
         },
       },
+    });
+    
+    // 디버깅: 저장된 메시지의 언어 필드 확인 (중국어/러시아어 추적)
+    console.log(`[ChatService] createMessage - 저장된 메시지 언어 필드:`, {
+      messageId: message.id,
+      sessionId: data.sessionId,
+      senderType: data.senderType,
+      detectedLanguage: message.detectedLanguage,
+      textKo: message.textKo ? `${message.textKo.substring(0, 20)}...` : null,
+      textVn: message.textVn ? `${message.textVn.substring(0, 20)}...` : null,
+      textEn: message.textEn ? `${message.textEn.substring(0, 20)}...` : null,
+      textZh: message.textZh ? `${message.textZh.substring(0, 20)}...` : null,
+      textRu: message.textRu ? `${message.textRu.substring(0, 20)}...` : null,
+      providedTextZh: providedTextZh ? `${providedTextZh.substring(0, 20)}...` : null,
+      providedTextRu: providedTextRu ? `${providedTextRu.substring(0, 20)}...` : null,
+      originalLanguage,
+      messageKeys: Object.keys(message),
+      messageTextRuDirect: (message as any).textRu,
+      messageTextZhDirect: (message as any).textZh,
+      savedTextRu: textRu ? `${textRu.substring(0, 20)}...` : null,
+      savedTextZh: textZh ? `${textZh.substring(0, 20)}...` : null,
     });
     
     // 디버깅: 저장된 메시지의 metadata 확인
@@ -227,6 +306,25 @@ export class ChatService {
     const messages = await prisma.chatMessage.findMany({
       where: { sessionId },
       orderBy: { createdAt: 'asc' },
+    });
+    
+    // 디버깅: 조회된 메시지의 언어 필드 확인 (중국어/러시아어 추적)
+    console.log(`[ChatService] getChatHistory - 조회된 메시지 언어 필드 (Session: ${sessionId}, Count: ${messages.length}):`);
+    messages.forEach((msg: any, idx: number) => {
+      // 중국어/러시아어 필드가 있는 메시지만 로그 출력
+      if (msg.textZh || msg.textRu || msg.detectedLanguage === 'zh' || msg.detectedLanguage === 'ru') {
+        console.log(`[ChatService] getChatHistory - Message ${idx} (ID: ${msg.id}):`, {
+          messageId: msg.id,
+          detectedLanguage: msg.detectedLanguage,
+          textKo: msg.textKo ? `${msg.textKo.substring(0, 30)}...` : null,
+          textVn: msg.textVn ? `${msg.textVn.substring(0, 30)}...` : null,
+          textEn: msg.textEn ? `${msg.textEn.substring(0, 30)}...` : null,
+          textZh: msg.textZh ? `${msg.textZh.substring(0, 30)}...` : null,
+          textRu: msg.textRu ? `${msg.textRu.substring(0, 30)}...` : null,
+          senderType: msg.senderType,
+          messageType: msg.messageType,
+        });
+      }
     });
     
     // 디버깅: 조회된 메시지의 metadata 확인
