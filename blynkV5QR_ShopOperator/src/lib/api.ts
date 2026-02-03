@@ -1089,6 +1089,35 @@ class ApiClient {
 
     return response.json();
   }
+
+  // Translation methods
+  async detectLanguage(text: string): Promise<ApiResponse<{ language: string }>> {
+    return this.request('/api/staff/translate/detect', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  }
+
+  async translateText(
+    text: string,
+    targetLang: string,
+    sourceLang?: string
+  ): Promise<ApiResponse<{ translated: string }>> {
+    return this.request('/api/staff/translate', {
+      method: 'POST',
+      body: JSON.stringify({ text, targetLang, sourceLang }),
+    });
+  }
+
+  async translateToAllLanguages(
+    text: string,
+    sourceLang: string
+  ): Promise<ApiResponse<{ translations: Record<string, string> }>> {
+    return this.request('/api/staff/translate/all', {
+      method: 'POST',
+      body: JSON.stringify({ text, sourceLang }),
+    });
+  }
 }
 
 export const apiClient = new ApiClient();

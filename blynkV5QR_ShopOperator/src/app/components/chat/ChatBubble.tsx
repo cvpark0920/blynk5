@@ -75,7 +75,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber,
   ).format(new Date(message.createdAt));
 
   return (
-    <div className={`flex w-full mb-6 sm:mb-7 items-end gap-1.5 sm:gap-2 ${isStaff ? 'justify-end' : isUser ? 'justify-start' : 'justify-center'}`}>
+    <div className={`flex w-full mb-6 sm:mb-7 items-end gap-1.5 sm:gap-2 min-w-0 ${isStaff ? 'justify-end' : isUser ? 'justify-start' : 'justify-center'}`}>
       {/* 상대방 메시지에만 아바타 표시 */}
       {isUser && (
         <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 mb-1 overflow-hidden border border-white/30">
@@ -92,7 +92,12 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber,
         </div>
       )}
       <div
-        className={`max-w-[90%] sm:max-w-[85%] md:max-w-[80%] lg:max-w-[75%] rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 shadow-sm relative leading-relaxed ${
+        className={`${isUser 
+          ? 'max-w-[85%] sm:max-w-[80%] md:max-w-[75%] lg:max-w-[70%]' 
+          : isStaff 
+          ? 'max-w-[85%] sm:max-w-[80%] md:max-w-[75%] lg:max-w-[70%]' 
+          : 'max-w-[90%] sm:max-w-[85%] md:max-w-[80%] lg:max-w-[75%]'
+        } min-w-0 flex-shrink rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 shadow-sm relative leading-relaxed ${
           isStaff
             ? 'text-foreground rounded-br-md'
             : isUser

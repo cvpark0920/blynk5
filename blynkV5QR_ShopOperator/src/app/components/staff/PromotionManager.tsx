@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, Image as ImageIcon, X, Tag, Upload, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, Image as ImageIcon, X, Tag, Upload, Check, Languages } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
@@ -17,6 +17,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { Card, CardContent } from '../ui/card';
 import { cn } from '../ui/utils';
+import { Language } from '../../context/LanguageContext';
 
 // Simple hook for responsive design
 function useIsDesktop() {
@@ -43,6 +44,82 @@ export function PromotionManager({ isEmbedded = false }: PromotionManagerProps) 
   const [editingPromotion, setEditingPromotion] = useState<BackendPromotion | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const isDesktop = useIsDesktop();
+
+  // 번역 상태
+  const [isTranslatingTitle, setIsTranslatingTitle] = useState(false);
+  const [isTranslatingDescription, setIsTranslatingDescription] = useState(false);
+
+  // 제목 번역 함수
+  const handleTranslateTitle = async (sourceLang: Language) => {
+    const sourceValue = 
+      sourceLang === 'en' ? titleEn :
+      sourceLang === 'vn' ? titleVn :
+      sourceLang === 'ko' ? titleKo :
+      sourceLang === 'zh' ? titleZh :
+      sourceLang === 'ru' ? titleRu : '';
+
+    if (!sourceValue.trim()) {
+      toast.error('번역할 내용이 없습니다.');
+      return;
+    }
+
+    setIsTranslatingTitle(true);
+    try {
+      const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+      if (result.success && result.data?.translations) {
+        const translations = result.data.translations as Record<Language, string>;
+        setTitleEn(translations.en || titleEn);
+        setTitleVn(translations.vn || titleVn);
+        setTitleKo(translations.ko || titleKo);
+        setTitleZh(translations.zh || titleZh);
+        setTitleRu(translations.ru || titleRu);
+        toast.success('번역이 완료되었습니다.');
+      } else {
+        toast.error('번역에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      toast.error('번역 중 오류가 발생했습니다.');
+    } finally {
+      setIsTranslatingTitle(false);
+    }
+  };
+
+  // 설명 번역 함수
+  const handleTranslateDescription = async (sourceLang: Language) => {
+    const sourceValue = 
+      sourceLang === 'en' ? descriptionEn :
+      sourceLang === 'vn' ? descriptionVn :
+      sourceLang === 'ko' ? descriptionKo :
+      sourceLang === 'zh' ? descriptionZh :
+      sourceLang === 'ru' ? descriptionRu : '';
+
+    if (!sourceValue.trim()) {
+      toast.error('번역할 내용이 없습니다.');
+      return;
+    }
+
+    setIsTranslatingDescription(true);
+    try {
+      const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+      if (result.success && result.data?.translations) {
+        const translations = result.data.translations as Record<Language, string>;
+        setDescriptionEn(translations.en || descriptionEn);
+        setDescriptionVn(translations.vn || descriptionVn);
+        setDescriptionKo(translations.ko || descriptionKo);
+        setDescriptionZh(translations.zh || descriptionZh);
+        setDescriptionRu(translations.ru || descriptionRu);
+        toast.success('번역이 완료되었습니다.');
+      } else {
+        toast.error('번역에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      toast.error('번역 중 오류가 발생했습니다.');
+    } finally {
+      setIsTranslatingDescription(false);
+    }
+  };
 
   // Form state
   const [titleKo, setTitleKo] = useState('');
@@ -204,8 +281,8 @@ export function PromotionManager({ isEmbedded = false }: PromotionManagerProps) 
       return;
     }
 
-    if (!titleKo.trim() || !titleVn.trim()) {
-      toast.error('한국어와 베트남어 제목은 필수입니다.');
+    if (!titleEn.trim()) {
+      toast.error('영어 제목은 필수입니다.');
       return;
     }
 
@@ -222,9 +299,9 @@ export function PromotionManager({ isEmbedded = false }: PromotionManagerProps) 
     setIsLoading(true);
     try {
       const data = {
-        titleKo: titleKo.trim(),
-        titleVn: titleVn.trim(),
-        titleEn: titleEn.trim() || undefined,
+        titleEn: titleEn.trim(),
+        titleVn: titleVn.trim() || undefined,
+        titleKo: titleKo.trim() || undefined,
         titleZh: titleZh.trim() || undefined,
         titleRu: titleRu.trim() || undefined,
         descriptionKo: descriptionKo.trim() || undefined,
@@ -489,99 +566,334 @@ export function PromotionManager({ isEmbedded = false }: PromotionManagerProps) 
   const FormContent = (
     <ScrollArea className="flex-1 min-h-0">
       <div className="p-4 space-y-4 pb-6">
-        <div className="space-y-2">
-          <Label>제목 (한국어) *</Label>
-          <Input
-            value={titleKo}
-            onChange={(e) => setTitleKo(e.target.value)}
-            placeholder="예: 신메뉴 출시 할인"
-          />
+        {/* 영어 섹션 */}
+        <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold text-zinc-900">영어 *</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateTitle('en')}
+                disabled={isTranslatingTitle || !titleEn.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingTitle ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    제목 번역
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateDescription('en')}
+                disabled={isTranslatingDescription || !descriptionEn.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingDescription ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    설명 번역
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">제목</Label>
+            <Input
+              value={titleEn}
+              onChange={(e) => setTitleEn(e.target.value)}
+              placeholder="e.g., New Menu Launch Discount"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">설명</Label>
+            <Textarea
+              value={descriptionEn}
+              onChange={(e) => setDescriptionEn(e.target.value)}
+              placeholder="Enter promotion description"
+              rows={3}
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>제목 (베트남어) *</Label>
-          <Input
-            value={titleVn}
-            onChange={(e) => setTitleVn(e.target.value)}
-            placeholder="Ví dụ: Giảm giá món mới"
-          />
+        {/* 베트남어 섹션 */}
+        <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold text-zinc-900">베트남어</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateTitle('vn')}
+                disabled={isTranslatingTitle || !titleVn.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingTitle ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    제목 번역
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateDescription('vn')}
+                disabled={isTranslatingDescription || !descriptionVn.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingDescription ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    설명 번역
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">제목</Label>
+            <Input
+              value={titleVn}
+              onChange={(e) => setTitleVn(e.target.value)}
+              placeholder="Ví dụ: Giảm giá món mới"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">설명</Label>
+            <Textarea
+              value={descriptionVn}
+              onChange={(e) => setDescriptionVn(e.target.value)}
+              placeholder="Nhập mô tả khuyến mãi"
+              rows={3}
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>제목 (영어)</Label>
-          <Input
-            value={titleEn}
-            onChange={(e) => setTitleEn(e.target.value)}
-            placeholder="e.g., New Menu Launch Discount"
-          />
+        {/* 한국어 섹션 */}
+        <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold text-zinc-900">한국어</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateTitle('ko')}
+                disabled={isTranslatingTitle || !titleKo.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingTitle ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    제목 번역
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateDescription('ko')}
+                disabled={isTranslatingDescription || !descriptionKo.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingDescription ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    설명 번역
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">제목</Label>
+            <Input
+              value={titleKo}
+              onChange={(e) => setTitleKo(e.target.value)}
+              placeholder="예: 신메뉴 출시 할인"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">설명</Label>
+            <Textarea
+              value={descriptionKo}
+              onChange={(e) => setDescriptionKo(e.target.value)}
+              placeholder="프로모션 설명을 입력하세요"
+              rows={3}
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>제목 (중국어)</Label>
-          <Input
-            value={titleZh}
-            onChange={(e) => setTitleZh(e.target.value)}
-            placeholder="例如：新菜单发布折扣"
-          />
+        {/* 중국어 섹션 */}
+        <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold text-zinc-900">중국어</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateTitle('zh')}
+                disabled={isTranslatingTitle || !titleZh.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingTitle ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    제목 번역
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateDescription('zh')}
+                disabled={isTranslatingDescription || !descriptionZh.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingDescription ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    설명 번역
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">제목</Label>
+            <Input
+              value={titleZh}
+              onChange={(e) => setTitleZh(e.target.value)}
+              placeholder="例如：新菜单发布折扣"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">설명</Label>
+            <Textarea
+              value={descriptionZh}
+              onChange={(e) => setDescriptionZh(e.target.value)}
+              placeholder="输入促销说明"
+              rows={3}
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>제목 (러시아어)</Label>
-          <Input
-            value={titleRu}
-            onChange={(e) => setTitleRu(e.target.value)}
-            placeholder="Например: Скидка на новое меню"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>설명 (한국어)</Label>
-          <Textarea
-            value={descriptionKo}
-            onChange={(e) => setDescriptionKo(e.target.value)}
-            placeholder="프로모션 설명을 입력하세요"
-            rows={3}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>설명 (베트남어)</Label>
-          <Textarea
-            value={descriptionVn}
-            onChange={(e) => setDescriptionVn(e.target.value)}
-            placeholder="Nhập mô tả khuyến mãi"
-            rows={3}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>설명 (영어)</Label>
-          <Textarea
-            value={descriptionEn}
-            onChange={(e) => setDescriptionEn(e.target.value)}
-            placeholder="Enter promotion description"
-            rows={3}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>설명 (중국어)</Label>
-          <Textarea
-            value={descriptionZh}
-            onChange={(e) => setDescriptionZh(e.target.value)}
-            placeholder="输入促销说明"
-            rows={3}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>설명 (러시아어)</Label>
-          <Textarea
-            value={descriptionRu}
-            onChange={(e) => setDescriptionRu(e.target.value)}
-            placeholder="Введите описание акции"
-            rows={3}
-          />
+        {/* 러시아어 섹션 */}
+        <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold text-zinc-900">러시아어</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateTitle('ru')}
+                disabled={isTranslatingTitle || !titleRu.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingTitle ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    제목 번역
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleTranslateDescription('ru')}
+                disabled={isTranslatingDescription || !descriptionRu.trim()}
+                className="h-7 text-xs"
+              >
+                {isTranslatingDescription ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                    번역 중...
+                  </>
+                ) : (
+                  <>
+                    <Languages className="w-3 h-3 mr-1" />
+                    설명 번역
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">제목</Label>
+            <Input
+              value={titleRu}
+              onChange={(e) => setTitleRu(e.target.value)}
+              placeholder="Например: Скидка на новое меню"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-zinc-700">설명</Label>
+            <Textarea
+              value={descriptionRu}
+              onChange={(e) => setDescriptionRu(e.target.value)}
+              placeholder="Введите описание акции"
+              rows={3}
+            />
+          </div>
         </div>
 
         <Separator className="my-4" />

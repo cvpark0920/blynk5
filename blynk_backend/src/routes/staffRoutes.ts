@@ -63,6 +63,11 @@ import {
   updatePromotion,
   deletePromotion,
 } from '../controllers/promotionController';
+import {
+  detectLanguage,
+  translateSingle,
+  translateToAllLanguages,
+} from '../controllers/translationController';
 import multer from 'multer';
 import { config } from '../config';
 
@@ -150,5 +155,10 @@ router.delete('/restaurant/:restaurantId/splash-image', deleteSplashImage);
 
 // Promotion image routes (OWNER/MANAGER only, checked in controller)
 router.post('/restaurant/:restaurantId/promotion-image', upload.single('image'), uploadPromotionImage);
+
+// Translation routes
+router.post('/translate/detect', detectLanguage);
+router.post('/translate', translateSingle);
+router.post('/translate/all', translateToAllLanguages);
 
 export default router;

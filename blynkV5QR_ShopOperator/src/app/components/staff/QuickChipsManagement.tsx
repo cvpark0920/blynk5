@@ -20,12 +20,13 @@ import {
 } from '../ui/drawer';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
-import { Plus, Pencil, Trash2, MessageSquare } from 'lucide-react';
+import { Plus, Pencil, Trash2, MessageSquare, Languages } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '../../../lib/api';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { Language } from '../../context/LanguageContext';
 
 const ICON_OPTIONS = [
   'MessageSquare', 'Reply', 'Coffee', 'Utensils', 'UtensilsCrossed', 'Droplets', 'Water', 'Wifi', 'Music', 'Volume2',
@@ -82,7 +83,7 @@ function useIsDesktop() {
 }
 
 export function QuickChipsManagement() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { shopRestaurantId: restaurantId } = useUnifiedAuth();
   const isDesktop = useIsDesktop();
   const [activeTab, setActiveTab] = useState<'customer' | 'staff'>('customer');
@@ -94,6 +95,88 @@ export function QuickChipsManagement() {
   const [editingMode, setEditingMode] = useState<EditMode>('create');
   const [editingChip, setEditingChip] = useState<QuickChip | null>(null);
   const [baseTemplate, setBaseTemplate] = useState<QuickChip | null>(null);
+
+  // 번역 상태
+  const [isTranslatingLabel, setIsTranslatingLabel] = useState(false);
+  const [isTranslatingMessage, setIsTranslatingMessage] = useState(false);
+
+  // 라벨 번역 함수
+  const handleTranslateLabel = async (sourceLang: Language) => {
+    const sourceValue = 
+      sourceLang === 'en' ? formData.labelEn :
+      sourceLang === 'vn' ? formData.labelVn :
+      sourceLang === 'ko' ? formData.labelKo :
+      sourceLang === 'zh' ? formData.labelZh :
+      sourceLang === 'ru' ? formData.labelRu : '';
+
+    if (!sourceValue || !sourceValue.trim()) {
+      toast.error('번역할 내용이 없습니다.');
+      return;
+    }
+
+    setIsTranslatingLabel(true);
+    try {
+      const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+      if (result.success && result.data?.translations) {
+        const translations = result.data.translations as Record<Language, string>;
+        setFormData((prev) => ({
+          ...prev,
+          labelEn: translations.en || prev.labelEn,
+          labelVn: translations.vn || prev.labelVn,
+          labelKo: translations.ko || prev.labelKo,
+          labelZh: translations.zh || prev.labelZh,
+          labelRu: translations.ru || prev.labelRu,
+        }));
+        toast.success('번역이 완료되었습니다.');
+      } else {
+        toast.error('번역에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      toast.error('번역 중 오류가 발생했습니다.');
+    } finally {
+      setIsTranslatingLabel(false);
+    }
+  };
+
+  // 메시지 번역 함수
+  const handleTranslateMessage = async (sourceLang: Language) => {
+    const sourceValue = 
+      sourceLang === 'en' ? formData.messageEn :
+      sourceLang === 'vn' ? formData.messageVn :
+      sourceLang === 'ko' ? formData.messageKo :
+      sourceLang === 'zh' ? formData.messageZh :
+      sourceLang === 'ru' ? formData.messageRu : '';
+
+    if (!sourceValue || !sourceValue.trim()) {
+      toast.error('번역할 내용이 없습니다.');
+      return;
+    }
+
+    setIsTranslatingMessage(true);
+    try {
+      const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+      if (result.success && result.data?.translations) {
+        const translations = result.data.translations as Record<Language, string>;
+        setFormData((prev) => ({
+          ...prev,
+          messageEn: translations.en || prev.messageEn,
+          messageVn: translations.vn || prev.messageVn,
+          messageKo: translations.ko || prev.messageKo,
+          messageZh: translations.zh || prev.messageZh,
+          messageRu: translations.ru || prev.messageRu,
+        }));
+        toast.success('번역이 완료되었습니다.');
+      } else {
+        toast.error('번역에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      toast.error('번역 중 오류가 발생했습니다.');
+    } finally {
+      setIsTranslatingMessage(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     templateKey: '',
@@ -335,8 +418,8 @@ export function QuickChipsManagement() {
 
   const handleSave = async () => {
     if (!restaurantId) return;
-    if (!formData.labelKo || !formData.labelVn) {
-      toast.error('한국어/베트남어 라벨은 필수입니다.');
+    if (!formData.labelEn) {
+      toast.error('영어 라벨은 필수입니다.');
       return;
     }
 
@@ -345,14 +428,14 @@ export function QuickChipsManagement() {
         await apiClient.updateRestaurantQuickChip(editingChip.id, restaurantId, {
           templateKey: formData.templateKey || undefined,
           icon: formData.icon,
-          labelKo: formData.labelKo,
-          labelVn: formData.labelVn,
-          labelEn: formData.labelEn || undefined,
+          labelEn: formData.labelEn,
+          labelVn: formData.labelVn || undefined,
+          labelKo: formData.labelKo || undefined,
           labelZh: formData.labelZh || undefined,
           labelRu: formData.labelRu || undefined,
-          messageKo: formData.messageKo || undefined,
-          messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
+          messageVn: formData.messageVn || undefined,
+          messageKo: formData.messageKo || undefined,
           messageZh: formData.messageZh || undefined,
           messageRu: formData.messageRu || undefined,
           displayOrder: formData.displayOrder,
@@ -365,14 +448,14 @@ export function QuickChipsManagement() {
           type: currentType,
           templateKey: formData.templateKey || undefined,
           icon: formData.icon,
-          labelKo: formData.labelKo,
-          labelVn: formData.labelVn,
-          labelEn: formData.labelEn || undefined,
+          labelEn: formData.labelEn,
+          labelVn: formData.labelVn || undefined,
+          labelKo: formData.labelKo || undefined,
           labelZh: formData.labelZh || undefined,
           labelRu: formData.labelRu || undefined,
-          messageKo: formData.messageKo || undefined,
-          messageVn: formData.messageVn || undefined,
           messageEn: formData.messageEn || undefined,
+          messageVn: formData.messageVn || undefined,
+          messageKo: formData.messageKo || undefined,
           messageZh: formData.messageZh || undefined,
           messageRu: formData.messageRu || undefined,
           displayOrder: formData.displayOrder,
@@ -514,33 +597,55 @@ export function QuickChipsManagement() {
         </ScrollArea>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="grid gap-2">
-          <Label htmlFor="labelKo" className="text-sm font-medium text-foreground">
-            라벨 (한국어) *
-          </Label>
-          <Input
-            id="labelKo"
-            value={formData.labelKo}
-            onChange={(e) => setFormData({ ...formData, labelKo: e.target.value })}
-            className="bg-input-background border-input"
-          />
+      {/* 영어 섹션 */}
+      <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold text-zinc-900">영어 *</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateLabel('en')}
+              disabled={isTranslatingLabel || !formData.labelEn?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingLabel ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  라벨 번역
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateMessage('en')}
+              disabled={isTranslatingMessage || !formData.messageEn?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingMessage ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  메시지 번역
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="labelVn" className="text-sm font-medium text-foreground">
-            라벨 (베트남어) *
-          </Label>
-          <Input
-            id="labelVn"
-            value={formData.labelVn}
-            onChange={(e) => setFormData({ ...formData, labelVn: e.target.value })}
-            className="bg-input-background border-input"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="labelEn" className="text-sm font-medium text-foreground">
-            라벨 (영어)
-          </Label>
+        <div className="space-y-2">
+          <Label htmlFor="labelEn" className="text-sm text-zinc-700">라벨</Label>
           <Input
             id="labelEn"
             value={formData.labelEn}
@@ -548,10 +653,200 @@ export function QuickChipsManagement() {
             className="bg-input-background border-input"
           />
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="labelZh" className="text-sm font-medium text-foreground">
-            라벨 (중국어)
-          </Label>
+        <div className="space-y-2">
+          <Label htmlFor="messageEn" className="text-sm text-zinc-700">메시지</Label>
+          <Input
+            id="messageEn"
+            value={formData.messageEn}
+            onChange={(e) => setFormData({ ...formData, messageEn: e.target.value })}
+            className="bg-input-background border-input"
+          />
+        </div>
+      </div>
+
+      {/* 베트남어 섹션 */}
+      <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold text-zinc-900">베트남어</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateLabel('vn')}
+              disabled={isTranslatingLabel || !formData.labelVn?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingLabel ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  라벨 번역
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateMessage('vn')}
+              disabled={isTranslatingMessage || !formData.messageVn?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingMessage ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  메시지 번역
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="labelVn" className="text-sm text-zinc-700">라벨</Label>
+          <Input
+            id="labelVn"
+            value={formData.labelVn}
+            onChange={(e) => setFormData({ ...formData, labelVn: e.target.value })}
+            className="bg-input-background border-input"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="messageVn" className="text-sm text-zinc-700">메시지</Label>
+          <Input
+            id="messageVn"
+            value={formData.messageVn}
+            onChange={(e) => setFormData({ ...formData, messageVn: e.target.value })}
+            className="bg-input-background border-input"
+          />
+        </div>
+      </div>
+
+      {/* 한국어 섹션 */}
+      <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold text-zinc-900">한국어</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateLabel('ko')}
+              disabled={isTranslatingLabel || !formData.labelKo?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingLabel ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  라벨 번역
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateMessage('ko')}
+              disabled={isTranslatingMessage || !formData.messageKo?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingMessage ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  메시지 번역
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="labelKo" className="text-sm text-zinc-700">라벨</Label>
+          <Input
+            id="labelKo"
+            value={formData.labelKo}
+            onChange={(e) => setFormData({ ...formData, labelKo: e.target.value })}
+            className="bg-input-background border-input"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="messageKo" className="text-sm text-zinc-700">메시지</Label>
+          <Input
+            id="messageKo"
+            value={formData.messageKo}
+            onChange={(e) => setFormData({ ...formData, messageKo: e.target.value })}
+            className="bg-input-background border-input"
+          />
+        </div>
+      </div>
+
+      {/* 중국어 섹션 */}
+      <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold text-zinc-900">중국어</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateLabel('zh')}
+              disabled={isTranslatingLabel || !formData.labelZh?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingLabel ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  라벨 번역
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateMessage('zh')}
+              disabled={isTranslatingMessage || !formData.messageZh?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingMessage ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  메시지 번역
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="labelZh" className="text-sm text-zinc-700">라벨</Label>
           <Input
             id="labelZh"
             value={formData.labelZh ?? ''}
@@ -574,57 +869,8 @@ export function QuickChipsManagement() {
             </div>
           )}
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="labelRu" className="text-sm font-medium text-foreground">
-            라벨 (러시아어)
-          </Label>
-          <Input
-            id="labelRu"
-            value={formData.labelRu ?? ''}
-            onChange={(e) => setFormData({ ...formData, labelRu: e.target.value })}
-            className="bg-input-background border-input"
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="grid gap-2">
-          <Label htmlFor="messageKo" className="text-sm font-medium text-foreground">
-            메시지 (한국어)
-          </Label>
-          <Input
-            id="messageKo"
-            value={formData.messageKo}
-            onChange={(e) => setFormData({ ...formData, messageKo: e.target.value })}
-            className="bg-input-background border-input"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="messageVn" className="text-sm font-medium text-foreground">
-            메시지 (베트남어)
-          </Label>
-          <Input
-            id="messageVn"
-            value={formData.messageVn}
-            onChange={(e) => setFormData({ ...formData, messageVn: e.target.value })}
-            className="bg-input-background border-input"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="messageEn" className="text-sm font-medium text-foreground">
-            메시지 (영어)
-          </Label>
-          <Input
-            id="messageEn"
-            value={formData.messageEn}
-            onChange={(e) => setFormData({ ...formData, messageEn: e.target.value })}
-            className="bg-input-background border-input"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="messageZh" className="text-sm font-medium text-foreground">
-            메시지 (중국어)
-          </Label>
+        <div className="space-y-2">
+          <Label htmlFor="messageZh" className="text-sm text-zinc-700">메시지</Label>
           <Input
             id="messageZh"
             value={formData.messageZh ?? ''}
@@ -647,10 +893,66 @@ export function QuickChipsManagement() {
             </div>
           )}
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="messageRu" className="text-sm font-medium text-foreground">
-            메시지 (러시아어)
-          </Label>
+      </div>
+
+      {/* 러시아어 섹션 */}
+      <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold text-zinc-900">러시아어</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateLabel('ru')}
+              disabled={isTranslatingLabel || !formData.labelRu?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingLabel ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  라벨 번역
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleTranslateMessage('ru')}
+              disabled={isTranslatingMessage || !formData.messageRu?.trim()}
+              className="h-7 text-xs"
+            >
+              {isTranslatingMessage ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                  번역 중...
+                </>
+              ) : (
+                <>
+                  <Languages className="w-3 h-3 mr-1" />
+                  메시지 번역
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="labelRu" className="text-sm text-zinc-700">라벨</Label>
+          <Input
+            id="labelRu"
+            value={formData.labelRu ?? ''}
+            onChange={(e) => setFormData({ ...formData, labelRu: e.target.value })}
+            className="bg-input-background border-input"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="messageRu" className="text-sm text-zinc-700">메시지</Label>
           <Input
             id="messageRu"
             value={formData.messageRu ?? ''}

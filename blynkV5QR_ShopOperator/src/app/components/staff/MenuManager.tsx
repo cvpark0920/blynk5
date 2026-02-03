@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MenuItem, MenuCategory } from '../../data';
-import { Tag, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Image as ImageIcon, Check, Upload, ArrowUp, ArrowDown } from 'lucide-react';
+import { Tag, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Image as ImageIcon, Check, Upload, ArrowUp, ArrowDown, Languages } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUnifiedAuth } from '../../../../../src/context/UnifiedAuthContext';
@@ -11,10 +11,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from '../ui/drawer';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { cn } from '../ui/utils';
 import { formatPriceVND } from '../../utils/priceFormat';
+import { Language } from '../../context/LanguageContext';
 
 // Simple hook for responsive design
 function useIsDesktop() {
@@ -700,6 +704,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
                   handleSaveItem={handleSaveItem}
                   t={t}
                   isLoading={isLoading}
+                  language={language}
                />
             )}
           </SheetContent>
@@ -719,6 +724,7 @@ export function MenuManager({ menu, setMenu, categories, setCategories, isEmbedd
                    handleDeleteItem={handleDeleteItem}
                    handleSaveItem={handleSaveItem}
                    t={t}
+                   language={language}
                 />
              )}
            </DrawerContent>
@@ -759,6 +765,82 @@ function CategoryManagerContent({
     const [editingCategoryNameEn, setEditingCategoryNameEn] = useState('');
     const [editingCategoryNameZh, setEditingCategoryNameZh] = useState('');
     const [editingCategoryNameRu, setEditingCategoryNameRu] = useState('');
+
+    // 번역 상태
+    const [isTranslatingNewCategory, setIsTranslatingNewCategory] = useState(false);
+    const [isTranslatingEditCategory, setIsTranslatingEditCategory] = useState(false);
+
+    // 새 카테고리 번역 함수
+    const handleTranslateNewCategory = async (sourceLang: Language) => {
+      const sourceValue = 
+        sourceLang === 'en' ? newCategoryNameEn :
+        sourceLang === 'vn' ? newCategoryNameVn :
+        sourceLang === 'ko' ? newCategoryNameKo :
+        sourceLang === 'zh' ? newCategoryNameZh :
+        sourceLang === 'ru' ? newCategoryNameRu : '';
+
+      if (!sourceValue.trim()) {
+        toast.error('번역할 내용이 없습니다.');
+        return;
+      }
+
+      setIsTranslatingNewCategory(true);
+      try {
+        const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+        if (result.success && result.data?.translations) {
+          const translations = result.data.translations as Record<Language, string>;
+          setNewCategoryNameEn(translations.en || newCategoryNameEn);
+          setNewCategoryNameVn(translations.vn || newCategoryNameVn);
+          setNewCategoryNameKo(translations.ko || newCategoryNameKo);
+          setNewCategoryNameZh(translations.zh || newCategoryNameZh);
+          setNewCategoryNameRu(translations.ru || newCategoryNameRu);
+          toast.success('번역이 완료되었습니다.');
+        } else {
+          toast.error('번역에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+        toast.error('번역 중 오류가 발생했습니다.');
+      } finally {
+        setIsTranslatingNewCategory(false);
+      }
+    };
+
+    // 카테고리 수정 번역 함수
+    const handleTranslateEditCategory = async (sourceLang: Language) => {
+      const sourceValue = 
+        sourceLang === 'en' ? editingCategoryNameEn :
+        sourceLang === 'vn' ? editingCategoryNameVn :
+        sourceLang === 'ko' ? editingCategoryNameKo :
+        sourceLang === 'zh' ? editingCategoryNameZh :
+        sourceLang === 'ru' ? editingCategoryNameRu : '';
+
+      if (!sourceValue.trim()) {
+        toast.error('번역할 내용이 없습니다.');
+        return;
+      }
+
+      setIsTranslatingEditCategory(true);
+      try {
+        const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+        if (result.success && result.data?.translations) {
+          const translations = result.data.translations as Record<Language, string>;
+          setEditingCategoryNameEn(translations.en || editingCategoryNameEn);
+          setEditingCategoryNameVn(translations.vn || editingCategoryNameVn);
+          setEditingCategoryNameKo(translations.ko || editingCategoryNameKo);
+          setEditingCategoryNameZh(translations.zh || editingCategoryNameZh);
+          setEditingCategoryNameRu(translations.ru || editingCategoryNameRu);
+          toast.success('번역이 완료되었습니다.');
+        } else {
+          toast.error('번역에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+        toast.error('번역 중 오류가 발생했습니다.');
+      } finally {
+        setIsTranslatingEditCategory(false);
+      }
+    };
 
     const startEdit = (cat: any) => {
         setEditingCategoryId(cat.id);
@@ -816,54 +898,187 @@ function CategoryManagerContent({
                   {sortedCategories.map((cat: any, index: number) => (
                     <div key={cat.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg border border-zinc-100">
                       {editingCategoryId === cat.id ? (
-                        <div className="w-full space-y-3">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="grid gap-1">
-                              <label className="text-xs text-zinc-500">한국어 *</label>
-                              <Input 
-                                  value={editingCategoryNameKo}
-                                  onChange={(e) => setEditingCategoryNameKo(e.target.value)}
-                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
-                                  placeholder="한국어"
-                              />
+                        <div className="w-full space-y-4">
+                          {/* 영어 섹션 */}
+                          <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-base font-semibold text-zinc-900">영어 *</Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTranslateEditCategory('en')}
+                                disabled={isTranslatingEditCategory || !editingCategoryNameEn.trim()}
+                                className="h-7 text-xs"
+                              >
+                                {isTranslatingEditCategory ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                    번역 중...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Languages className="w-3 h-3 mr-1" />
+                                    번역
+                                  </>
+                                )}
+                              </Button>
                             </div>
-                            <div className="grid gap-1">
-                              <label className="text-xs text-zinc-500">베트남어 *</label>
-                              <Input 
-                                  value={editingCategoryNameVn}
-                                  onChange={(e) => setEditingCategoryNameVn(e.target.value)}
-                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
-                                  placeholder="베트남어"
-                              />
-                            </div>
-                            <div className="grid gap-1">
-                              <label className="text-xs text-zinc-500">영어</label>
-                              <Input 
-                                  value={editingCategoryNameEn}
-                                  onChange={(e) => setEditingCategoryNameEn(e.target.value)}
-                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
-                                  placeholder="영어"
-                              />
-                            </div>
-                            <div className="grid gap-1">
-                              <label className="text-xs text-zinc-500">중국어</label>
-                              <Input 
-                                  value={editingCategoryNameZh}
-                                  onChange={(e) => setEditingCategoryNameZh(e.target.value)}
-                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
-                                  placeholder="중국어"
-                              />
-                            </div>
-                            <div className="grid gap-1">
-                              <label className="text-xs text-zinc-500">러시아어</label>
-                              <Input 
-                                  value={editingCategoryNameRu}
-                                  onChange={(e) => setEditingCategoryNameRu(e.target.value)}
-                                  className="bg-white border-zinc-200 focus-visible:ring-zinc-900 text-sm"
-                                  placeholder="러시아어"
+                            <div className="space-y-2">
+                              <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                              <Input
+                                value={editingCategoryNameEn}
+                                onChange={(e) => setEditingCategoryNameEn(e.target.value)}
+                                className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                                placeholder="예: Food"
                               />
                             </div>
                           </div>
+
+                          {/* 베트남어 섹션 */}
+                          <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-base font-semibold text-zinc-900">베트남어</Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTranslateEditCategory('vn')}
+                                disabled={isTranslatingEditCategory || !editingCategoryNameVn.trim()}
+                                className="h-7 text-xs"
+                              >
+                                {isTranslatingEditCategory ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                    번역 중...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Languages className="w-3 h-3 mr-1" />
+                                    번역
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                              <Input
+                                value={editingCategoryNameVn}
+                                onChange={(e) => setEditingCategoryNameVn(e.target.value)}
+                                className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                                placeholder="예: Đồ ăn"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 한국어 섹션 */}
+                          <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-base font-semibold text-zinc-900">한국어</Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTranslateEditCategory('ko')}
+                                disabled={isTranslatingEditCategory || !editingCategoryNameKo.trim()}
+                                className="h-7 text-xs"
+                              >
+                                {isTranslatingEditCategory ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                    번역 중...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Languages className="w-3 h-3 mr-1" />
+                                    번역
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm text-zinc-700">카테고리 이름 *</Label>
+                              <Input
+                                value={editingCategoryNameKo}
+                                onChange={(e) => setEditingCategoryNameKo(e.target.value)}
+                                className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                                placeholder="예: 음식"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 중국어 섹션 */}
+                          <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-base font-semibold text-zinc-900">중국어</Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTranslateEditCategory('zh')}
+                                disabled={isTranslatingEditCategory || !editingCategoryNameZh.trim()}
+                                className="h-7 text-xs"
+                              >
+                                {isTranslatingEditCategory ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                    번역 중...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Languages className="w-3 h-3 mr-1" />
+                                    번역
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                              <Input
+                                value={editingCategoryNameZh}
+                                onChange={(e) => setEditingCategoryNameZh(e.target.value)}
+                                className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                                placeholder="예: 食物"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 러시아어 섹션 */}
+                          <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-base font-semibold text-zinc-900">러시아어</Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTranslateEditCategory('ru')}
+                                disabled={isTranslatingEditCategory || !editingCategoryNameRu.trim()}
+                                className="h-7 text-xs"
+                              >
+                                {isTranslatingEditCategory ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                    번역 중...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Languages className="w-3 h-3 mr-1" />
+                                    번역
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                              <Input
+                                value={editingCategoryNameRu}
+                                onChange={(e) => setEditingCategoryNameRu(e.target.value)}
+                                className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                                placeholder="예: Еда"
+                              />
+                            </div>
+                          </div>
+
                           <div className="flex items-center gap-1 justify-end">
                               <button 
                                   onClick={saveEdit}
@@ -934,62 +1149,196 @@ function CategoryManagerContent({
              </div>
              
              <div className="p-4 bg-white border-t border-zinc-100 space-y-4 sticky bottom-0 z-10 pb-8 md:pb-4 overflow-y-auto max-h-[60vh]">
-               <div className="grid gap-4">
-                   <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">New Category</label>
-                   <div className="grid gap-3">
-                        <div className="grid gap-2">
-                            <label className="text-xs font-medium text-zinc-500">라벨 (한국어) *</label>
-                            <Input 
-                                placeholder="예: 음식"
-                                value={newCategoryNameKo}
-                                onChange={(e) => setNewCategoryNameKo(e.target.value)}
-                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <label className="text-xs font-medium text-zinc-500">라벨 (베트남어) *</label>
-                            <Input 
-                                placeholder="예: Đồ ăn"
-                                value={newCategoryNameVn}
-                                onChange={(e) => setNewCategoryNameVn(e.target.value)}
-                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <label className="text-xs font-medium text-zinc-500">라벨 (영어)</label>
-                            <Input 
-                                placeholder="예: Food"
-                                value={newCategoryNameEn}
-                                onChange={(e) => setNewCategoryNameEn(e.target.value)}
-                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <label className="text-xs font-medium text-zinc-500">라벨 (중국어)</label>
-                            <Input 
-                                placeholder="예: 食物"
-                                value={newCategoryNameZh}
-                                onChange={(e) => setNewCategoryNameZh(e.target.value)}
-                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <label className="text-xs font-medium text-zinc-500">라벨 (러시아어)</label>
-                            <Input 
-                                placeholder="예: Еда"
-                                value={newCategoryNameRu}
-                                onChange={(e) => setNewCategoryNameRu(e.target.value)}
-                                className="bg-zinc-50 border-zinc-200 focus-visible:ring-zinc-900"
-                            />
-                        </div>
-                        <button 
-                            onClick={handleAddCategory}
-                            disabled={isLoading || !newCategoryNameKo.trim() || !newCategoryNameVn.trim()}
-                            className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isLoading ? t('btn.adding') : t('btn.add')}
-                        </button>
+               <div className="space-y-4">
+                   <Label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">New Category</Label>
+                   
+                   {/* 영어 섹션 */}
+                   <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                     <div className="flex items-center justify-between">
+                       <Label className="text-base font-semibold text-zinc-900">영어 *</Label>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         onClick={() => handleTranslateNewCategory('en')}
+                         disabled={isTranslatingNewCategory || !newCategoryNameEn.trim()}
+                         className="h-7 text-xs"
+                       >
+                         {isTranslatingNewCategory ? (
+                           <>
+                             <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                             번역 중...
+                           </>
+                         ) : (
+                           <>
+                             <Languages className="w-3 h-3 mr-1" />
+                             번역
+                           </>
+                         )}
+                       </Button>
+                     </div>
+                     <div className="space-y-2">
+                       <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                       <Input
+                         placeholder="예: Food"
+                         value={newCategoryNameEn}
+                         onChange={(e) => setNewCategoryNameEn(e.target.value)}
+                         className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                       />
+                     </div>
                    </div>
+
+                   {/* 베트남어 섹션 */}
+                   <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                     <div className="flex items-center justify-between">
+                       <Label className="text-base font-semibold text-zinc-900">베트남어</Label>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         onClick={() => handleTranslateNewCategory('vn')}
+                         disabled={isTranslatingNewCategory || !newCategoryNameVn.trim()}
+                         className="h-7 text-xs"
+                       >
+                         {isTranslatingNewCategory ? (
+                           <>
+                             <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                             번역 중...
+                           </>
+                         ) : (
+                           <>
+                             <Languages className="w-3 h-3 mr-1" />
+                             번역
+                           </>
+                         )}
+                       </Button>
+                     </div>
+                     <div className="space-y-2">
+                       <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                       <Input
+                         placeholder="예: Đồ ăn"
+                         value={newCategoryNameVn}
+                         onChange={(e) => setNewCategoryNameVn(e.target.value)}
+                         className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                       />
+                     </div>
+                   </div>
+
+                   {/* 한국어 섹션 */}
+                   <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                     <div className="flex items-center justify-between">
+                       <Label className="text-base font-semibold text-zinc-900">한국어</Label>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         onClick={() => handleTranslateNewCategory('ko')}
+                         disabled={isTranslatingNewCategory || !newCategoryNameKo.trim()}
+                         className="h-7 text-xs"
+                       >
+                         {isTranslatingNewCategory ? (
+                           <>
+                             <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                             번역 중...
+                           </>
+                         ) : (
+                           <>
+                             <Languages className="w-3 h-3 mr-1" />
+                             번역
+                           </>
+                         )}
+                       </Button>
+                     </div>
+                     <div className="space-y-2">
+                       <Label className="text-sm text-zinc-700">카테고리 이름 *</Label>
+                       <Input
+                         placeholder="예: 음식"
+                         value={newCategoryNameKo}
+                         onChange={(e) => setNewCategoryNameKo(e.target.value)}
+                         className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                       />
+                     </div>
+                   </div>
+
+                   {/* 중국어 섹션 */}
+                   <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                     <div className="flex items-center justify-between">
+                       <Label className="text-base font-semibold text-zinc-900">중국어</Label>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         onClick={() => handleTranslateNewCategory('zh')}
+                         disabled={isTranslatingNewCategory || !newCategoryNameZh.trim()}
+                         className="h-7 text-xs"
+                       >
+                         {isTranslatingNewCategory ? (
+                           <>
+                             <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                             번역 중...
+                           </>
+                         ) : (
+                           <>
+                             <Languages className="w-3 h-3 mr-1" />
+                             번역
+                           </>
+                         )}
+                       </Button>
+                     </div>
+                     <div className="space-y-2">
+                       <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                       <Input
+                         placeholder="예: 食物"
+                         value={newCategoryNameZh}
+                         onChange={(e) => setNewCategoryNameZh(e.target.value)}
+                         className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                       />
+                     </div>
+                   </div>
+
+                   {/* 러시아어 섹션 */}
+                   <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                     <div className="flex items-center justify-between">
+                       <Label className="text-base font-semibold text-zinc-900">러시아어</Label>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         onClick={() => handleTranslateNewCategory('ru')}
+                         disabled={isTranslatingNewCategory || !newCategoryNameRu.trim()}
+                         className="h-7 text-xs"
+                       >
+                         {isTranslatingNewCategory ? (
+                           <>
+                             <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                             번역 중...
+                           </>
+                         ) : (
+                           <>
+                             <Languages className="w-3 h-3 mr-1" />
+                             번역
+                           </>
+                         )}
+                       </Button>
+                     </div>
+                     <div className="space-y-2">
+                       <Label className="text-sm text-zinc-700">카테고리 이름</Label>
+                       <Input
+                         placeholder="예: Еда"
+                         value={newCategoryNameRu}
+                         onChange={(e) => setNewCategoryNameRu(e.target.value)}
+                         className="bg-white border-zinc-200 focus-visible:ring-zinc-900"
+                       />
+                     </div>
+                   </div>
+
+                   <button 
+                       onClick={handleAddCategory}
+                       disabled={isLoading || !newCategoryNameKo.trim() || !newCategoryNameVn.trim()}
+                       className="w-full bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                   >
+                       {isLoading ? t('btn.adding') : t('btn.add')}
+                   </button>
                </div>
                <button 
                   onClick={onClose}
@@ -1002,7 +1351,91 @@ function CategoryManagerContent({
     );
 }
 
-function ItemEditorContent({ editingItem, setEditingItem, categories, handleDeleteItem, handleSaveItem, t, isLoading }: any) {
+function ItemEditorContent({ editingItem, setEditingItem, categories, handleDeleteItem, handleSaveItem, t, isLoading, language }: any) {
+    // 번역 상태
+    const [isTranslatingItemName, setIsTranslatingItemName] = useState(false);
+    const [isTranslatingItemDescription, setIsTranslatingItemDescription] = useState(false);
+
+    // 메뉴 이름 번역 함수
+    const handleTranslateItemName = async (sourceLang: Language) => {
+      const sourceValue = 
+        sourceLang === 'en' ? (editingItem as any).nameEn :
+        sourceLang === 'vn' ? (editingItem as any).nameVn :
+        sourceLang === 'ko' ? (editingItem as any).nameKo :
+        sourceLang === 'zh' ? (editingItem as any).nameZh :
+        sourceLang === 'ru' ? (editingItem as any).nameRu : '';
+
+      if (!sourceValue || !sourceValue.trim()) {
+        toast.error('번역할 내용이 없습니다.');
+        return;
+      }
+
+      setIsTranslatingItemName(true);
+      try {
+        const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+        if (result.success && result.data?.translations) {
+          const translations = result.data.translations as Record<Language, string>;
+          setEditingItem({
+            ...editingItem,
+            nameEn: translations.en || (editingItem as any).nameEn,
+            nameVn: translations.vn || (editingItem as any).nameVn,
+            nameKo: translations.ko || (editingItem as any).nameKo,
+            nameZh: translations.zh || (editingItem as any).nameZh,
+            nameRu: translations.ru || (editingItem as any).nameRu,
+            name: translations[language] || editingItem.name,
+          });
+          toast.success('번역이 완료되었습니다.');
+        } else {
+          toast.error('번역에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+        toast.error('번역 중 오류가 발생했습니다.');
+      } finally {
+        setIsTranslatingItemName(false);
+      }
+    };
+
+    // 메뉴 설명 번역 함수
+    const handleTranslateItemDescription = async (sourceLang: Language) => {
+      const sourceValue = 
+        sourceLang === 'en' ? (editingItem as any).descriptionEn :
+        sourceLang === 'vn' ? (editingItem as any).descriptionVn :
+        sourceLang === 'ko' ? (editingItem as any).descriptionKo :
+        sourceLang === 'zh' ? (editingItem as any).descriptionZh :
+        sourceLang === 'ru' ? (editingItem as any).descriptionRu : '';
+
+      if (!sourceValue || !sourceValue.trim()) {
+        toast.error('번역할 내용이 없습니다.');
+        return;
+      }
+
+      setIsTranslatingItemDescription(true);
+      try {
+        const result = await apiClient.translateToAllLanguages(sourceValue.trim(), sourceLang);
+        if (result.success && result.data?.translations) {
+          const translations = result.data.translations as Record<Language, string>;
+          setEditingItem({
+            ...editingItem,
+            descriptionEn: translations.en || (editingItem as any).descriptionEn,
+            descriptionVn: translations.vn || (editingItem as any).descriptionVn,
+            descriptionKo: translations.ko || (editingItem as any).descriptionKo,
+            descriptionZh: translations.zh || (editingItem as any).descriptionZh,
+            descriptionRu: translations.ru || (editingItem as any).descriptionRu,
+            description: translations[language] || editingItem.description,
+          });
+          toast.success('번역이 완료되었습니다.');
+        } else {
+          toast.error('번역에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+        toast.error('번역 중 오류가 발생했습니다.');
+      } finally {
+        setIsTranslatingItemDescription(false);
+      }
+    };
+
     return (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-6 pb-32">
@@ -1012,105 +1445,334 @@ function ItemEditorContent({ editingItem, setEditingItem, categories, handleDele
                         <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
                             {t('menu.basic_info')}
                         </h3>
-                        <div className="grid gap-4">
-                            <div className="grid gap-3">
-                                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('menu.item_name')}</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">한국어 *</label>
-                                        <Input 
-                                            value={(editingItem as any).nameKo || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, nameKo: e.target.value, name: e.target.value})}
-                                            placeholder="예: 토마토 파스타"
-                                        />
-                                    </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">베트남어 *</label>
-                                        <Input 
-                                            value={(editingItem as any).nameVn || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, nameVn: e.target.value})}
-                                            placeholder="예: Mì Ý sốt cà chua"
-                                        />
-                                    </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">영어</label>
-                                        <Input 
-                                            value={(editingItem as any).nameEn || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, nameEn: e.target.value})}
-                                            placeholder="예: Tomato Pasta"
-                                        />
-                                    </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">중국어</label>
-                                        <Input 
-                                            value={(editingItem as any).nameZh || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, nameZh: e.target.value})}
-                                            placeholder="예: 番茄意大利面"
-                                        />
-                                    </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">러시아어</label>
-                                        <Input 
-                                            value={(editingItem as any).nameRu || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, nameRu: e.target.value})}
-                                            placeholder="예: Томатная паста"
-                                        />
+                        <div className="space-y-4">
+                            {/* 영어 섹션 */}
+                            <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-base font-semibold text-zinc-900">영어 *</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemName('en')}
+                                            disabled={isTranslatingItemName || !(editingItem as any).nameEn?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemName ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    메뉴명 번역
+                                                </>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemDescription('en')}
+                                            disabled={isTranslatingItemDescription || !(editingItem as any).descriptionEn?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemDescription ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    설명 번역
+                                                </>
+                                            )}
+                                        </Button>
                                     </div>
                                 </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">메뉴명</Label>
+                                    <Input
+                                        value={(editingItem as any).nameEn || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, nameEn: e.target.value})}
+                                        placeholder="예: Tomato Pasta"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">설명</Label>
+                                    <Textarea
+                                        value={(editingItem as any).descriptionEn || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, descriptionEn: e.target.value})}
+                                        placeholder="Description of the dish"
+                                        rows={3}
+                                    />
+                                </div>
                             </div>
-                            <div className="grid gap-3">
-                                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('menu.description') || '메뉴 설명'}</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">한국어</label>
-                                        <textarea 
-                                            value={(editingItem as any).descriptionKo || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, descriptionKo: e.target.value, description: e.target.value})}
-                                            placeholder="메뉴에 대한 설명을 입력하세요"
-                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                                            rows={2}
-                                        />
+
+                            {/* 베트남어 섹션 */}
+                            <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-base font-semibold text-zinc-900">베트남어</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemName('vn')}
+                                            disabled={isTranslatingItemName || !(editingItem as any).nameVn?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemName ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    메뉴명 번역
+                                                </>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemDescription('vn')}
+                                            disabled={isTranslatingItemDescription || !(editingItem as any).descriptionVn?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemDescription ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    설명 번역
+                                                </>
+                                            )}
+                                        </Button>
                                     </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">베트남어</label>
-                                        <textarea 
-                                            value={(editingItem as any).descriptionVn || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, descriptionVn: e.target.value})}
-                                            placeholder="Mô tả về món ăn"
-                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                                            rows={2}
-                                        />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">메뉴명</Label>
+                                    <Input
+                                        value={(editingItem as any).nameVn || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, nameVn: e.target.value})}
+                                        placeholder="예: Mì Ý sốt cà chua"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">설명</Label>
+                                    <Textarea
+                                        value={(editingItem as any).descriptionVn || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, descriptionVn: e.target.value})}
+                                        placeholder="Mô tả về món ăn"
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* 한국어 섹션 */}
+                            <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-base font-semibold text-zinc-900">한국어</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemName('ko')}
+                                            disabled={isTranslatingItemName || !(editingItem as any).nameKo?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemName ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    메뉴명 번역
+                                                </>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemDescription('ko')}
+                                            disabled={isTranslatingItemDescription || !(editingItem as any).descriptionKo?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemDescription ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    설명 번역
+                                                </>
+                                            )}
+                                        </Button>
                                     </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">영어</label>
-                                        <textarea 
-                                            value={(editingItem as any).descriptionEn || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, descriptionEn: e.target.value})}
-                                            placeholder="Description of the dish"
-                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                                            rows={2}
-                                        />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">메뉴명 *</Label>
+                                    <Input
+                                        value={(editingItem as any).nameKo || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, nameKo: e.target.value, name: e.target.value})}
+                                        placeholder="예: 토마토 파스타"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">설명</Label>
+                                    <Textarea
+                                        value={(editingItem as any).descriptionKo || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, descriptionKo: e.target.value, description: e.target.value})}
+                                        placeholder="메뉴에 대한 설명을 입력하세요"
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* 중국어 섹션 */}
+                            <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-base font-semibold text-zinc-900">중국어</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemName('zh')}
+                                            disabled={isTranslatingItemName || !(editingItem as any).nameZh?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemName ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    메뉴명 번역
+                                                </>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemDescription('zh')}
+                                            disabled={isTranslatingItemDescription || !(editingItem as any).descriptionZh?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemDescription ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    설명 번역
+                                                </>
+                                            )}
+                                        </Button>
                                     </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">중국어</label>
-                                        <textarea 
-                                            value={(editingItem as any).descriptionZh || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, descriptionZh: e.target.value})}
-                                            placeholder="菜品描述"
-                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                                            rows={2}
-                                        />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">메뉴명</Label>
+                                    <Input
+                                        value={(editingItem as any).nameZh || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, nameZh: e.target.value})}
+                                        placeholder="예: 番茄意大利面"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">설명</Label>
+                                    <Textarea
+                                        value={(editingItem as any).descriptionZh || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, descriptionZh: e.target.value})}
+                                        placeholder="菜品描述"
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* 러시아어 섹션 */}
+                            <div className="space-y-3 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-base font-semibold text-zinc-900">러시아어</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemName('ru')}
+                                            disabled={isTranslatingItemName || !(editingItem as any).nameRu?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemName ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    메뉴명 번역
+                                                </>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTranslateItemDescription('ru')}
+                                            disabled={isTranslatingItemDescription || !(editingItem as any).descriptionRu?.trim()}
+                                            className="h-7 text-xs"
+                                        >
+                                            {isTranslatingItemDescription ? (
+                                                <>
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                                    번역 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Languages className="w-3 h-3 mr-1" />
+                                                    설명 번역
+                                                </>
+                                            )}
+                                        </Button>
                                     </div>
-                                    <div className="grid gap-1">
-                                        <label className="text-xs text-zinc-500">러시아어</label>
-                                        <textarea 
-                                            value={(editingItem as any).descriptionRu || ''} 
-                                            onChange={(e) => setEditingItem({...editingItem, descriptionRu: e.target.value})}
-                                            placeholder="Описание блюда"
-                                            className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                                            rows={2}
-                                        />
-                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">메뉴명</Label>
+                                    <Input
+                                        value={(editingItem as any).nameRu || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, nameRu: e.target.value})}
+                                        placeholder="예: Томатная паста"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-zinc-700">설명</Label>
+                                    <Textarea
+                                        value={(editingItem as any).descriptionRu || ''}
+                                        onChange={(e) => setEditingItem({...editingItem, descriptionRu: e.target.value})}
+                                        placeholder="Описание блюда"
+                                        rows={3}
+                                    />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">

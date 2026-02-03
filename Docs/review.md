@@ -139,3 +139,8 @@ app.post('/api/generate-qr', async (req, res) => {
 
 https://okchiken7.localhost/shop 현재 상점앱은 https 가 적용되고 포트가 80번으로 동작 하고 있고 관리자 앱은 http://admin.localhost:3000/admin 이렇게 되어 있고 고객앱은 http://okchiken7.localhost:3000/customer/table/1 이렇게 되어 있는데 url 형식을 일관되게 통일을 해야 하는건가?
 
+
+
+신메뉴 출시 할인
+양념치킨이 새로 런칭 했습니다. 맥주와 함께 세트 할인 중 이예요.
+

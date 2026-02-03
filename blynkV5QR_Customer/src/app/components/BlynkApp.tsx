@@ -1018,6 +1018,30 @@ export const BlynkApp: React.FC = () => {
                (chip.messageKO ? removeRequestPrefix(chip.messageKO) : undefined);
     }
 
+    // 낙관적 업데이트: 메시지를 즉시 UI에 추가
+    const tempId = `temp-${Date.now()}`;
+    const messageText = textKo || textVn || textEn || textZh || textRu || '';
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      sender: 'user',
+      textKO: textKo || '',
+      textVN: textVn || '',
+      textEN: textEn,
+      textZH: textZh,
+      textRU: textRu,
+      timestamp: new Date(),
+      type: 'request',
+    };
+    
+    setMessages(prev => [...prev, optimisticMessage]);
+    
+    // 자동 스크롤
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 50);
+
     try {
       const response = await apiClient.sendMessage({
         sessionId,
@@ -1030,30 +1054,33 @@ export const BlynkApp: React.FC = () => {
         messageType: 'REQUEST',
       });
 
-      if (response.success) {
-        // 메시지 전송 성공 후 채팅 히스토리를 즉시 다시 로드
-        // SSE 이벤트가 오지 않거나 지연될 수 있으므로 직접 로드
+      if (response.success && response.data) {
+        // 서버 응답으로 받은 실제 메시지로 낙관적 메시지 교체
+        const realMessage = convertBackendMessage(response.data);
+        setMessages(prev => {
+          const filtered = prev.filter(msg => msg.id !== tempId);
+          return [...filtered, realMessage];
+        });
+      } else {
+        // 서버 응답이 없으면 채팅 히스토리 다시 로드
         try {
           const chatResponse = await apiClient.getChatHistory(sessionId);
           if (chatResponse.success && chatResponse.data) {
             const backendMessages = chatResponse.data;
             const convertedMessages = backendMessages.map(convertBackendMessage);
             setMessages(convertedMessages);
-            
-            // 자동 스크롤
-            setTimeout(() => {
-              if (scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              }
-            }, 100);
           }
         } catch (chatError) {
           console.error('Failed to reload chat history after quick action:', chatError);
-          // SSE 이벤트가 나중에 올 수 있으므로 에러만 로그
+          // 실패 시 낙관적 메시지 제거
+          setMessages(prev => prev.filter(msg => msg.id !== tempId));
+          toast.error(getTranslation('toast.messageSendFailed', userLang));
         }
       }
     } catch (error) {
       console.error('Failed to send quick action message:', error);
+      // 실패 시 낙관적 메시지 제거
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
       toast.error(getTranslation('toast.messageSendFailed', userLang));
     }
   };
@@ -1077,6 +1104,32 @@ export const BlynkApp: React.FC = () => {
       ? getTranslation('toast.photoSent', userLang)
       : '');
 
+    // 낙관적 업데이트: 메시지를 즉시 UI에 추가
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      sender: 'user',
+      textKO: userLang === 'ko' ? messageText : '',
+      textVN: userLang === 'vn' ? messageText : '',
+      textEN: userLang === 'en' ? messageText : undefined,
+      textZH: userLang === 'zh' ? messageText : undefined,
+      textRU: userLang === 'ru' ? messageText : undefined,
+      timestamp: new Date(),
+      type: previewImage ? 'image' : 'text',
+      imageUrl: previewImage || undefined,
+    };
+    
+    setMessages(prev => [...prev, optimisticMessage]);
+    setInputText('');
+    setPreviewImage(null);
+    
+    // 자동 스크롤
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 50);
+
     try {
       const response = await apiClient.sendMessage({
         sessionId,
@@ -1090,33 +1143,33 @@ export const BlynkApp: React.FC = () => {
         imageUrl: previewImage || undefined,
       });
 
-      if (response.success) {
-        // 메시지 전송 성공 후 채팅 히스토리를 즉시 다시 로드
-        // SSE 이벤트가 오지 않거나 지연될 수 있으므로 직접 로드
-        setInputText('');
-        setPreviewImage(null);
-        
+      if (response.success && response.data) {
+        // 서버 응답으로 받은 실제 메시지로 낙관적 메시지 교체
+        const realMessage = convertBackendMessage(response.data);
+        setMessages(prev => {
+          const filtered = prev.filter(msg => msg.id !== tempId);
+          return [...filtered, realMessage];
+        });
+      } else {
+        // 서버 응답이 없으면 채팅 히스토리 다시 로드
         try {
           const chatResponse = await apiClient.getChatHistory(sessionId);
           if (chatResponse.success && chatResponse.data) {
             const backendMessages = chatResponse.data;
             const convertedMessages = backendMessages.map(convertBackendMessage);
             setMessages(convertedMessages);
-            
-            // 자동 스크롤
-            setTimeout(() => {
-              if (scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              }
-            }, 100);
           }
         } catch (chatError) {
           console.error('Failed to reload chat history after send message:', chatError);
-          // SSE 이벤트가 나중에 올 수 있으므로 에러만 로그
+          // 실패 시 낙관적 메시지 제거
+          setMessages(prev => prev.filter(msg => msg.id !== tempId));
+          toast.error(getTranslation('toast.messageSendFailed', userLang));
         }
       }
     } catch (error) {
       console.error('Failed to send message:', error);
+      // 실패 시 낙관적 메시지 제거
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
       toast.error(getTranslation('toast.messageSendFailed', userLang));
     }
   };

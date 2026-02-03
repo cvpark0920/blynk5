@@ -207,14 +207,31 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     try {
       const result = await apiClient.getChatHistory(sessionId);
       if (result.success && result.data) {
-        setChatMessages(result.data);
+        // 기존 메시지가 있고 임시 메시지가 있는 경우 병합 (중복 제거)
+        setChatMessages(prev => {
+          const hasTempMessages = prev.some(msg => msg.id.startsWith('temp-'));
+          if (hasTempMessages && prev.length > 0) {
+            // 임시 메시지가 있으면 기존 메시지와 병합
+            const existingIds = new Set(prev.map(msg => msg.id));
+            const newMessages = result.data!.filter(msg => !existingIds.has(msg.id));
+            const merged = [...prev.filter(msg => !msg.id.startsWith('temp-')), ...newMessages];
+            return merged.sort((a, b) => 
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+          } else {
+            // 임시 메시지가 없으면 전체 교체
+            return result.data!;
+          }
+        });
       } else {
         console.error('Failed to load chat messages:', result.error);
-        setChatMessages([]);
+        // 임시 메시지만 제거하고 기존 메시지 유지
+        setChatMessages(prev => prev.filter(msg => !msg.id.startsWith('temp-')));
       }
     } catch (error: unknown) {
       console.error('Error loading chat messages:', error);
-      setChatMessages([]);
+      // 임시 메시지만 제거하고 기존 메시지 유지
+      setChatMessages(prev => prev.filter(msg => !msg.id.startsWith('temp-')));
     } finally {
       setIsLoadingChat(false);
       isLoadingChatRef.current = false;
@@ -702,6 +719,27 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         textVn = message;
       }
 
+      // 낙관적 업데이트: 메시지를 즉시 UI에 추가
+      const tempId = `temp-${Date.now()}`;
+      const optimisticMessage: BackendChatMessage = {
+        id: tempId,
+        sessionId,
+        senderType: 'STAFF',
+        textKo: textKo || '',
+        textVn: textVn || '',
+        textEn: textEn || '',
+        textZh: null,
+        textRu: null,
+        detectedLanguage: null,
+        messageType: 'TEXT',
+        imageUrl: null,
+        metadata: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      setChatMessages(prev => [...prev, optimisticMessage]);
+
       // Send message via API
       const result = await apiClient.sendMessage({
         sessionId,
@@ -712,17 +750,28 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
         messageType: 'TEXT',
       });
 
-      if (result.success) {
-        // Don't show toast here - SSE event will handle it for customer messages
-        
-        // Reload chat messages immediately to show the sent message
-        // Note: STAFF messages don't trigger SSE chat:new event, so we need to reload here
-        // For USER messages, SSE will also trigger reload, but that's okay - it's idempotent
-        if (selectedTable?.currentSessionId) {
-          await loadChatMessages(selectedTable.currentSessionId);
-        }
+      if (result.success && result.data) {
+        // 서버 응답으로 받은 실제 메시지로 낙관적 메시지 교체
+        setChatMessages(prev => {
+          const filtered = prev.filter(msg => msg.id !== tempId);
+          return [...filtered, result.data!];
+        });
       } else {
-        throw new Error(result.error?.message || 'Failed to send message');
+        // 서버 응답이 없으면 채팅 히스토리 다시 로드
+        if (selectedTable?.currentSessionId) {
+          try {
+            await loadChatMessages(selectedTable.currentSessionId);
+          } catch (error) {
+            console.error('Failed to reload chat history after send message:', error);
+            // 실패 시 낙관적 메시지 제거
+            setChatMessages(prev => prev.filter(msg => msg.id !== tempId));
+            throw new Error(result.error?.message || 'Failed to send message');
+          }
+        } else {
+          // 실패 시 낙관적 메시지 제거
+          setChatMessages(prev => prev.filter(msg => msg.id !== tempId));
+          throw new Error(result.error?.message || 'Failed to send message');
+        }
       }
     } catch (error: unknown) {
       console.error('Error sending reply:', error);
@@ -1971,6 +2020,8 @@ function DetailBody({
     const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
     const lastMessageRef = useRef<HTMLDivElement>(null);
     const tabsContentWrapperRef = useRef<HTMLDivElement>(null);
+    const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
+    const [viewportWidth, setViewportWidth] = useState<number | null>(null);
 
     const pendingOrdersCount = useMemo(
         () => tableOrders.filter((o: any) => o.type === 'order' && o.status === 'pending').length,
@@ -2133,20 +2184,49 @@ function DetailBody({
         }
     }, [chatMessages, activeTab]);
 
+    // ScrollArea viewport 너비 감지
+    useEffect(() => {
+        const updateViewportWidth = () => {
+            if (tabsContentWrapperRef.current) {
+                const viewport = tabsContentWrapperRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
+                if (viewport) {
+                    setViewportWidth(viewport.offsetWidth);
+                }
+            }
+        };
+        
+        updateViewportWidth();
+        const resizeObserver = new ResizeObserver(updateViewportWidth);
+        
+        if (tabsContentWrapperRef.current) {
+            const viewport = tabsContentWrapperRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
+            if (viewport) {
+                resizeObserver.observe(viewport);
+            }
+        }
+        
+        return () => resizeObserver.disconnect();
+    }, []);
+
     return (
         <div 
           className="h-full flex flex-col overflow-hidden min-h-0 w-full min-w-0 max-w-full"
           style={{ backgroundColor: activeTab === 'chat' ? '#5C7285' : undefined }}
         >
             {/* Body */}
-            <ScrollArea className="flex-1 min-h-0 w-full min-w-0">
+            <ScrollArea className="flex-1 min-h-0 w-full min-w-0 max-w-full overflow-x-hidden">
                 <div 
                   ref={tabsContentWrapperRef} 
-                  className="p-3 sm:p-4 space-y-3 sm:space-y-4 w-full max-w-full min-w-0 min-h-full"
+                  className="p-3 sm:p-4 space-y-3 sm:space-y-4 min-w-0 min-h-full overflow-x-hidden"
+                  style={{ 
+                    width: viewportWidth ? `${viewportWidth}px` : '100%', 
+                    maxWidth: viewportWidth ? `${viewportWidth}px` : '100%', 
+                    boxSizing: 'border-box' 
+                  }}
                 >
-                <Tabs value={activeTab} className="w-full">
-                    <TabsContent value="orders" className="pt-2">
-                        <div className="space-y-4">
+                <Tabs value={activeTab} className="min-w-0" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                    <TabsContent value="orders" className="pt-2 min-w-0" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                        <div className="space-y-4 min-w-0" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
                                 <div className="grid grid-cols-2 gap-2">
                                     {(() => {
@@ -2529,10 +2609,9 @@ function DetailBody({
                             )}
                         </div>
                     </TabsContent>
-                    <TabsContent value="chat" className="pt-2">
-                        <div className="space-y-3 w-full min-w-0 max-w-full">
+                    <TabsContent value="chat" className="pt-2 min-w-0 overflow-x-hidden" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                             {/* Chat Messages List */}
-                            <div ref={chatMessagesContainerRef} className="space-y-2 sm:space-y-3 overflow-y-auto min-h-[200px] sm:min-h-[240px] scroll-smooth text-foreground w-full min-w-0 max-w-full">
+                            <div ref={chatMessagesContainerRef} className="space-y-2 sm:space-y-3 overflow-y-auto overflow-x-hidden min-h-[200px] sm:min-h-[240px] scroll-smooth text-foreground min-w-0" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                                 {isLoadingChat ? (
                                 <div className="text-center py-12 text-muted-foreground">
                                         <div className="inline-flex items-center gap-2 text-sm">
@@ -2545,6 +2624,7 @@ function DetailBody({
                                         <div 
                                             key={msg.id} 
                                             ref={index === chatMessages.length - 1 ? lastMessageRef : null}
+                                            className="min-w-0 w-full"
                                         >
                                             <ChatBubble message={msg} language={language} tableNumber={selectedTable?.id} promotions={promotions} />
                                         </div>
@@ -2558,7 +2638,6 @@ function DetailBody({
                                     </div>
                                 )}
                             </div>
-                        </div>
                     </TabsContent>
                 </Tabs>
                 </div>
