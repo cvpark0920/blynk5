@@ -186,7 +186,6 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber,
                   <div className="space-y-2 sm:space-y-3 w-full min-w-[180px] sm:min-w-[200px] mt-2 sm:mt-3">
                     {orderItems.map((item: any, idx: number) => {
                       const itemName = language === 'ko' ? item.nameKO : language === 'vn' ? item.nameVN : language === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-                      const itemSub = language === 'vn' ? (item.nameEN || item.nameKO) : language === 'zh' ? (item.nameEN || item.nameKO) : item.nameVN;
                       const imageUrl = item.imageQuery || item.imageUrl || '';
                       const quantity = item.quantity || 1;
                       
@@ -248,9 +247,6 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, language, tableNumber,
                                 {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(itemTotal)}
                               </span>
                             </div>
-                            {itemSub && (
-                              <p className={`text-[10px] sm:text-xs truncate ${isStaff ? 'text-foreground/80' : 'text-white/80'}`}>{itemSub}</p>
-                            )}
                             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
                               {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
                                 <span className="flex items-center gap-1">

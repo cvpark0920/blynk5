@@ -853,10 +853,14 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
             onOrdersReload();
           }
           
-          if (newStatus === 'served') {
+          if (newStatus === 'confirmed') {
+            toast.success(t('msg.confirm_success') || t('msg.order_confirmed') || '주문 확인 완료');
+          } else if (newStatus === 'served') {
             toast.success(t('msg.completed'));
           } else if (newStatus === 'cooking') {
             toast.success(t('msg.cooking_started') || '조리를 시작했습니다.');
+          } else if (newStatus === 'cancelled') {
+            toast.success(t('msg.reject_success') || t('msg.order_rejected') || '주문 취소 완료');
           }
         } else {
           throw new Error(result.error?.message || 'Failed to update order status');
@@ -1255,6 +1259,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
     // Priority: 청소중 > 결제완료 > 서빙완료 > 조리중 > 식사중 > 주문완료 > 주문중
     const tableOrdersForStatus = tableOrders.filter((o: any) => o.type === 'order');
     const pendingOrders = tableOrdersForStatus.filter((o: any) => o.status === 'pending');
+    const confirmedOrders = tableOrdersForStatus.filter((o: any) => o.status === 'confirmed');
     const cookingOrders = tableOrdersForStatus.filter((o: any) => o.status === 'cooking');
     const servedOrders = tableOrdersForStatus.filter((o: any) => o.status === 'served');
     const deliveredOrders = tableOrdersForStatus.filter((o: any) => o.status === 'delivered');
@@ -1539,6 +1544,7 @@ export function TableGrid({ tables, orders, setTables, setOrders, onOrdersReload
                 return true;
               });
               const pendingOrders = tableOrders.filter(o => o.status === 'pending');
+              const confirmedOrders = tableOrders.filter(o => o.status === 'confirmed');
               const cookingOrders = tableOrders.filter(o => o.status === 'cooking');
               const servedOrders = tableOrders.filter(o => o.status === 'served');
               const deliveredOrders = tableOrders.filter(o => o.status === 'delivered');
@@ -2508,6 +2514,7 @@ function DetailBody({
                                                     </div>
                                                     <span className={`text-[10px] font-semibold px-2 py-1 rounded-md uppercase tracking-wide ${
                                                         order.status === 'pending' ? 'bg-primary/10 text-primary' :
+                                                        order.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-700' :
                                                         order.status === 'cooking' ? 'bg-accent/10 text-accent-foreground' :
                                                         order.status === 'served' ? 'bg-muted text-muted-foreground' :
                                                         order.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-700' :
@@ -2515,6 +2522,7 @@ function DetailBody({
                                                         'bg-muted text-muted-foreground'
                                                     }`}>
                                                         {order.status === 'pending' ? t('order.status.pending') || '주문중' :
+                                                         order.status === 'confirmed' ? t('order.status.confirmed') || '확인됨' :
                                                          order.status === 'cooking' ? t('order.status.cooking') || '조리중' :
                                                          order.status === 'served' ? (t('feed.tab.served') || '조리완료') :
                                                          order.status === 'delivered' ? (t('btn.serve') || '서빙완료') :
@@ -2619,6 +2627,24 @@ function DetailBody({
                                                 {/* Order Actions */}
                                                 <div className="px-4 pb-3">
                                                     {order.status === 'pending' && (
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}
+                                                                disabled={updatingOrderId === order.id}
+                                                                className="flex-1 h-9 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                <CheckCircle2 size={13}/> {updatingOrderId === order.id ? t('order.status.confirming') : t('order.action.confirm')}
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
+                                                                disabled={updatingOrderId === order.id}
+                                                                className="flex-1 h-9 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {updatingOrderId === order.id ? t('order.status.rejecting') : t('order.action.reject')}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    {order.status === 'confirmed' && (
                                                         <button 
                                                             onClick={() => handleUpdateOrderStatus(order.id, 'cooking')}
                                                             disabled={updatingOrderId === order.id}

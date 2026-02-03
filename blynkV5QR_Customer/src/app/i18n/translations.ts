@@ -56,6 +56,8 @@ export const translations = {
   // Toast Messages
   toast: {
     orderReceived: { ko: '주문이 접수되었습니다.', vn: 'Đơn hàng đã được tiếp nhận.', en: 'Order has been received.', zh: '订单已接收。', ru: 'Заказ получен.' },
+    orderConfirmed: { ko: '주문이 확인되었습니다.', vn: 'Đơn hàng đã được xác nhận.', en: 'Order has been confirmed.', zh: '订单已确认。', ru: 'Заказ подтвержден.' },
+    orderRejected: { ko: '주문이 취소되었습니다.', vn: 'Đơn hàng đã bị hủy.', en: 'Order has been cancelled.', zh: '订单已取消。', ru: 'Заказ отменен.' },
     cookingStarted: { ko: '주문이 조리 중입니다.', vn: 'Đơn hàng đang được chế biến.', en: 'Order is being prepared.', zh: '正在准备订单。', ru: 'Заказ готовится.' },
     paymentCompleted: { ko: '결제가 완료되었습니다.', vn: 'Thanh toán đã hoàn tất.', en: 'Payment has been completed.', zh: '支付已完成。', ru: 'Оплата завершена.' },
     orderCancelled: { ko: '주문이 취소되었습니다.', vn: 'Đơn hàng đã bị hủy.', en: 'Order has been cancelled.', zh: '订单已取消。', ru: 'Заказ отменен.' },

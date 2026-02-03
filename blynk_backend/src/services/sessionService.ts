@@ -275,6 +275,62 @@ export class SessionService {
       },
     });
 
+    // 테이블 상태 업데이트: EMPTY이고 guestCount > 0이면 ORDERING으로 변경
+    const updateData: any = {};
+    const currentTableStatus = session.table.status;
+    
+    if (currentTableStatus === TableStatus.EMPTY && guestCount > 0) {
+      updateData.status = TableStatus.ORDERING;
+      console.log(`[SessionService] updateSessionGuestCount - Updating table status from EMPTY to ORDERING`, {
+        sessionId,
+        tableId: session.tableId,
+        tableNumber: session.table.tableNumber,
+        guestCount,
+        restaurantId: session.restaurantId,
+        previousStatus: currentTableStatus,
+        newStatus: TableStatus.ORDERING,
+      });
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      const updatedTable = await prisma.table.update({
+        where: { id: session.tableId },
+        data: updateData,
+      });
+
+      console.log(`[SessionService] updateSessionGuestCount - Table status updated`, {
+        tableId: session.tableId,
+        tableNumber: session.table.tableNumber,
+        previousStatus: currentTableStatus,
+        newStatus: updateData.status,
+      });
+
+      // SSE 이벤트 발행
+      if (updateData.status) {
+        console.log(`[SessionService] updateSessionGuestCount - Publishing table:status-changed SSE event`, {
+          restaurantId: session.restaurantId,
+          tableId: session.tableId,
+          tableNumber: session.table.tableNumber,
+          status: updateData.status,
+          sessionId,
+        });
+        await eventEmitter.publishTableStatusChanged(
+          session.restaurantId,
+          session.tableId,
+          updateData.status,
+          sessionId
+        );
+        console.log(`[SessionService] updateSessionGuestCount - SSE event published successfully`);
+      }
+    } else {
+      console.log(`[SessionService] updateSessionGuestCount - No table status change needed`, {
+        tableId: session.tableId,
+        tableNumber: session.table.tableNumber,
+        currentStatus: currentTableStatus,
+        guestCount,
+      });
+    }
+
     return session;
   }
 

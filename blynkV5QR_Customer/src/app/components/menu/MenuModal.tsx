@@ -94,7 +94,7 @@ const MenuItemCard: React.FC<{
   return (
     <div 
       id={`menu-item-${item.id}`}
-      className={`bg-card rounded-2xl overflow-hidden border transition-all duration-200 hover:border-border/70 ${isExpanded ? 'border-primary/30 ring-1 ring-primary/10' : 'border-border/60'} shadow-[0_1px_4px_rgba(0,0,0,0.04)]`}
+      className={`bg-card rounded-2xl overflow-hidden border transition-all duration-200 hover:border-border/70 ${isExpanded ? 'border-primary/30 ring-1 ring-primary/10' : 'border-border/60'} shadow-[0_2px_8px_rgba(0,0,0,0.1),0_1px_3px_rgba(0,0,0,0.08)]`}
     >
       {/* 이미지 영역 */}
       <div className="relative aspect-[4/3] bg-muted overflow-hidden">
@@ -106,20 +106,20 @@ const MenuItemCard: React.FC<{
         
         {/* 수량 배지 */}
         {quantity > 0 && (
-          <div className="absolute top-2 right-2 bg-primary/90 text-primary-foreground text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-sm">
+          <div className="absolute top-3 right-3 bg-primary/95 backdrop-blur-sm text-primary-foreground text-xs font-bold px-2.5 py-1 rounded-full shadow-lg border border-white/20 z-10">
             {quantity}
           </div>
         )}
         
         {/* 프로모션 할인 배지 */}
         {activePromotion && (
-          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+          <div className="absolute top-3 left-3 bg-primary/95 backdrop-blur-sm text-primary-foreground text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg border border-white/20 z-10">
             {activePromotion.discountPercent}% 할인
           </div>
         )}
       </div>
       
-      {/* 메뉴명 및 설명 영역 */}
+      {/* 메뉴명 및 설명 영역 - 이미지 아래 */}
       <div className="px-3 pt-3">
         <h3 className="font-semibold text-foreground text-sm leading-snug">
           {primaryName}
@@ -140,7 +140,7 @@ const MenuItemCard: React.FC<{
             size="sm"
             className={`w-full h-8 text-xs font-semibold rounded-lg transition-all ${
               isExpanded 
-                ? 'bg-primary/10 text-primary border border-primary/30' 
+                ? 'bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 hover:text-primary-foreground' 
                 : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm'
             }`}
           >
@@ -161,19 +161,19 @@ const MenuItemCard: React.FC<{
                   <CurrencyDisplay amountVND={item.priceVND} className="text-xs font-bold text-foreground" />
                 )}
               </div>
-              <div className="flex items-center gap-0.5 bg-muted rounded-lg px-1 py-0.5 border border-border">
+              <div className="flex items-center gap-3 bg-muted rounded-lg p-1 border border-border">
                 <button 
                   onClick={() => removeFromCart(item.id)}
-                  className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 active:scale-90 transition-all"
+                  className="w-6 h-6 flex items-center justify-center bg-card rounded shadow-sm border border-border text-muted-foreground active:bg-muted"
                 >
-                  <Minus size={12} strokeWidth={2.5} />
+                  <Minus size={14} />
                 </button>
-                <span className="text-xs font-bold text-foreground min-w-[20px] text-center">{quantity}</span>
+                <span className="text-sm font-bold w-4 text-center">{quantity}</span>
                 <button 
                   onClick={() => addToCart(item)}
-                  className="w-6 h-6 flex items-center justify-center rounded bg-primary text-primary-foreground hover:bg-primary/90 active:scale-90 transition-all"
+                  className="w-6 h-6 flex items-center justify-center bg-card rounded shadow-sm border border-border text-primary active:bg-primary/10"
                 >
-                  <Plus size={12} strokeWidth={2.5} />
+                  <Plus size={14} />
                 </button>
               </div>
             </div>
@@ -599,7 +599,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                   <p className="text-muted-foreground text-base font-medium">{UI_TEXT.menuEmpty[lang]}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   {filteredItems.map(item => (
                     <MenuItemCard 
                       key={item.id} 

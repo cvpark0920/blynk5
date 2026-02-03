@@ -1,7 +1,7 @@
 // Backend API Response Types
 
 export type BackendTableStatus = 'EMPTY' | 'ORDERING' | 'DINING' | 'CLEANING';
-export type BackendOrderStatus = 'PENDING' | 'COOKING' | 'SERVED' | 'DELIVERED' | 'PAID' | 'CANCELLED';
+export type BackendOrderStatus = 'PENDING' | 'CONFIRMED' | 'COOKING' | 'SERVED' | 'DELIVERED' | 'PAID' | 'CANCELLED';
 export type BackendWaitingStatus = 'WAITING' | 'NOTIFIED' | 'SEATED' | 'CANCELLED';
 export type BackendStaffRole = 'OWNER' | 'MANAGER' | 'KITCHEN' | 'HALL' | 'STAFF';
 export type BackendStaffStatus = 'ACTIVE' | 'INACTIVE' | 'PENDING';

@@ -621,9 +621,10 @@ export const BlynkApp: React.FC = () => {
     // SERVED 상태는 고객에게 알릴 필요 없음
     const statusMessages = {
       PENDING: getTranslation('toast.orderReceived', userLang),
+      CONFIRMED: getTranslation('toast.orderConfirmed', userLang),
       COOKING: getTranslation('toast.cookingStarted', userLang),
       PAID: getTranslation('toast.paymentCompleted', userLang),
-      CANCELLED: getTranslation('toast.orderCancelled', userLang),
+      CANCELLED: getTranslation('toast.orderRejected', userLang) || getTranslation('toast.orderCancelled', userLang),
     };
 
     // 채팅 히스토리를 다시 로드하여 DB에 저장된 메시지 표시 (중복 방지)
@@ -657,8 +658,8 @@ export const BlynkApp: React.FC = () => {
       }
     }
 
-    // 토스트 알림 표시 (SERVED 상태는 제외)
-    if (status !== 'SERVED') {
+    // 토스트 알림 표시 (SERVED, DELIVERED 상태는 제외)
+    if (status !== 'SERVED' && status !== 'DELIVERED') {
       const message = statusMessages[status as keyof typeof statusMessages];
       if (message) {
         toast.info(message);

@@ -542,6 +542,7 @@ enum SessionStatus {
 
 enum OrderStatus {
   PENDING
+  CONFIRMED
   COOKING
   SERVED
   DELIVERED

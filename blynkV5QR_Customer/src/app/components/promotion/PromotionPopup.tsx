@@ -326,31 +326,7 @@ export const PromotionPopup: React.FC<PromotionPopupProps> = ({
                 />
                 
                 {/* 그라데이션 오버레이 */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
-                
-                {/* 제목과 설명 오버레이 */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                  <h2 className="text-3xl sm:text-4xl font-bold mb-2 drop-shadow-lg" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
-                    {getLocalizedTitle()}
-                  </h2>
-                  {getLocalizedDescription() && (
-                    <p className="text-lg text-white/90 drop-shadow-md" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
-                      {getLocalizedDescription()}
-                    </p>
-                  )}
-                </div>
-                
-                {/* 플로팅 장바구니 담기 버튼 */}
-                {displayMenuItems.length > 0 && setCart && (
-                  <Button
-                    onClick={handleAddAllToCart}
-                    className="absolute bottom-4 right-4 bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 z-10"
-                    size="lg"
-                  >
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    {UI_TEXT.addAllToCart[lang]}
-                  </Button>
-                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
                 
                 {/* 할인 배지 */}
                 {promotion.discountPercent && (
@@ -358,6 +334,37 @@ export const PromotionPopup: React.FC<PromotionPopupProps> = ({
                     {promotion.discountPercent}% {UI_TEXT.discount[lang]}
                   </div>
                 )}
+                
+                {/* 제목, 설명, 전체 담기 버튼 오버레이 */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 text-white z-10">
+                  <div className="flex flex-col gap-3">
+                    {/* 제목과 설명 - 좌측 정렬 */}
+                    <div className="space-y-2 flex-1">
+                      <h2 className="text-2xl sm:text-3xl font-bold text-left drop-shadow-lg" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+                        {getLocalizedTitle()}
+                      </h2>
+                      {getLocalizedDescription() && (
+                        <p className="text-base text-white/90 text-left leading-relaxed drop-shadow-md" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+                          {getLocalizedDescription()}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* 전체 담기 버튼 - 우측 정렬 */}
+                    {displayMenuItems.length > 0 && setCart && (
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={handleAddAllToCart}
+                          className="bg-primary text-primary-foreground shadow-lg hover:bg-primary/90"
+                          size="lg"
+                        >
+                          <ShoppingCart className="w-4 h-4 mr-2" />
+                          {UI_TEXT.addAllToCart[lang]}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
               /* 이미지가 없는 경우 기존 헤더 레이아웃 유지 */
@@ -398,7 +405,7 @@ export const PromotionPopup: React.FC<PromotionPopupProps> = ({
                           }
                           onClose();
                         }}
-                        className="group relative bg-card border border-border rounded-xl overflow-hidden hover:border-primary/50 hover:shadow-md transition-all text-left"
+                        className="group relative bg-card border border-border rounded-xl overflow-hidden hover:border-primary/50 shadow-[0_2px_8px_rgba(0,0,0,0.1),0_1px_3px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.15),0_2px_4px_rgba(0,0,0,0.1)] transition-all text-left"
                       >
                         {/* Menu Image */}
                         <div className="relative aspect-[4/3] bg-muted overflow-hidden">

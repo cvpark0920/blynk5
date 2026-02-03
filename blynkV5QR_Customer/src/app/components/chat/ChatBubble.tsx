@@ -200,7 +200,6 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, promotions = [], skipA
               </div>
               {itemsToDisplay.map((item: any, idx: number) => {
                 const itemName = userLang === 'ko' ? item.nameKO : userLang === 'vn' ? item.nameVN : userLang === 'zh' ? (item.nameZH || item.nameEN || item.nameKO) : userLang === 'ru' ? (item.nameRU || item.nameEN || item.nameKO) : (item.nameEN || item.nameKO);
-                const itemSub = userLang === 'vn' ? (item.nameEN || item.nameKO) : userLang === 'zh' ? item.nameVN : userLang === 'ru' ? item.nameVN : item.nameVN;
                 const imageUrl = item.imageQuery || item.imageUrl || '';
                 
                 // 프로모션 할인 적용
@@ -259,9 +258,6 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, promotions = [], skipA
                           {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(itemTotal)}
                         </span>
                       </div>
-                      {itemSub && (
-                        <p className={`text-xs truncate ${isUser ? 'text-foreground/80' : 'text-white/80'}`}>{itemSub}</p>
-                      )}
                       <div className={`text-xs mt-0.5 ${isUser ? 'text-foreground/70' : 'text-white/70'}`}>
                         {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
                           <span className="flex items-center gap-1">

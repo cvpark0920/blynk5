@@ -297,6 +297,34 @@ export class OrderService {
   }
 
   async updateOrderStatus(id: string, status: OrderStatus) {
+    // 현재 주문 상태 조회
+    const currentOrder = await prisma.order.findUnique({
+      where: { id },
+    });
+
+    if (!currentOrder) {
+      throw createError('Order not found', 404);
+    }
+
+    // 상태 전환 검증
+    const validTransitions: Record<OrderStatus, OrderStatus[]> = {
+      PENDING: ['CONFIRMED', 'CANCELLED'],
+      CONFIRMED: ['COOKING', 'CANCELLED'],
+      COOKING: ['SERVED', 'CANCELLED'],
+      SERVED: ['DELIVERED', 'CANCELLED'],
+      DELIVERED: ['PAID'],
+      CANCELLED: [], // 취소된 주문은 더 이상 상태 변경 불가
+      PAID: [], // 결제 완료된 주문은 더 이상 상태 변경 불가
+    };
+
+    const allowedStatuses = validTransitions[currentOrder.status];
+    if (!allowedStatuses || !allowedStatuses.includes(status)) {
+      throw createError(
+        `Invalid status transition from ${currentOrder.status} to ${status}`,
+        400
+      );
+    }
+
     // 상태 업데이트
     await prisma.order.update({
       where: { id },
@@ -332,31 +360,50 @@ export class OrderService {
         ko: '주문이 접수되었습니다.',
         vn: 'Đơn hàng đã được tiếp nhận.',
         en: 'Order has been received.',
+        zh: '订单已接收。',
+        ru: 'Заказ получен.',
+      },
+      CONFIRMED: {
+        ko: '주문이 확인되었습니다.',
+        vn: 'Đơn hàng đã được xác nhận.',
+        en: 'Order has been confirmed.',
+        zh: '订单已确认。',
+        ru: 'Заказ подтвержден.',
       },
       COOKING: {
         ko: '조리를 시작했습니다.',
         vn: 'Đã bắt đầu nấu.',
         en: 'Cooking has started.',
+        zh: '已开始烹饪。',
+        ru: 'Приготовление началось.',
       },
       SERVED: {
         ko: '조리가 완료되었습니다.',
         vn: 'Đã nấu xong.',
         en: 'Cooking has been completed.',
+        zh: '烹饪已完成。',
+        ru: 'Приготовление завершено.',
       },
       DELIVERED: {
         ko: '음식이 서빙되었습니다.',
         vn: 'Món ăn đã được phục vụ.',
         en: 'Food has been delivered to your table.',
+        zh: '食物已送达您的餐桌。',
+        ru: 'Еда доставлена к вашему столу.',
       },
       PAID: {
         ko: '결제가 완료되었습니다.',
         vn: 'Thanh toán đã hoàn tất.',
         en: 'Payment has been completed.',
+        zh: '支付已完成。',
+        ru: 'Оплата завершена.',
       },
       CANCELLED: {
         ko: '주문이 취소되었습니다.',
         vn: 'Đơn hàng đã bị hủy.',
         en: 'Order has been cancelled.',
+        zh: '订单已取消。',
+        ru: 'Заказ отменен.',
       },
     };
 
@@ -455,6 +502,8 @@ export class OrderService {
         textKo: statusMessage.ko,
         textVn: statusMessage.vn,
         textEn: statusMessage.en,
+        textZh: statusMessage.zh,
+        textRu: statusMessage.ru,
         messageType: 'TEXT',
         metadata: {
           orderId: order.id,
@@ -557,6 +606,8 @@ export class OrderService {
       textKo: '결제가 완료되었습니다.',
       textVn: 'Thanh toán đã hoàn tất.',
       textEn: 'Payment has been completed.',
+      textZh: '支付已完成。',
+      textRu: 'Оплата завершена.',
       messageType: 'TEXT',
       metadata: {
         tableNumber: session.table.tableNumber,

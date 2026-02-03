@@ -1,6 +1,6 @@
 
 // Types
-export type OrderStatus = 'pending' | 'cooking' | 'served' | 'delivered' | 'paid' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'cooking' | 'served' | 'delivered' | 'paid' | 'cancelled';
 export type TableStatus = 'empty' | 'ordering' | 'dining' | 'cleaning';
 
 export interface Order {

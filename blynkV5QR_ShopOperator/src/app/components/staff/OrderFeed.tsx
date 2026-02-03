@@ -45,10 +45,11 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [], promot
 
   const foodOrders = orders.filter(o => 
     o.type === 'order' && 
-    (o.status === 'pending' || o.status === 'cooking' || o.status === 'served')
+    (o.status === 'pending' || o.status === 'confirmed' || o.status === 'cooking' || o.status === 'served')
   ).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
   const pendingOrders = foodOrders.filter(o => o.status === 'pending');
+  const confirmedOrders = foodOrders.filter(o => o.status === 'confirmed');
   const cookingOrders = foodOrders.filter(o => o.status === 'cooking');
   const servedOrders = foodOrders.filter(o => o.status === 'served');
 
@@ -77,6 +78,7 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [], promot
   };
 
   const pendingOrdersByTable = groupOrdersByTable(pendingOrders);
+  const confirmedOrdersByTable = groupOrdersByTable(confirmedOrders);
   const cookingOrdersByTable = groupOrdersByTable(cookingOrders);
   const servedOrdersByTable = groupOrdersByTable(servedOrders);
 
@@ -96,12 +98,16 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [], promot
           onOrdersReload();
         }
         
-        if (newStatus === 'cooking') {
+        if (newStatus === 'confirmed') {
+          toast.success(t('msg.confirm_success') || t('msg.order_confirmed') || '주문 확인 완료');
+        } else if (newStatus === 'cooking') {
           toast.success(t('msg.cooking_started') || "Order started cooking");
         } else if (newStatus === 'served') {
           toast.success(t('msg.cooking_done') || "조리 완료");
         } else if (newStatus === 'delivered') {
           toast.success(t('order.action.mark_served') || "서빙 완료");
+        } else if (newStatus === 'cancelled') {
+          toast.success(t('msg.reject_success') || t('msg.order_rejected') || '주문 취소 완료');
         }
       } else {
         throw new Error(result.error?.message || 'Failed to update order status');
@@ -112,6 +118,10 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [], promot
     } finally {
       setUpdatingOrderId(null);
     }
+  };
+
+  const handleRejectOrder = async (orderId: string) => {
+    await handleUpdateStatus(orderId, 'cancelled');
   };
 
   const EmptyState = ({ message }: { message: string }) => (
@@ -161,8 +171,156 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [], promot
         <div className="flex-1 overflow-y-auto min-h-0 px-6 pb-32 md:pb-6">
           <TabsContent value="pending" className="m-0 h-full border-none">
             <div className="space-y-8 pt-4">
+              {/* CONFIRMED Orders Section */}
+              {confirmedOrdersByTable.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-zinc-200">
+                    <CheckCircle2 size={16} className="text-emerald-500" />
+                    <h2 className="text-sm font-semibold text-zinc-900">{t('order.status.confirmed')}</h2>
+                  </div>
+                  {confirmedOrdersByTable.map(([tableId, tableOrders]) => (
+                    <div key={`confirmed-${tableId}`} className="space-y-4">
+                      {/* Table Header */}
+                      <div className="flex items-center gap-3 pb-2 border-b border-zinc-100">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center">
+                          {tableId}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-zinc-900">
+                            {t('feed.table_label').replace('{number}', String(tableId))}
+                          </h3>
+                          <p className="text-xs text-zinc-500 mt-0.5">
+                            {t('feed.order_count').replace('{count}', String(tableOrders.length))}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Orders Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {tableOrders.map(order => (
+                          <div key={order.id} className="bg-white rounded-xl border border-emerald-200/60 hover:border-emerald-300 hover:shadow-sm transition-all group">
+                            {/* Time Badge */}
+                            <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                                <CheckCircle2 size={12} className="text-emerald-500" />
+                                <span className="text-emerald-600">{t('feed.minutes_ago').replace('{m}', String(Math.floor((Date.now() - order.timestamp.getTime()) / 60000)))}</span>
+                              </div>
+                            </div>
+
+                            {/* Menu Items */}
+                            <div className="px-4 pb-4 space-y-2.5">
+                              {order.items.map((item, idx) => {
+                                const menuItem = menu.find(m => m.name === item.name);
+                                
+                                const getActivePromotionForMenuItem = (menuItemId: string) => {
+                                  const now = new Date();
+                                  return promotions.find(promo => {
+                                    if (!promo.isActive || !promo.discountPercent) return false;
+                                    const startDate = new Date(promo.startDate);
+                                    const endDate = new Date(promo.endDate);
+                                    endDate.setHours(23, 59, 59, 999);
+                                    if (now < startDate || now > endDate) return false;
+                                    
+                                    const menuItemIds = promo.promotionMenuItems?.map(pmi => pmi.menuItemId) || 
+                                                        promo.menuItems?.map(mi => mi.id) || [];
+                                    return menuItemIds.includes(menuItemId);
+                                  });
+                                };
+
+                                const calculateDiscountedPrice = (originalPrice: number, discountPercent: number) => {
+                                  if (!discountPercent) return originalPrice;
+                                  return Math.floor(originalPrice * (1 - discountPercent / 100));
+                                };
+
+                                const menuItemId = item.menuItemId || menuItem?.id;
+                                const activePromotion = menuItemId ? getActivePromotionForMenuItem(menuItemId) : null;
+                                const originalUnitPrice = item.unitPrice || (item.price / item.quantity);
+                                const discountedUnitPrice = activePromotion 
+                                  ? calculateDiscountedPrice(originalUnitPrice, activePromotion.discountPercent)
+                                  : originalUnitPrice;
+                                
+                                const optionsTotal = item.options?.reduce((sum: number, opt: { name: string; quantity: number; price: number }) => 
+                                  sum + (opt.price * opt.quantity), 0) || 0;
+                                const itemTotal = (discountedUnitPrice * item.quantity) + optionsTotal;
+                                
+                                return (
+                                  <div key={idx} className="flex items-start gap-2.5">
+                                    <div className="w-10 h-10 rounded-lg bg-zinc-50 overflow-hidden shrink-0 border border-zinc-100">
+                                      {menuItem?.imageUrl ? (
+                                        <img src={menuItem.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <UtensilsCrossed size={14} className="text-zinc-300" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0 pt-0.5">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <span className="text-sm font-semibold text-zinc-900 leading-snug">{item.name}</span>
+                                        <span className="text-xs font-bold text-zinc-600 shrink-0">{formatPriceVND(itemTotal)}</span>
+                                      </div>
+                                      <div className="text-xs text-zinc-500 mt-0.5">
+                                        {activePromotion && originalUnitPrice !== discountedUnitPrice ? (
+                                          <span className="flex items-center gap-1">
+                                            <span className="line-through opacity-60">
+                                              {formatPriceVND(originalUnitPrice)}
+                                            </span>
+                                            <span>
+                                              {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                            </span>
+                                          </span>
+                                        ) : (
+                                          <span>
+                                            {formatPriceVND(discountedUnitPrice)} × {item.quantity}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {item.options && item.options.length > 0 && (
+                                        <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-zinc-200">
+                                          {item.options.map((opt: { name: string; quantity: number; price: number }, i: number) => (
+                                            <div key={i} className="flex justify-between items-center text-xs">
+                                              <span className="text-zinc-500">
+                                                + {opt.name} {opt.quantity > 1 ? `× ${opt.quantity}` : ''}
+                                              </span>
+                                              <span className="text-zinc-500">
+                                                {formatPriceVND(opt.price * opt.quantity)}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Action Button */}
+                            <div className="px-4 pb-4">
+                              <button 
+                                onClick={() => handleUpdateStatus(order.id, 'cooking')}
+                                disabled={updatingOrderId === order.id}
+                                className="w-full h-10 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <ChefHat size={16} />
+                                {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.start_cooking')}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* PENDING Orders Section */}
               {pendingOrdersByTable.length > 0 ? (
-                pendingOrdersByTable.map(([tableId, tableOrders]) => (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-zinc-200">
+                    <ChefHat size={16} className="text-orange-500" />
+                    <h2 className="text-sm font-semibold text-zinc-900">{t('feed.tab.new_orders')}</h2>
+                  </div>
+                  {pendingOrdersByTable.map(([tableId, tableOrders]) => (
                   <div key={tableId} className="space-y-4">
                     {/* Table Header - Minimal */}
                     <div className="flex items-center gap-3 pb-2 border-b border-zinc-100">
@@ -279,23 +437,47 @@ export function OrderFeed({ orders, setOrders, onOrdersReload, menu = [], promot
                             })}
                           </div>
 
-                          {/* Action Button */}
+                          {/* Action Buttons */}
                           <div className="px-4 pb-4">
-                            <button 
-                              onClick={() => handleUpdateStatus(order.id, 'cooking')}
-                              disabled={updatingOrderId === order.id}
-                              className="w-full h-10 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <ChefHat size={16} />
-                              {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.start_cooking')}
-                            </button>
+                            {order.status === 'pending' ? (
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={() => handleUpdateStatus(order.id, 'confirmed')}
+                                  disabled={updatingOrderId === order.id}
+                                  className="flex-1 h-10 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <CheckCircle2 size={16} />
+                                  {updatingOrderId === order.id ? t('order.status.confirming') : t('order.action.confirm')}
+                                </button>
+                                <button 
+                                  onClick={() => handleRejectOrder(order.id)}
+                                  disabled={updatingOrderId === order.id}
+                                  className="flex-1 h-10 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {updatingOrderId === order.id ? t('order.status.rejecting') : t('order.action.reject')}
+                                </button>
+                              </div>
+                            ) : order.status === 'confirmed' ? (
+                              <button 
+                                onClick={() => handleUpdateStatus(order.id, 'cooking')}
+                                disabled={updatingOrderId === order.id}
+                                className="w-full h-10 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <ChefHat size={16} />
+                                {updatingOrderId === order.id ? t('order.status.updating') : t('order.action.start_cooking')}
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
-                ))
-              ) : (
+                  ))}
+                </div>
+              ) : null}
+
+              {/* PENDING Orders Section - Empty State */}
+              {pendingOrdersByTable.length === 0 && confirmedOrdersByTable.length === 0 && (
                 <div className="col-span-full">
                   <EmptyState message={t('feed.empty_new')} />
                 </div>
